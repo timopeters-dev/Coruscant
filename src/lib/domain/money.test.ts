@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   assertNonNegativeInteger,
   assertSafeInteger,
+  bpsToPercentInputString,
+  centsToEuroInputString,
   formatBpsDE,
   formatCentsDE,
   parseEuroInputToCents,
+  parsePercentInputToBps,
   roundHalfUpBigInt,
 } from "./money";
 
@@ -129,5 +132,51 @@ describe("roundHalfUpBigInt", () => {
     expect(() => roundHalfUpBigInt(-1n, 2n)).toThrow(RangeError);
     expect(() => roundHalfUpBigInt(1n, 0n)).toThrow(RangeError);
     expect(() => roundHalfUpBigInt(1n, -2n)).toThrow(RangeError);
+  });
+});
+
+describe("parsePercentInputToBps", () => {
+  it("parses valid German and dot-decimal percentages into basis points", () => {
+    expect(parsePercentInputToBps("3,5")).toBe(350);
+    expect(parsePercentInputToBps("3.50")).toBe(350);
+    expect(parsePercentInputToBps("3,50 %")).toBe(350);
+    expect(parsePercentInputToBps("0")).toBe(0);
+    expect(parsePercentInputToBps("0,00%")).toBe(0);
+    expect(parsePercentInputToBps("12")).toBe(1200);
+    expect(parsePercentInputToBps("12,05")).toBe(1205);
+  });
+
+  it("rejects negative values, >2 decimals, empty strings, and malformed input", () => {
+    expect(parsePercentInputToBps("-1")).toBeNull();
+    expect(parsePercentInputToBps("-0,50")).toBeNull();
+    expect(parsePercentInputToBps("3,555")).toBeNull();
+    expect(parsePercentInputToBps("")).toBeNull();
+    expect(parsePercentInputToBps("   ")).toBeNull();
+    expect(parsePercentInputToBps("%")).toBeNull();
+    expect(parsePercentInputToBps("abc")).toBeNull();
+    expect(parsePercentInputToBps("3,,5")).toBeNull();
+    expect(parsePercentInputToBps("3.5,0")).toBeNull();
+  });
+});
+
+describe("input string round-trips", () => {
+  it("round-trips centsToEuroInputString with parseEuroInputToCents", () => {
+    const samples = [0, 1, 50, 35050, 48000000, -12345];
+    for (const value of samples) {
+      const str = centsToEuroInputString(value);
+      expect(parseEuroInputToCents(str)).toBe(value);
+    }
+    expect(centsToEuroInputString(48000000)).toBe("480000,00");
+    expect(centsToEuroInputString(35050)).toBe("350,50");
+  });
+
+  it("round-trips bpsToPercentInputString with parsePercentInputToBps", () => {
+    const samples = [0, 5, 350, 1205, 10000];
+    for (const value of samples) {
+      const str = bpsToPercentInputString(value);
+      expect(parsePercentInputToBps(str)).toBe(value);
+    }
+    expect(bpsToPercentInputString(350)).toBe("3,50");
+    expect(() => bpsToPercentInputString(-1)).toThrow(RangeError);
   });
 });

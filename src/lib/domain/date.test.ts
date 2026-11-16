@@ -3,6 +3,7 @@ import {
   countCompletedMonths,
   daysInMonth,
   diffCalendarDays,
+  getTodayIsoDate,
   parseIsoDate,
 } from "./date";
 
@@ -57,5 +58,16 @@ describe("diffCalendarDays", () => {
     expect(diffCalendarDays("2026-01-01", "2026-01-31")).toBe(30);
     expect(diffCalendarDays("2026-01-31", "2026-01-01")).toBe(-30);
     expect(diffCalendarDays("2024-02-28", "2024-03-01")).toBe(2);
+  });
+});
+
+describe("getTodayIsoDate", () => {
+  it("formats YYYY-MM-DD in the requested time zone", () => {
+    const instant = new Date("2026-06-15T23:30:00Z");
+    expect(getTodayIsoDate(instant, "Europe/Berlin")).toBe("2026-06-16");
+    expect(getTodayIsoDate(instant, "UTC")).toBe("2026-06-15");
+    expect(getTodayIsoDate(new Date("2026-01-01T00:05:00Z"), "Europe/Berlin")).toBe(
+      "2026-01-01",
+    );
   });
 });

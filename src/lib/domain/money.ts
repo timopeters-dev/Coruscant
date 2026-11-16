@@ -189,3 +189,97 @@ export function parseEuroInputToCents(input: string): number | null {
 
   return total === 0 ? 0 : total;
 }
+
+/**
+ * Parses a non-negative percentage string (e.g. "3,5", "3.50 %", "0", "12")
+ * into integer basis points using pure string parsing (no float multiplication).
+ * Returns null for negative values, invalid inputs, or >2 decimal places.
+ */
+export function parsePercentInputToBps(input: string): number | null {
+  let trimmed = input.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  if (trimmed.endsWith("%")) {
+    trimmed = trimmed.slice(0, -1).trim();
+  }
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  if (trimmed.startsWith("-")) {
+    return null;
+  }
+  if (trimmed.startsWith("+")) {
+    trimmed = trimmed.slice(1).trim();
+  }
+
+  if (trimmed.length === 0 || !/^[0-9.,]+$/.test(trimmed)) {
+    return null;
+  }
+
+  const commaCount = (trimmed.match(/,/g) ?? []).length;
+  const dotCount = (trimmed.match(/\./g) ?? []).length;
+
+  if (commaCount + dotCount > 1) {
+    return null;
+  }
+
+  const separator = commaCount === 1 ? "," : dotCount === 1 ? "." : null;
+  let wholeStr = trimmed;
+  let fracStr = "";
+
+  if (separator !== null) {
+    const parts = trimmed.split(separator);
+    wholeStr = parts[0] ?? "";
+    fracStr = parts[1] ?? "";
+  }
+
+  if (!/^\d+$/.test(wholeStr)) {
+    return null;
+  }
+  if (fracStr.length > 0 && !/^\d+$/.test(fracStr)) {
+    return null;
+  }
+  if (fracStr.length > 2) {
+    return null;
+  }
+
+  const whole = Number(wholeStr);
+  const frac = Number(fracStr.padEnd(2, "0"));
+  if (!Number.isSafeInteger(whole) || !Number.isSafeInteger(frac)) {
+    return null;
+  }
+
+  const bps = whole * 100 + frac;
+  if (!Number.isSafeInteger(bps)) {
+    return null;
+  }
+
+  return bps === 0 ? 0 : bps;
+}
+
+/**
+ * Converts integer cents into an editable German decimal string without currency suffix
+ * (e.g. 48000000 -> "480000,00"), round-trip compatible with parseEuroInputToCents.
+ */
+export function centsToEuroInputString(amountCents: number): string {
+  const normalized = assertSafeInteger(amountCents, "amountCents");
+  const abs = Math.abs(normalized);
+  const euros = Math.trunc(abs / 100);
+  const cents = String(abs % 100).padStart(2, "0");
+  const sign = normalized < 0 ? "-" : "";
+  return `${sign}${euros},${cents}`;
+}
+
+/**
+ * Converts integer basis points into an editable German percentage string without "%" suffix
+ * (e.g. 350 -> "3,50"), round-trip compatible with parsePercentInputToBps.
+ */
+export function bpsToPercentInputString(rateBps: number): string {
+  const normalized = assertNonNegativeInteger(rateBps, "rateBps");
+  const whole = Math.trunc(normalized / 100);
+  const frac = String(normalized % 100).padStart(2, "0");
+  return `${whole},${frac}`;
+}

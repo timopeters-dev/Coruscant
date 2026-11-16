@@ -112,3 +112,20 @@ export function diffCalendarDays(
   const toUtc = Date.UTC(to.year, to.month - 1, to.day);
   return Math.trunc((toUtc - fromUtc) / MS_PER_DAY);
 }
+
+/**
+ * Returns the calendar date (YYYY-MM-DD) for the given instant in the target time zone.
+ */
+export function getTodayIsoDate(
+  now: Date = new Date(),
+  timeZone = "Europe/Berlin",
+): string {
+  const formatted = new Intl.DateTimeFormat("sv-SE", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+  parseIsoDate(formatted, "todayIsoDate");
+  return formatted;
+}
