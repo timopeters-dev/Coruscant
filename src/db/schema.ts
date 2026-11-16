@@ -236,6 +236,7 @@ export const documents = sqliteTable(
     }),
     deductibleAmountCents: integer("deductible_amount_cents"),
     detectedBalanceCents: integer("detected_balance_cents"),
+    extractedContractJson: text("extracted_contract_json"),
     createdAt: text("created_at").notNull(),
   },
   (table) => [

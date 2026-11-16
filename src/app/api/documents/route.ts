@@ -165,6 +165,9 @@ export async function POST(request: Request) {
         taxCategory: extractedData?.taxCategory ?? null,
         deductibleAmountCents: extractedData?.deductibleAmountCents ?? null,
         detectedBalanceCents: extractedData?.detectedBalanceCents ?? null,
+        extractedContractJson: extractedData?.extractedContract
+          ? JSON.stringify(extractedData.extractedContract)
+          : null,
       });
 
       return NextResponse.json(

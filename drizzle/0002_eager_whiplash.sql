@@ -1,0 +1,1 @@
+ALTER TABLE `documents` ADD `extracted_contract_json` text;

@@ -3,9 +3,16 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as dbModule from "@/db";
-import { createContract, getContractById } from "@/db/queries/contracts";
+import {
+  createContract,
+  createProperty,
+  getContractById,
+  listContracts,
+} from "@/db/queries/contracts";
+import { getDocumentById } from "@/db/queries/documents";
 import * as extractorModule from "@/lib/integrations/gemini-document-extractor";
 import { POST as analyzeDocument } from "./[id]/analyze/route";
+import { POST as createContractFromDocumentRoute } from "./[id]/create-contract/route";
 import { GET as downloadDocumentFile } from "./[id]/file/route";
 import {
   DELETE as deleteDocument,
@@ -509,5 +516,364 @@ describe("/api/documents integration", () => {
     expect(disposition).toContain(
       `filename*=UTF-8''${encodeURIComponent(unicodeFilename)}`,
     );
+  });
+
+  it("persists extractedContractJson on upload and updates it on analyze", async () => {
+    const extractSpy = vi
+      .spyOn(extractorModule, "createDefaultDocumentExtractor")
+      .mockReturnValue({
+        extract: async () => ({
+          ok: true,
+          model: "gemini-2.5-flash",
+          data: {
+            documentType: "contract",
+            documentDate: "2026-02-01",
+            issuer: "Musterbank AG",
+            totalAmountCents: null,
+            isTaxRelevant: false,
+            taxYear: null,
+            taxCategory: null,
+            deductibleAmountCents: null,
+            detectedBalanceCents: 29_500_000,
+            extractedContract: {
+              name: "Hauskredit Musterstraße 1",
+              provider: "Musterbank AG",
+              category: "loan",
+              currentBalanceCents: 29_500_000,
+              balanceAsOfDate: "2026-02-01",
+              monthlyRateCents: 140_000,
+              interestRateBps: 345,
+            },
+          },
+        }),
+      });
+
+    const uploadRes = await uploadDocument(
+      makePdfRequest(SAMPLE_PDF_BYTES, "Kreditvertrag_Musterbank.pdf"),
+    );
+    expect(uploadRes.status).toBe(201);
+    const uploadBody = (await uploadRes.json()) as {
+      document: { id: string; extractedContractJson: string | null };
+    };
+    expect(uploadBody.document.extractedContractJson).toBeTruthy();
+    expect(JSON.parse(uploadBody.document.extractedContractJson!)).toMatchObject(
+      {
+        name: "Hauskredit Musterstraße 1",
+        interestRateBps: 345,
+      },
+    );
+
+    extractSpy.mockReturnValue({
+      extract: async () => ({
+        ok: true,
+        model: "gemini-2.5-flash",
+        data: {
+          documentType: "contract",
+          documentDate: "2026-02-15",
+          issuer: "Musterbank AG",
+          totalAmountCents: null,
+          isTaxRelevant: false,
+          taxYear: null,
+          taxCategory: null,
+          deductibleAmountCents: null,
+          detectedBalanceCents: 29_400_000,
+          extractedContract: {
+            name: "Hauskredit Musterstraße 1 (Aktualisiert)",
+            interestRateBps: 355,
+          },
+        },
+      }),
+    });
+
+    const analyzeRes = await analyzeDocument(
+      new Request(
+        `http://localhost/api/documents/${uploadBody.document.id}/analyze`,
+        { method: "POST" },
+      ),
+      { params: Promise.resolve({ id: uploadBody.document.id }) },
+    );
+    expect(analyzeRes.status).toBe(200);
+    const analyzeBody = (await analyzeRes.json()) as {
+      document: { extractedContractJson: string | null };
+    };
+    expect(
+      JSON.parse(analyzeBody.document.extractedContractJson!),
+    ).toMatchObject({
+      name: "Hauskredit Musterstraße 1 (Aktualisiert)",
+      interestRateBps: 355,
+    });
+  });
+
+  it("creates loan contract + verifies document atomically and supports 1:N follow-up verify", async () => {
+    vi.spyOn(
+      extractorModule,
+      "createDefaultDocumentExtractor",
+    ).mockReturnValue({
+      extract: async () => ({
+        ok: false,
+        code: "not_configured",
+        message: "Kein Key",
+      }),
+    });
+
+    const property = createProperty({
+      name: "Immobilie #0 (Musterstraße 1)",
+      usage: "owner_occupied",
+      purchaseDate: "2024-01-01",
+      purchasePriceCents: 45_000_000,
+      estimatedValueCents: 48_000_000,
+    });
+
+    const firstUpload = await uploadDocument(
+      makePdfRequest(
+        Buffer.from("%PDF-1.4\n%contract-1\n%%EOF"),
+        "Darlehensvertrag_Musterbank.pdf",
+      ),
+    );
+    expect(firstUpload.status).toBe(201);
+    const { document: doc1 } = (await firstUpload.json()) as {
+      document: { id: string };
+    };
+
+    const createRes = await createContractFromDocumentRoute(
+      new Request(`http://localhost/api/documents/${doc1.id}/create-contract`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contract: {
+            name: "Hauskredit Musterstraße 1",
+            provider: "Musterbank AG",
+            sphere: "household",
+            category: "loan",
+            status: "active",
+            currentBalanceCents: 29_500_000,
+            balanceAsOfDate: "2026-02-01",
+            monthlyRateCents: 140_000,
+            interestRateBps: 345,
+            linkedPropertyId: property.id,
+            repaymentType: "annuity",
+            fixedInterestUntil: "2036-02-01",
+          },
+          document: {
+            documentType: "contract",
+            documentDate: "2026-02-01",
+            issuer: "Musterbank AG",
+            linkedPropertyId: property.id,
+            isTaxRelevant: false,
+          },
+        }),
+      }),
+      { params: Promise.resolve({ id: doc1.id }) },
+    );
+
+    expect(createRes.status).toBe(201);
+    const createdBody = (await createRes.json()) as {
+      contract: {
+        id: string;
+        linkedPropertyId: string | null;
+        interestRateBps: number;
+        currentBalanceCents: number;
+      };
+      document: {
+        id: string;
+        status: string;
+        linkedContractId: string | null;
+        linkedPropertyId: string | null;
+      };
+    };
+
+    expect(createdBody.contract.linkedPropertyId).toBe(property.id);
+    expect(createdBody.contract.interestRateBps).toBe(345);
+    expect(createdBody.contract.currentBalanceCents).toBe(29_500_000);
+    expect(createdBody.document.status).toBe("verified");
+    expect(createdBody.document.linkedContractId).toBe(createdBody.contract.id);
+    expect(createdBody.document.linkedPropertyId).toBe(property.id);
+
+    // 1:N follow-up PDF can still be verified against the newly created contract
+    const secondUpload = await uploadDocument(
+      makePdfRequest(
+        Buffer.from("%PDF-1.4\n%statement-2\n%%EOF"),
+        "Jahreskontoauszug_Musterbank.pdf",
+      ),
+    );
+    expect(secondUpload.status).toBe(201);
+    const { document: doc2 } = (await secondUpload.json()) as {
+      document: { id: string };
+    };
+
+    const verifySecond = await verifyDocument(
+      new Request(`http://localhost/api/documents/${doc2.id}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          documentType: "loan_statement",
+          documentDate: "2026-12-31",
+          issuer: "Musterbank AG",
+          linkedPropertyId: property.id,
+          linkedContractId: createdBody.contract.id,
+          isTaxRelevant: false,
+          calibrateContract: false,
+        }),
+      }),
+      { params: Promise.resolve({ id: doc2.id }) },
+    );
+    expect(verifySecond.status).toBe(200);
+
+    // Duplicate create-contract on already linked doc1 -> 409
+    const duplicateLinkRes = await createContractFromDocumentRoute(
+      new Request(`http://localhost/api/documents/${doc1.id}/create-contract`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contract: {
+            name: "Doppelter Vertrag",
+            category: "loan",
+            currentBalanceCents: 100_000,
+            balanceAsOfDate: "2026-02-01",
+          },
+        }),
+      }),
+      { params: Promise.resolve({ id: doc1.id }) },
+    );
+    expect(duplicateLinkRes.status).toBe(409);
+  });
+
+  it("creates savings_contract with document tax tagging and rolls back atomically on invalid linkedPropertyId", async () => {
+    vi.spyOn(
+      extractorModule,
+      "createDefaultDocumentExtractor",
+    ).mockReturnValue({
+      extract: async () => ({
+        ok: false,
+        code: "not_configured",
+        message: "Kein Key",
+      }),
+    });
+
+    const upload1 = await uploadDocument(
+      makePdfRequest(
+        Buffer.from("%PDF-1.4\n%bauspar-1\n%%EOF"),
+        "Bausparvertrag_Musterkasse.pdf",
+      ),
+    );
+    const { document: doc1 } = (await upload1.json()) as {
+      document: { id: string };
+    };
+
+    const savingsRes = await createContractFromDocumentRoute(
+      new Request(`http://localhost/api/documents/${doc1.id}/create-contract`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contract: {
+            name: "Bausparvertrag Tarif Klassik",
+            provider: "Muster-Bausparkasse",
+            category: "savings_contract",
+            currentBalanceCents: 1_250_000,
+            balanceAsOfDate: "2026-03-01",
+            monthlyRateCents: 25_000,
+            interestRateBps: 50,
+            targetSumCents: 5_000_000,
+            allocationThresholdPercent: 40,
+            futureLoanInterestRateBps: 250,
+          },
+          document: {
+            documentType: "bauspar_statement",
+            documentDate: "2026-03-01",
+            issuer: "Muster-Bausparkasse",
+            totalAmountCents: 10_000,
+            isTaxRelevant: true,
+            taxCategory: "capital_gains",
+            deductibleAmountCents: 5_000,
+          },
+        }),
+      }),
+      { params: Promise.resolve({ id: doc1.id }) },
+    );
+    expect(savingsRes.status).toBe(201);
+    const savingsBody = (await savingsRes.json()) as {
+      contract: { category: string; allocationThresholdPercent: number | null };
+      document: {
+        isTaxRelevant: boolean;
+        taxYear: number | null;
+        taxCategory: string | null;
+        deductibleAmountCents: number | null;
+      };
+    };
+    expect(savingsBody.contract.category).toBe("savings_contract");
+    expect(savingsBody.contract.allocationThresholdPercent).toBe(40);
+    expect(savingsBody.document.isTaxRelevant).toBe(true);
+    expect(savingsBody.document.taxYear).toBe(2026);
+    expect(savingsBody.document.taxCategory).toBe("capital_gains");
+    expect(savingsBody.document.deductibleAmountCents).toBe(5_000);
+
+    // Atomic rollback test
+    const upload2 = await uploadDocument(
+      makePdfRequest(
+        Buffer.from("%PDF-1.4\n%rollback-2\n%%EOF"),
+        "Rollback_Test.pdf",
+      ),
+    );
+    const { document: doc2 } = (await upload2.json()) as {
+      document: { id: string };
+    };
+    const contractsBefore = listContracts().length;
+
+    const rollbackRes = await createContractFromDocumentRoute(
+      new Request(`http://localhost/api/documents/${doc2.id}/create-contract`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contract: {
+            name: "Ungültige Immobilie",
+            category: "loan",
+            currentBalanceCents: 500_000,
+            balanceAsOfDate: "2026-03-01",
+            linkedPropertyId: "non-existent-property-id",
+          },
+        }),
+      }),
+      { params: Promise.resolve({ id: doc2.id }) },
+    );
+    expect(rollbackRes.status).toBe(400);
+    expect(listContracts().length).toBe(contractsBefore);
+    expect(getDocumentById(doc2.id)?.status).toBe("pending_review");
+    expect(getDocumentById(doc2.id)?.linkedContractId).toBeNull();
+
+    // Negative cases: 404 unknown doc, 400 invalid cent/bps values
+    const notFoundRes = await createContractFromDocumentRoute(
+      new Request("http://localhost/api/documents/missing-id/create-contract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contract: {
+            name: "Test",
+            category: "loan",
+            currentBalanceCents: 100_000,
+            balanceAsOfDate: "2026-03-01",
+          },
+        }),
+      }),
+      { params: Promise.resolve({ id: "missing-id" }) },
+    );
+    expect(notFoundRes.status).toBe(404);
+
+    const invalidUnitsRes = await createContractFromDocumentRoute(
+      new Request(`http://localhost/api/documents/${doc2.id}/create-contract`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contract: {
+            name: "Float Test",
+            category: "loan",
+            currentBalanceCents: 123.45,
+            balanceAsOfDate: "2026-03-01",
+            interestRateBps: 3.45,
+          },
+        }),
+      }),
+      { params: Promise.resolve({ id: doc2.id }) },
+    );
+    expect(invalidUnitsRes.status).toBe(400);
   });
 });

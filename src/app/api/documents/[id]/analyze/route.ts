@@ -79,6 +79,9 @@ export async function POST(
       taxCategory: extraction.data.taxCategory,
       deductibleAmountCents: extraction.data.deductibleAmountCents,
       detectedBalanceCents: extraction.data.detectedBalanceCents,
+      extractedContractJson: extraction.data.extractedContract
+        ? JSON.stringify(extraction.data.extractedContract)
+        : null,
     });
 
     return NextResponse.json(

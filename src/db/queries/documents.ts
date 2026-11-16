@@ -12,6 +12,7 @@ import {
   type TaxCategory,
 } from "@/lib/domain/documents";
 import type {
+  DocumentCreateContractInput,
   DocumentUpdateInput,
   DocumentVerifyInput,
 } from "@/lib/validation/documents";
@@ -84,6 +85,20 @@ export class DocumentAlreadyVerifiedError extends Error {
     );
     this.name = "DocumentAlreadyVerifiedError";
     this.documentId = documentId;
+  }
+}
+
+export class DocumentAlreadyLinkedError extends Error {
+  readonly documentId: string;
+  readonly linkedContractId: string;
+
+  constructor(documentId: string, linkedContractId: string) {
+    super(
+      `Dokument ist bereits mit einem Vertrag verknüpft (${linkedContractId}).`,
+    );
+    this.name = "DocumentAlreadyLinkedError";
+    this.documentId = documentId;
+    this.linkedContractId = linkedContractId;
   }
 }
 
@@ -205,6 +220,7 @@ export interface CreateDocumentInput {
   taxCategory?: TaxCategory | null;
   deductibleAmountCents?: number | null;
   detectedBalanceCents?: number | null;
+  extractedContractJson?: string | null;
 }
 
 export function createDocumentRecord(input: CreateDocumentInput): DocumentRow {
@@ -241,6 +257,7 @@ export function createDocumentRecord(input: CreateDocumentInput): DocumentRow {
         taxCategory: input.taxCategory ?? null,
         deductibleAmountCents: input.deductibleAmountCents ?? null,
         detectedBalanceCents: input.detectedBalanceCents ?? null,
+        extractedContractJson: input.extractedContractJson ?? null,
         createdAt: now,
       })
       .returning()
@@ -517,6 +534,7 @@ export function applyAiExtractionIfPending(
     taxCategory: TaxCategory | null;
     deductibleAmountCents: number | null;
     detectedBalanceCents: number | null;
+    extractedContractJson?: string | null;
   },
 ): DocumentRow {
   const db = getDb();
@@ -548,6 +566,7 @@ export function applyAiExtractionIfPending(
         taxCategory: extraction.taxCategory,
         deductibleAmountCents: extraction.deductibleAmountCents,
         detectedBalanceCents: extraction.detectedBalanceCents,
+        extractedContractJson: extraction.extractedContractJson ?? null,
       })
       .where(and(eq(documents.id, id), eq(documents.status, "pending_review")))
       .returning()
@@ -557,6 +576,155 @@ export function applyAiExtractionIfPending(
       throw new DocumentAlreadyVerifiedError(id);
     }
     return updated;
+  });
+}
+
+export interface CreateContractFromDocumentResult {
+  contract: FinancialContractRow;
+  document: DocumentRow;
+}
+
+export function createContractFromDocument(
+  documentId: string,
+  input: DocumentCreateContractInput,
+): CreateContractFromDocumentResult {
+  const db = getDb();
+
+  return db.transaction((tx) => {
+    const existing = tx
+      .select()
+      .from(documents)
+      .where(eq(documents.id, documentId))
+      .get();
+
+    if (!existing) {
+      throw new DocumentNotFoundError(documentId);
+    }
+
+    if (existing.linkedContractId !== null) {
+      throw new DocumentAlreadyLinkedError(
+        documentId,
+        existing.linkedContractId,
+      );
+    }
+
+    const effectiveDocPropertyId =
+      input.document?.linkedPropertyId !== undefined
+        ? input.document.linkedPropertyId
+        : input.contract.linkedPropertyId;
+
+    const propertyIdsToCheck = new Set<string>();
+    if (input.contract.linkedPropertyId) {
+      propertyIdsToCheck.add(input.contract.linkedPropertyId);
+    }
+    if (effectiveDocPropertyId) {
+      propertyIdsToCheck.add(effectiveDocPropertyId);
+    }
+
+    for (const propertyId of propertyIdsToCheck) {
+      const property = tx
+        .select({ id: properties.id })
+        .from(properties)
+        .where(eq(properties.id, propertyId))
+        .get();
+      if (!property) {
+        throw new DocumentLinkedEntityNotFoundError(
+          "linkedPropertyId",
+          propertyId,
+        );
+      }
+    }
+
+    const docPatch = input.document;
+    const nextDocumentDate =
+      docPatch?.documentDate !== undefined
+        ? docPatch.documentDate
+        : existing.documentDate;
+    const nextTotalAmountCents =
+      docPatch?.totalAmountCents !== undefined
+        ? docPatch.totalAmountCents
+        : existing.totalAmountCents;
+    const nextIsTaxRelevant =
+      docPatch?.isTaxRelevant !== undefined
+        ? docPatch.isTaxRelevant
+        : existing.isTaxRelevant;
+
+    let nextTaxYear =
+      docPatch?.taxYear !== undefined ? docPatch.taxYear : existing.taxYear;
+    if (nextIsTaxRelevant && nextTaxYear == null && nextDocumentDate != null) {
+      nextTaxYear = Number(nextDocumentDate.slice(0, 4));
+    }
+
+    const nextTaxCategory = nextIsTaxRelevant
+      ? docPatch?.taxCategory !== undefined
+        ? docPatch.taxCategory
+        : existing.taxCategory
+      : null;
+    const nextDeductibleAmountCents = nextIsTaxRelevant
+      ? docPatch?.deductibleAmountCents !== undefined
+        ? docPatch.deductibleAmountCents
+        : existing.deductibleAmountCents
+      : null;
+
+    if (
+      nextTotalAmountCents != null &&
+      nextDeductibleAmountCents != null &&
+      nextDeductibleAmountCents > nextTotalAmountCents
+    ) {
+      throw new DocumentValidationError(
+        "deductibleAmountCents",
+        "Der absetzbare Betrag darf den Gesamtbetrag nicht übersteigen.",
+      );
+    }
+
+    const now = new Date().toISOString();
+    const [createdContract] = tx
+      .insert(financialContracts)
+      .values({
+        id: crypto.randomUUID(),
+        ...input.contract,
+        updatedAt: now,
+      })
+      .returning()
+      .all();
+
+    if (!createdContract) {
+      throw new Error("Vertrag konnte nicht angelegt werden.");
+    }
+
+    const [updatedDoc] = tx
+      .update(documents)
+      .set({
+        filename: docPatch?.filename ?? existing.filename,
+        status: "verified",
+        documentType: docPatch?.documentType ?? existing.documentType,
+        documentDate: nextDocumentDate,
+        issuer:
+          docPatch?.issuer !== undefined ? docPatch.issuer : existing.issuer,
+        totalAmountCents: nextTotalAmountCents,
+        linkedPropertyId: effectiveDocPropertyId,
+        linkedContractId: createdContract.id,
+        isTaxRelevant: nextIsTaxRelevant,
+        taxYear: nextTaxYear,
+        taxCategory: nextTaxCategory,
+        deductibleAmountCents: nextDeductibleAmountCents,
+        detectedBalanceCents:
+          docPatch?.detectedBalanceCents !== undefined
+            ? docPatch.detectedBalanceCents
+            : existing.detectedBalanceCents,
+      })
+      .where(eq(documents.id, documentId))
+      .returning()
+      .all();
+
+    if (!updatedDoc) {
+      throw new DocumentNotFoundError(documentId);
+    }
+
+    return {
+      contract: createdContract,
+      document: updatedDoc,
+    };
   });
 }
 

@@ -16,8 +16,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import {
+  applyPrefillToContractFormValues,
+  ContractFormFields,
+  ContractPrefillReviewNotice,
+  createInitialContractFormValues,
+  mapApiFieldErrorsToContractErrors,
+  type ContractFieldErrors,
+  type ContractFormValues,
+  validateAndBuildContractPayload,
+} from "@/components/vertraege/contract-form-fields";
 import type { FinancialContractRow, PropertyRow } from "@/db/queries/contracts";
 import type { DocumentRow } from "@/db/queries/documents";
+import { buildContractPrefillFromExtraction } from "@/lib/domain/contract-prefill";
 import {
   type ContractCalibrationEvaluation,
   type DocumentType,
@@ -30,6 +41,7 @@ import {
   formatCentsDE,
   parseEuroInputToCents,
 } from "@/lib/domain/money";
+import { parseExtractedContractJson } from "@/lib/validation/documents";
 import {
   DOCUMENT_TYPE_LABELS,
   DOCUMENT_TYPE_OPTIONS,
@@ -202,6 +214,43 @@ function DocumentReviewSplitView({
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
   const [aiNotice, setAiNotice] = React.useState<string | null>(null);
 
+  const [contractMode, setContractMode] = React.useState<"existing" | "new">(
+    "existing",
+  );
+
+  function computeContractPrefillState(targetDoc: DocumentRow) {
+    const prefill = buildContractPrefillFromExtraction({
+      documentDate: targetDoc.documentDate,
+      issuer: targetDoc.issuer,
+      detectedBalanceCents: targetDoc.detectedBalanceCents,
+      extractedContract: parseExtractedContractJson(
+        targetDoc.extractedContractJson,
+      ),
+      todayIsoDate,
+    });
+    const base = createInitialContractFormValues(null, todayIsoDate);
+    return {
+      values: applyPrefillToContractFormValues(
+        { ...base, linkedPropertyId: targetDoc.linkedPropertyId ?? "" },
+        prefill,
+      ),
+      reviewHints: prefill.reviewHints,
+    };
+  }
+
+  const initialPrefill = React.useMemo(
+    () => computeContractPrefillState(doc),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [doc.id],
+  );
+  const [newContractValues, setNewContractValues] =
+    React.useState<ContractFormValues>(initialPrefill.values);
+  const [newContractErrors, setNewContractErrors] =
+    React.useState<ContractFieldErrors>({});
+  const [contractReviewHints, setContractReviewHints] = React.useState<
+    string[]
+  >(initialPrefill.reviewHints);
+
   const selectedContract = React.useMemo(
     () => contracts.find((c) => c.id === linkedContractId) ?? null,
     [contracts, linkedContractId],
@@ -281,6 +330,10 @@ function DocumentReviewSplitView({
     }
     setAllowOlderCalibrationDate(false);
     setCalibrateContract(false);
+    const nextPrefill = computeContractPrefillState(updatedDoc);
+    setNewContractValues(nextPrefill.values);
+    setContractReviewHints(nextPrefill.reviewHints);
+    setNewContractErrors({});
   }
 
   async function handleReanalyze() {
@@ -322,6 +375,7 @@ function DocumentReviewSplitView({
   async function handleVerify(e: React.FormEvent) {
     e.preventDefault();
     setErrorMessage(null);
+    setNewContractErrors({});
 
     const parsedTotal = totalAmountInput.trim()
       ? parseEuroInputToCents(totalAmountInput)
@@ -367,6 +421,64 @@ function DocumentReviewSplitView({
         (parsedTaxYear as number) > 2100)
     ) {
       setErrorMessage("Bitte ein gültiges Steuerjahr (JJJJ) eingeben.");
+      return;
+    }
+
+    if (contractMode === "new") {
+      const validatedContract = validateAndBuildContractPayload({
+        ...newContractValues,
+        linkedPropertyId,
+      });
+      if (!validatedContract.ok) {
+        setNewContractErrors(validatedContract.errors);
+        setErrorMessage(
+          "Bitte die markierten Pflicht- und Konditionsfelder des neuen Vertrags prüfen.",
+        );
+        return;
+      }
+
+      setIsSubmitting(true);
+      try {
+        const response = await fetch(`/api/documents/${doc.id}/create-contract`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contract: validatedContract.payload,
+            document: {
+              documentType,
+              documentDate: documentDate.trim() || null,
+              issuer: issuer.trim() || null,
+              totalAmountCents: parsedTotal,
+              linkedPropertyId: linkedPropertyId || null,
+              isTaxRelevant,
+              taxYear: parsedTaxYear,
+              taxCategory: isTaxRelevant ? taxCategory : null,
+              deductibleAmountCents: parsedDeductible,
+              detectedBalanceCents: doc.detectedBalanceCents,
+            },
+          }),
+        });
+
+        const body = (await response.json()) as {
+          error?: string;
+          fieldErrors?: Record<string, string>;
+        };
+        if (!response.ok) {
+          setNewContractErrors(
+            mapApiFieldErrorsToContractErrors(body.error, body.fieldErrors),
+          );
+          setErrorMessage(
+            body.error ?? "Vertrag anlegen & Freigabe fehlgeschlagen.",
+          );
+          setIsSubmitting(false);
+          return;
+        }
+
+        onMutated();
+      } catch {
+        setErrorMessage("Netzwerkfehler beim Anlegen des Vertrags.");
+        setIsSubmitting(false);
+      }
       return;
     }
 
@@ -589,13 +701,20 @@ function DocumentReviewSplitView({
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
               <div className="space-y-1.5">
                 <Label htmlFor="doc-property">Immobilie (optional)</Label>
                 <Select
                   id="doc-property"
                   value={linkedPropertyId}
-                  onChange={(e) => setLinkedPropertyId(e.target.value)}
+                  onChange={(e) => {
+                    const nextProp = e.target.value;
+                    setLinkedPropertyId(nextProp);
+                    setNewContractValues((prev) => ({
+                      ...prev,
+                      linkedPropertyId: nextProp,
+                    }));
+                  }}
                 >
                   <option value="">Keine Immobilie</option>
                   {properties.map((prop) => (
@@ -605,7 +724,46 @@ function DocumentReviewSplitView({
                   ))}
                 </Select>
               </div>
+            </div>
 
+            {/* Mode Switcher: Existing vs. New Contract */}
+            <div className="space-y-2 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]/40 p-2">
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setContractMode("existing");
+                    setErrorMessage(null);
+                    setNewContractErrors({});
+                  }}
+                  disabled={isSubmitting || isAnalyzing}
+                  className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                    contractMode === "existing"
+                      ? "bg-[var(--surface)] text-[var(--text-primary)] shadow-xs ring-1 ring-[var(--border)]"
+                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  }`}
+                >
+                  Bestehendem Vertrag zuordnen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setContractMode("new");
+                    setErrorMessage(null);
+                  }}
+                  disabled={isSubmitting || isAnalyzing}
+                  className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                    contractMode === "new"
+                      ? "bg-[var(--surface)] text-[var(--text-primary)] shadow-xs ring-1 ring-[var(--border)]"
+                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  }`}
+                >
+                  Als neuen Vertrag anlegen
+                </button>
+              </div>
+            </div>
+
+            {contractMode === "existing" ? (
               <div className="space-y-1.5">
                 <Label htmlFor="doc-contract">Vertrag (optional)</Label>
                 <Select
@@ -628,7 +786,7 @@ function DocumentReviewSplitView({
                   ))}
                 </Select>
               </div>
-            </div>
+            ) : null}
 
             {/* Tax Tagging Section */}
             <div className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]/40 p-3.5">
@@ -690,8 +848,8 @@ function DocumentReviewSplitView({
               ) : null}
             </div>
 
-            {/* Contract Calibration Section */}
-            {selectedContract ? (
+            {/* Contract Calibration Section (existing mode) */}
+            {contractMode === "existing" && selectedContract ? (
               <div className="space-y-3 rounded-xl border border-[var(--amber)]/35 bg-[var(--amber)]/5 p-3.5">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
@@ -857,6 +1015,34 @@ function DocumentReviewSplitView({
               </div>
             ) : null}
 
+            {/* New Contract Creation Section (new mode) */}
+            {contractMode === "new" ? (
+              <div className="space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]/30 p-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
+                    Neuer Vertrag (Vorausgefüllt)
+                  </span>
+                  <StatusBadge variant="ai_suggestion" />
+                </div>
+
+                <ContractPrefillReviewNotice hints={contractReviewHints} />
+
+                <ContractFormFields
+                  values={{ ...newContractValues, linkedPropertyId }}
+                  onChange={(next) => {
+                    setNewContractValues(next);
+                    if (next.linkedPropertyId !== linkedPropertyId) {
+                      setLinkedPropertyId(next.linkedPropertyId);
+                    }
+                  }}
+                  errors={newContractErrors}
+                  properties={properties}
+                  disabled={isSubmitting || isAnalyzing}
+                  idPrefix="doc-new-contract"
+                />
+              </div>
+            ) : null}
+
             {/* Actions */}
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-3">
               <Button
@@ -864,7 +1050,11 @@ function DocumentReviewSplitView({
                 variant="default"
                 disabled={isSubmitting || isAnalyzing}
               >
-                {isSubmitting ? "Speichert..." : "Freigeben & speichern"}
+                {isSubmitting
+                  ? "Speichert..."
+                  : contractMode === "new"
+                    ? "Vertrag anlegen & Beleg freigeben"
+                    : "Freigeben & speichern"}
               </Button>
 
               {!confirmDelete ? (

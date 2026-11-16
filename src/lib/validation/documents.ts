@@ -1,25 +1,13 @@
 import { z } from "zod";
-import { nullableOptionalIsoDate } from "@/lib/validation/contracts";
-
-const nonNegativeSafeInt = z
-  .number()
-  .int()
-  .nonnegative()
-  .max(Number.MAX_SAFE_INTEGER);
-
-function emptyStringToNull(value: unknown): unknown {
-  if (typeof value === "string" && value.trim().length === 0) {
-    return null;
-  }
-  return value;
-}
-
-function nullableOptionalTrimmedString(maxLength = 120) {
-  return z.preprocess(
-    emptyStringToNull,
-    z.string().trim().min(1).max(maxLength).nullable().optional(),
-  );
-}
+import {
+  basisPointsSchema,
+  contractCategorySchema,
+  contractCreateSchema,
+  nonNegativeSafeInt,
+  nullableOptionalIsoDate,
+  nullableOptionalTrimmedString,
+  repaymentTypeSchema,
+} from "@/lib/validation/contracts";
 
 export const documentStatusSchema = z.enum(["pending_review", "verified"]);
 
@@ -39,6 +27,47 @@ export const taxCategorySchema = z.enum([
   "capital_gains",
   "other",
 ]);
+
+export const extractedContractSchema = z.object({
+  name: nullableOptionalTrimmedString(120),
+  provider: nullableOptionalTrimmedString(120),
+  category: contractCategorySchema.nullable().optional(),
+  currentBalanceCents: nonNegativeSafeInt.nullable().optional(),
+  balanceAsOfDate: nullableOptionalIsoDate,
+  monthlyRateCents: nonNegativeSafeInt.nullable().optional(),
+  interestRateBps: basisPointsSchema.nullable().optional(),
+  repaymentType: repaymentTypeSchema.nullable().optional(),
+  specialRepaymentMaxYearlyCents: nonNegativeSafeInt.nullable().optional(),
+  fixedInterestUntil: nullableOptionalIsoDate,
+  targetSumCents: nonNegativeSafeInt.nullable().optional(),
+  allocationThresholdPercent: z
+    .number()
+    .int()
+    .min(0)
+    .max(100)
+    .nullable()
+    .optional(),
+  futureLoanInterestRateBps: basisPointsSchema.nullable().optional(),
+  milestoneDate: nullableOptionalIsoDate,
+  milestoneLabel: nullableOptionalTrimmedString(120),
+});
+
+export type ExtractedContract = z.infer<typeof extractedContractSchema>;
+
+export function parseExtractedContractJson(
+  raw: string | null | undefined,
+): ExtractedContract | null {
+  if (typeof raw !== "string" || raw.trim().length === 0) {
+    return null;
+  }
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    const result = extractedContractSchema.safeParse(parsed);
+    return result.success ? result.data : null;
+  } catch {
+    return null;
+  }
+}
 
 export const aiDocumentExtractionSchema = z
   .object({
@@ -64,6 +93,7 @@ export const aiDocumentExtractionSchema = z
       .nullable()
       .optional()
       .default(null),
+    extractedContract: extractedContractSchema.nullable().optional(),
   })
   .superRefine((data, ctx) => {
     if (
@@ -101,6 +131,7 @@ function validateDeductibleAgainstTotal(
   totalAmountCents: number | null | undefined,
   deductibleAmountCents: number | null | undefined,
   ctx: z.RefinementCtx,
+  pathPrefix: string[] = [],
 ): void {
   if (
     totalAmountCents != null &&
@@ -109,7 +140,7 @@ function validateDeductibleAgainstTotal(
   ) {
     ctx.addIssue({
       code: "custom",
-      path: ["deductibleAmountCents"],
+      path: [...pathPrefix, "deductibleAmountCents"],
       message:
         "Der absetzbare Betrag darf den Gesamtbetrag nicht übersteigen.",
     });
@@ -230,3 +261,23 @@ export const documentVerifySchema = documentMetadataBaseObject
   }));
 
 export type DocumentVerifyInput = z.infer<typeof documentVerifySchema>;
+
+export const documentCreateContractSchema = z
+  .object({
+    contract: contractCreateSchema,
+    document: documentMetadataBaseObject.partial().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.document) {
+      validateDeductibleAgainstTotal(
+        data.document.totalAmountCents,
+        data.document.deductibleAmountCents,
+        ctx,
+        ["document"],
+      );
+    }
+  });
+
+export type DocumentCreateContractInput = z.infer<
+  typeof documentCreateContractSchema
+>;

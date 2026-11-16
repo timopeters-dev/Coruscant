@@ -1,13 +1,13 @@
 import { z } from "zod";
 import { parseIsoDate } from "@/lib/domain/date";
 
-const nonNegativeSafeInt = z
+export const nonNegativeSafeInt = z
   .number()
   .int()
   .nonnegative()
   .max(Number.MAX_SAFE_INTEGER);
 
-const basisPointsSchema = z.number().int().nonnegative().max(100_000);
+export const basisPointsSchema = z.number().int().nonnegative().max(100_000);
 
 export const isoDateSchema = z
   .string()
@@ -30,7 +30,7 @@ function emptyStringToNull(value: unknown): unknown {
   return value;
 }
 
-function nullableOptionalTrimmedString(maxLength = 120) {
+export function nullableOptionalTrimmedString(maxLength = 120) {
   return z.preprocess(
     emptyStringToNull,
     z.string().trim().min(1).max(maxLength).nullable().optional(),
@@ -78,7 +78,7 @@ export const repaymentTypeSchema = z.enum([
   "lump_sum",
 ]);
 
-const contractBaseObject = z.object({
+export const contractBaseObject = z.object({
   name: z.string().trim().min(1, "Name ist erforderlich.").max(120),
   provider: nullableOptionalTrimmedString(120),
   sphere: contractSphereSchema.default("household"),

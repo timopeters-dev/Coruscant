@@ -1,31 +1,64 @@
 import { aiDocumentExtractionSchema } from "@/lib/validation/documents";
 import type {
   DocumentExtractionContext,
+  DocumentExtractionErrorCode,
   DocumentExtractionResult,
   DocumentExtractor,
 } from "./document-extractor";
 
-export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
-const DEFAULT_TIMEOUT_MS = 25_000;
+export const DEFAULT_GEMINI_MODEL = "gemini-3.6-flash";
+export const DEFAULT_GEMINI_FALLBACK_MODEL = "gemini-3.5-flash-lite";
+const DEFAULT_TIMEOUT_MS = 45_000;
+const DEFAULT_RETRY_DELAY_MS = 1_000;
+const MAX_RETRIES = 3;
+const RETRYABLE_STATUSES = new Set([429, 503]);
 
 export interface GeminiConfig {
   apiKey: string;
   model: string;
+  fallbackModels: string[];
+}
+
+function normalizeModelName(raw: string): string {
+  return raw.trim().replace(/^models\//, "");
+}
+
+function parseFallbackModels(
+  rawFallbackEnv: string | undefined,
+  primaryModel: string,
+): string[] {
+  const candidates =
+    rawFallbackEnv !== undefined
+      ? rawFallbackEnv.split(",")
+      : [DEFAULT_GEMINI_FALLBACK_MODEL];
+
+  return Array.from(
+    new Set(
+      candidates
+        .map(normalizeModelName)
+        .filter((candidate) => candidate.length > 0 && candidate !== primaryModel),
+    ),
+  );
 }
 
 export function getGeminiConfig(
   env: Record<string, string | undefined> = process.env,
 ): GeminiConfig {
   const apiKey = env.GEMINI_API_KEY?.trim() ?? "";
-  const model = env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
-  return { apiKey, model };
+  const model =
+    normalizeModelName(env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL) ||
+    DEFAULT_GEMINI_MODEL;
+  const fallbackModels = parseFallbackModels(env.GEMINI_FALLBACK_MODEL, model);
+  return { apiKey, model, fallbackModels };
 }
 
 export interface GeminiDocumentExtractorOptions {
   apiKey?: string;
   model?: string;
+  fallbackModels?: string[];
   fetchFn?: typeof fetch;
   timeoutMs?: number;
+  retryDelayMs?: number;
 }
 
 const EXTRACTION_PROMPT = [
@@ -40,8 +73,83 @@ const EXTRACTION_PROMPT = [
   "- taxCategory: eines von 'handwerker_35a', 'haushaltsnahe_dl_35a', 'werbungskosten_vv', 'capital_gains', 'other' oder null",
   "- deductibleAmountCents: absetzbarer Betrag / Lohnanteil (z.B. bei § 35a) als nicht-negative Ganzzahl in Cent (<= totalAmountCents) oder null",
   "- detectedBalanceCents: erkannter aktueller Darlehens-, Konto- oder Bauspar-Saldo als nicht-negative Ganzzahl in Cent oder null",
-  "Unbekannte Werte strikt auf null setzen.",
+  "- extractedContract: falls es sich um einen Kredit-/Darlehensvertrag oder Bausparvertrag (inkl. Konditionenübersicht / Jahreskontoauszug) handelt, ein Objekt mit folgenden Feldern, sonst null:",
+  "  - name: aussagekräftiger Vertragsname (z.B. 'Hauskredit Musterbank' oder 'Bausparvertrag Tarif Klassik') oder null",
+  "  - provider: Bank / Bausparkasse / Gläubiger oder null",
+  "  - category: 'loan' (Kredit/Darlehen) oder 'savings_contract' (Bausparvertrag) oder null",
+  "  - currentBalanceCents: aktueller Saldo / Darlehensbetrag / Restschuld bzw. Bauspar-Guthaben als nicht-negative Ganzzahl in Cent (z.B. 295.000,00 € -> 29500000, 1.400,00 € -> 140000) oder null. Niemals Dezimalzahlen!",
+  "  - balanceAsOfDate: Stichtag des Saldos bzw. Auszahlungs-/Vertragsdatum als 'YYYY-MM-DD' oder null",
+  "  - monthlyRateCents: monatliche Rate / Sparrate als nicht-negative Ganzzahl in Cent (z.B. 1.400,00 € -> 140000) oder null",
+  "  - interestRateBps: Sollzinssatz / Guthabenzins als nicht-negative Ganzzahl in Basispunkten (1 % = 100 bps, z.B. 3,45 % -> 345, 0,50 % -> 50, 4,0 % -> 400) oder null",
+  "  - repaymentType: für Kredite eines von 'annuity', 'installment', 'lump_sum', sonst null",
+  "  - specialRepaymentMaxYearlyCents: maximale jährliche Sondertilgung in Cent (Ganzzahl) oder null",
+  "  - fixedInterestUntil: Ende der Zinsbindung als 'YYYY-MM-DD' oder null",
+  "  - targetSumCents: bei Bausparverträgen die Bausparsumme in Cent (Ganzzahl) oder null",
+  "  - allocationThresholdPercent: bei Bausparverträgen die Zuteilungsschwelle als ganze Zahl 0..100 (z.B. 40 % -> 40) oder null",
+  "  - futureLoanInterestRateBps: bei Bausparverträgen der spätere Darlehenszins in Basispunkten (z.B. 2,50 % -> 250) oder null",
+  "  - milestoneDate: wichtiges Zieldatum (z.B. geplante Zuteilung / Rückzahlung) als 'YYYY-MM-DD' oder null",
+  "  - milestoneLabel: kurze Beschreibung des Meilensteins oder null",
+  "Hinweis zu mehrseitigen Verträgen: Werte gezielt die Konditionenübersicht, den Darlehensvertrag-Kopf sowie das ESIS-Merkblatt (Europäisches Standardisiertes Merkblatt) bzw. bei Bausparverträgen die Tarif-/Vertragsdaten-Übersicht aus.",
+  "Alle Geldbeträge strikt als Ganzzahl in Cent und Zinssätze als Ganzzahl in Basispunkten angeben; nicht erkennbare Werte und Unterfelder strikt auf null setzen.",
 ].join("\n");
+
+function buildGeminiEndpoints(model: string, apiKey: string): string[] {
+  const normalizedModel = normalizeModelName(model);
+  const encodedModel = encodeURIComponent(normalizedModel);
+  const aiStudioUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodedModel}:generateContent`;
+  const vertexExpressUrl = `https://aiplatform.googleapis.com/v1/publishers/google/models/${encodedModel}:generateContent`;
+
+  return apiKey.startsWith("AQ.")
+    ? [vertexExpressUrl, aiStudioUrl]
+    : [aiStudioUrl, vertexExpressUrl];
+}
+
+function isEndpointFallbackEligibleStatus(status: number): boolean {
+  return status === 400 || status === 401 || status === 403;
+}
+
+async function extractGeminiErrorMessage(
+  res: Response,
+): Promise<string | null> {
+  try {
+    if (typeof res.json !== "function") {
+      return null;
+    }
+    const body = (await res.json()) as {
+      error?: { message?: unknown };
+    };
+    if (
+      typeof body?.error?.message === "string" &&
+      body.error.message.trim().length > 0
+    ) {
+      return body.error.message.trim();
+    }
+  } catch {
+    // Ignore non-JSON error responses
+  }
+  return null;
+}
+
+function formatHttpErrorMessage(status: number, detail: string | null): string {
+  const suffix = detail ? ` (${detail})` : "";
+  if (status === 401 || status === 403) {
+    return `Ungültiger Gemini API-Key (HTTP ${status})${suffix}.`;
+  }
+  if (status === 429) {
+    return `Gemini API Rate-Limit erreicht (HTTP 429)${suffix}.`;
+  }
+  if (status === 503) {
+    return `Gemini API temporär nicht erreichbar (HTTP 503)${suffix}.`;
+  }
+  return `KI-API antwortete mit HTTP ${status}${suffix}.`;
+}
+
+function sleep(ms: number): Promise<void> {
+  if (ms <= 0) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function stripMarkdownCodeFences(rawText: string): string {
   const trimmed = rawText.trim();
@@ -49,14 +157,150 @@ function stripMarkdownCodeFences(rawText: string): string {
   return match?.[1] ? match[1].trim() : trimmed;
 }
 
+type RequestAttemptResult =
+  | { ok: true; response: Response }
+  | {
+      ok: false;
+      code: Exclude<DocumentExtractionErrorCode, "not_configured" | "invalid_payload">;
+      message: string;
+      httpStatus?: number;
+      canFallbackModel: boolean;
+    };
+
+async function executeGeminiRequestWithRetries(params: {
+  apiKey: string;
+  model: string;
+  serializedBody: string;
+  fetchFn: typeof fetch;
+  timeoutMs: number;
+  baseRetryDelayMs: number;
+}): Promise<RequestAttemptResult> {
+  const endpoints = buildGeminiEndpoints(params.model, params.apiKey);
+
+  for (let idx = 0; idx < endpoints.length; idx++) {
+    const url = endpoints[idx]!;
+    const hasNextEndpoint = idx < endpoints.length - 1;
+    let candidateRes: Response | null = null;
+    let lastErrorCode: "timeout" | "network_error" = "network_error";
+
+    for (let retry = 0; retry <= MAX_RETRIES; retry++) {
+      candidateRes = null;
+      const controller = new AbortController();
+      const timeoutHandle =
+        params.timeoutMs > 0
+          ? setTimeout(() => {
+              controller.abort();
+            }, params.timeoutMs)
+          : null;
+
+      try {
+        candidateRes = await params.fetchFn(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": params.apiKey,
+          },
+          body: params.serializedBody,
+          signal: controller.signal,
+        });
+      } catch (error) {
+        lastErrorCode =
+          error instanceof Error &&
+          (error.name === "AbortError" || error.name === "TimeoutError")
+            ? "timeout"
+            : "network_error";
+
+        if (retry < MAX_RETRIES) {
+          await sleep(params.baseRetryDelayMs * Math.pow(2, retry));
+          continue;
+        }
+        break;
+      } finally {
+        if (timeoutHandle !== null) {
+          clearTimeout(timeoutHandle);
+        }
+      }
+
+      if (candidateRes.ok) {
+        return { ok: true, response: candidateRes };
+      }
+
+      if (RETRYABLE_STATUSES.has(candidateRes.status) && retry < MAX_RETRIES) {
+        await sleep(params.baseRetryDelayMs * Math.pow(2, retry));
+        continue;
+      }
+
+      break;
+    }
+
+    if (!candidateRes) {
+      if (hasNextEndpoint) {
+        continue;
+      }
+      return {
+        ok: false,
+        code: lastErrorCode,
+        message:
+          lastErrorCode === "timeout"
+            ? "Zeitüberschreitung bei der KI-Dokumentenanalyse."
+            : "Netzwerkfehler bei der KI-Dokumentenanalyse.",
+        canFallbackModel: true,
+      };
+    }
+
+    const detail = await extractGeminiErrorMessage(candidateRes);
+    if (
+      hasNextEndpoint &&
+      isEndpointFallbackEligibleStatus(candidateRes.status)
+    ) {
+      continue;
+    }
+
+    return {
+      ok: false,
+      code: "http_error",
+      httpStatus: candidateRes.status,
+      message: formatHttpErrorMessage(candidateRes.status, detail),
+      canFallbackModel: RETRYABLE_STATUSES.has(candidateRes.status),
+    };
+  }
+
+  return {
+    ok: false,
+    code: "http_error",
+    message: "KI-API lieferte keine gültige Antwort.",
+    canFallbackModel: true,
+  };
+}
+
 export function createGeminiDocumentExtractor(
   options: GeminiDocumentExtractorOptions = {},
 ): DocumentExtractor {
   const config = getGeminiConfig();
   const apiKey = (options.apiKey ?? config.apiKey).trim();
-  const model = (options.model ?? config.model).trim() || DEFAULT_GEMINI_MODEL;
+  const primaryModel =
+    normalizeModelName((options.model ?? config.model).trim()) ||
+    DEFAULT_GEMINI_MODEL;
+
+  const rawFallbacks =
+    options.fallbackModels !== undefined
+      ? options.fallbackModels
+      : options.model !== undefined
+        ? [DEFAULT_GEMINI_FALLBACK_MODEL]
+        : config.fallbackModels;
+
+  const fallbackModels = Array.from(
+    new Set(
+      rawFallbacks
+        .map(normalizeModelName)
+        .filter((candidate) => candidate.length > 0 && candidate !== primaryModel),
+    ),
+  );
+  const modelsToTry = [primaryModel, ...fallbackModels];
+
   const fetchFn = options.fetchFn ?? fetch;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const baseRetryDelayMs = options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
 
   return {
     async extract(
@@ -70,67 +314,76 @@ export function createGeminiDocumentExtractor(
         };
       }
 
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
-      const controller = new AbortController();
-      const timeoutHandle = setTimeout(() => {
-        controller.abort();
-      }, timeoutMs);
-
-      let response: Response;
-      try {
-        response = await fetchFn(endpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": apiKey,
-          },
-          body: JSON.stringify({
-            contents: [
+      const serializedBody = JSON.stringify({
+        contents: [
+          {
+            parts: [
               {
-                parts: [
-                  {
-                    text: `${EXTRACTION_PROMPT}\n\nDateiname: ${ctx.filename}`,
-                  },
-                  {
-                    inline_data: {
-                      mime_type: ctx.mimeType,
-                      data: ctx.pdfBase64,
-                    },
-                  },
-                ],
+                text: `${EXTRACTION_PROMPT}\n\nDateiname: ${ctx.filename}`,
+              },
+              {
+                inline_data: {
+                  mime_type: ctx.mimeType,
+                  data: ctx.pdfBase64,
+                },
               },
             ],
-            generationConfig: {
-              responseMimeType: "application/json",
-              temperature: 0.1,
-            },
-          }),
-          signal: controller.signal,
+          },
+        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.1,
+        },
+      });
+
+      let response: Response | null = null;
+      let resolvedModel = primaryModel;
+      let lastFailure: Extract<RequestAttemptResult, { ok: false }> | null =
+        null;
+
+      for (let mIdx = 0; mIdx < modelsToTry.length; mIdx++) {
+        const currentModel = modelsToTry[mIdx]!;
+        const hasFallbackModel = mIdx < modelsToTry.length - 1;
+
+        const attempt = await executeGeminiRequestWithRetries({
+          apiKey,
+          model: currentModel,
+          serializedBody,
+          fetchFn,
+          timeoutMs,
+          baseRetryDelayMs,
         });
-      } catch (error) {
-        clearTimeout(timeoutHandle);
-        if (error instanceof Error && error.name === "AbortError") {
-          return {
-            ok: false,
-            code: "timeout",
-            message: "Zeitüberschreitung bei der KI-Dokumentenanalyse.",
-          };
+
+        if (attempt.ok) {
+          response = attempt.response;
+          resolvedModel = currentModel;
+          break;
         }
+
+        lastFailure = attempt;
+        if (attempt.canFallbackModel && hasFallbackModel) {
+          continue;
+        }
+
         return {
           ok: false,
-          code: "network_error",
-          message: "Netzwerkfehler bei der KI-Dokumentenanalyse.",
+          code: attempt.code,
+          message: attempt.message,
+          ...(attempt.httpStatus !== undefined
+            ? { httpStatus: attempt.httpStatus }
+            : {}),
         };
-      } finally {
-        clearTimeout(timeoutHandle);
       }
 
-      if (!response.ok) {
+      if (!response) {
         return {
           ok: false,
-          code: "http_error",
-          httpStatus: response.status,
-          message: `KI-API antwortete mit HTTP ${response.status}.`,
+          code: lastFailure?.code ?? "http_error",
+          message:
+            lastFailure?.message ?? "KI-API lieferte keine gültige Antwort.",
+          ...(lastFailure?.httpStatus !== undefined
+            ? { httpStatus: lastFailure.httpStatus }
+            : {}),
         };
       }
 
@@ -177,7 +430,7 @@ export function createGeminiDocumentExtractor(
       return {
         ok: true,
         data: validated.data,
-        model,
+        model: resolvedModel,
       };
     },
   };
