@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertNonNegativeInteger,
   assertSafeInteger,
   formatBpsDE,
   formatCentsDE,
   parseEuroInputToCents,
+  roundHalfUpBigInt,
 } from "./money";
 
 describe("assertSafeInteger", () => {
@@ -96,5 +98,36 @@ describe("parseEuroInputToCents", () => {
     expect(parseEuroInputToCents("12,3,4")).toBeNull();
     expect(parseEuroInputToCents("--10")).toBeNull();
     expect(parseEuroInputToCents("€")).toBeNull();
+  });
+});
+
+describe("assertNonNegativeInteger", () => {
+  it("accepts 0, -0 (normalized to 0), and positive safe integers", () => {
+    expect(assertNonNegativeInteger(0)).toBe(0);
+    expect(Object.is(assertNonNegativeInteger(-0), 0)).toBe(true);
+    expect(assertNonNegativeInteger(1)).toBe(1);
+    expect(assertNonNegativeInteger(500_000)).toBe(500_000);
+  });
+
+  it("throws RangeError for negative integers, floats, and NaN", () => {
+    expect(() => assertNonNegativeInteger(-1)).toThrow(RangeError);
+    expect(() => assertNonNegativeInteger(1.5)).toThrow(RangeError);
+    expect(() => assertNonNegativeInteger(Number.NaN)).toThrow(RangeError);
+  });
+});
+
+describe("roundHalfUpBigInt", () => {
+  it("rounds half-up accurately for BigInt ratios", () => {
+    expect(roundHalfUpBigInt(0n, 3n)).toBe(0n);
+    expect(roundHalfUpBigInt(1n, 2n)).toBe(1n);
+    expect(roundHalfUpBigInt(100n, 3n)).toBe(33n);
+    expect(roundHalfUpBigInt(200n, 3n)).toBe(67n);
+    expect(roundHalfUpBigInt(5n, 2n)).toBe(3n);
+  });
+
+  it("throws RangeError for negative numerators or non-positive denominators", () => {
+    expect(() => roundHalfUpBigInt(-1n, 2n)).toThrow(RangeError);
+    expect(() => roundHalfUpBigInt(1n, 0n)).toThrow(RangeError);
+    expect(() => roundHalfUpBigInt(1n, -2n)).toThrow(RangeError);
   });
 });

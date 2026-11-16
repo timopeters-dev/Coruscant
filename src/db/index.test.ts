@@ -5,7 +5,16 @@ import Database from "better-sqlite3";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { createDbClient, runStartupMigrations } from "./index";
-import { appMeta } from "./schema";
+import {
+  appMeta,
+  cashflowItems,
+  documents,
+  externalSnapshots,
+  financialContracts,
+  potAllocations,
+  pots,
+  properties,
+} from "./schema";
 
 const tempDirs: string[] = [];
 
@@ -89,5 +98,215 @@ describe("Database client and startup migrations", () => {
 
     expect(() => createDbClient(dbPath, missingMigrationsDir)).toThrow();
     expect(closeSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("creates all 7 v1 domain tables and enforces foreign key, unique, and check constraints", () => {
+    const { db, sqlite } = createDbClient(":memory:");
+    const now = "2026-11-16T12:00:00.000Z";
+
+    try {
+      db.insert(pots)
+        .values({
+          id: "pot-reserve",
+          name: "Instandhaltung Musterstraße 1",
+          priority: 1,
+          currentCents: 250_000,
+          targetCents: 1_000_000,
+          ruleType: "fill_to_target",
+          updatedAt: now,
+        })
+        .run();
+
+      db.insert(properties)
+        .values({
+          id: "prop-0",
+          name: "Immobilie #0 (Musterstraße 1)",
+          usage: "owner_occupied",
+          purchaseDate: "2022-05-01",
+          purchasePriceCents: 35_000_000,
+          estimatedValueCents: 38_000_000,
+          maintenanceReservePotId: "pot-reserve",
+          updatedAt: now,
+        })
+        .run();
+
+      db.insert(financialContracts)
+        .values({
+          id: "contract-loan-1",
+          name: "Hauskredit Musterbank",
+          provider: "Musterbank",
+          sphere: "household",
+          category: "loan",
+          status: "active",
+          currentBalanceCents: 24_000_000,
+          balanceAsOfDate: "2026-01-01",
+          monthlyRateCents: 120_000,
+          interestRateBps: 350,
+          linkedPropertyId: "prop-0",
+          repaymentType: "annuity",
+          updatedAt: now,
+        })
+        .run();
+
+      db.insert(cashflowItems)
+        .values({
+          id: "cf-loan-1",
+          name: "Rate Hauskredit Musterbank",
+          direction: "outflow",
+          amountCents: 120_000,
+          frequency: "monthly",
+          source: "contract_linked",
+          linkedContractId: "contract-loan-1",
+          active: true,
+          updatedAt: now,
+        })
+        .run();
+
+      db.insert(pots)
+        .values({
+          id: "pot-sondertilgung",
+          name: "Sondertilgung",
+          priority: 2,
+          currentCents: 0,
+          targetCents: 500_000,
+          ruleType: "percentage_of_remainder",
+          remainderPercentage: 50,
+          linkedContractId: "contract-loan-1",
+          linkedPropertyId: "prop-0",
+          updatedAt: now,
+        })
+        .run();
+
+      db.insert(potAllocations)
+        .values({
+          id: "alloc-1",
+          potId: "pot-reserve",
+          amountCents: 50_000,
+          sourceLabel: "Monatsüberschuss",
+          allocatedAt: now,
+        })
+        .run();
+
+      db.insert(documents)
+        .values({
+          id: "doc-1",
+          filename: "jahresauszug.pdf",
+          storagePath: "2026/doc-1.pdf",
+          sha256Hash: "abc123dummyhash",
+          status: "verified",
+          documentType: "loan_statement",
+          documentDate: "2026-01-15",
+          issuer: "Musterbank",
+          totalAmountCents: 0,
+          linkedPropertyId: "prop-0",
+          linkedContractId: "contract-loan-1",
+          isTaxRelevant: false,
+          createdAt: now,
+        })
+        .run();
+
+      db.insert(externalSnapshots)
+        .values({
+          id: "snap-1",
+          source: "finanz_cockpit",
+          liquidCashCents: 500_000,
+          etfStocksCents: 2_000_000,
+          cryptoCents: 100_000,
+          totalPersonalNetWorthCents: 2_600_000,
+          fetchedAt: now,
+        })
+        .run();
+
+      // UNIQUE constraint on documents.sha256_hash
+      expect(() =>
+        db
+          .insert(documents)
+          .values({
+            id: "doc-2",
+            filename: "duplikat.pdf",
+            storagePath: "2026/doc-2.pdf",
+            sha256Hash: "abc123dummyhash",
+            createdAt: now,
+          })
+          .run(),
+      ).toThrow();
+
+      // CHECK constraint: negative amount_cents
+      expect(() =>
+        db
+          .insert(cashflowItems)
+          .values({
+            id: "cf-neg",
+            name: "Ungültig",
+            direction: "inflow",
+            amountCents: -1,
+            frequency: "monthly",
+            updatedAt: now,
+          })
+          .run(),
+      ).toThrow();
+
+      // CHECK constraint: remainder_percentage > 100
+      expect(() =>
+        db
+          .insert(pots)
+          .values({
+            id: "pot-invalid-pct",
+            name: "Ungültig",
+            priority: 99,
+            ruleType: "percentage_of_remainder",
+            remainderPercentage: 101,
+            updatedAt: now,
+          })
+          .run(),
+      ).toThrow();
+
+      // FK cascade & set null on financial_contracts delete
+      db.delete(financialContracts)
+        .where(eq(financialContracts.id, "contract-loan-1"))
+        .run();
+
+      expect(
+        db
+          .select()
+          .from(cashflowItems)
+          .where(eq(cashflowItems.id, "cf-loan-1"))
+          .all(),
+      ).toHaveLength(0);
+
+      const potAfterContractDelete = db
+        .select()
+        .from(pots)
+        .where(eq(pots.id, "pot-sondertilgung"))
+        .get();
+      expect(potAfterContractDelete?.linkedContractId).toBeNull();
+
+      const docAfterContractDelete = db
+        .select()
+        .from(documents)
+        .where(eq(documents.id, "doc-1"))
+        .get();
+      expect(docAfterContractDelete?.linkedContractId).toBeNull();
+
+      // FK cascade & set null on pots delete
+      db.delete(pots).where(eq(pots.id, "pot-reserve")).run();
+
+      expect(
+        db
+          .select()
+          .from(potAllocations)
+          .where(eq(potAllocations.id, "alloc-1"))
+          .all(),
+      ).toHaveLength(0);
+
+      const propAfterPotDelete = db
+        .select()
+        .from(properties)
+        .where(eq(properties.id, "prop-0"))
+        .get();
+      expect(propAfterPotDelete?.maintenanceReservePotId).toBeNull();
+    } finally {
+      sqlite.close();
+    }
   });
 });

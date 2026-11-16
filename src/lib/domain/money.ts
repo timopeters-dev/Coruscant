@@ -19,6 +19,39 @@ export function assertSafeInteger(
 }
 
 /**
+ * Ensures a numeric value is a non-negative safe integer (>= 0).
+ * Normalizes -0 to 0.
+ */
+export function assertNonNegativeInteger(
+  value: number,
+  fieldName = "amount",
+): number {
+  const normalized = assertSafeInteger(value, fieldName);
+  if (normalized < 0) {
+    throw new RangeError(
+      `${fieldName} must be a non-negative integer, received: ${String(value)}`,
+    );
+  }
+  return normalized;
+}
+
+/**
+ * Pure BigInt half-up division for non-negative numerators and positive denominators.
+ */
+export function roundHalfUpBigInt(
+  numerator: bigint,
+  denominator: bigint,
+): bigint {
+  if (numerator < 0n) {
+    throw new RangeError("numerator must be non-negative");
+  }
+  if (denominator <= 0n) {
+    throw new RangeError("denominator must be positive");
+  }
+  return (2n * numerator + denominator) / (2n * denominator);
+}
+
+/**
  * Formats an integer cent amount in German locale without float arithmetic.
  * Example: 123456 -> "1.234,56 €"
  */
