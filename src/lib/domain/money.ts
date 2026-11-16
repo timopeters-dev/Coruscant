@@ -1,0 +1,158 @@
+const deIntegerFormatter = new Intl.NumberFormat("de-DE", {
+  maximumFractionDigits: 0,
+});
+
+/**
+ * Ensures a numeric value is a safe integer (no floats, NaN, or Infinity).
+ * Normalizes -0 to 0.
+ */
+export function assertSafeInteger(
+  value: number,
+  fieldName = "amount",
+): number {
+  if (!Number.isSafeInteger(value)) {
+    throw new RangeError(
+      `${fieldName} must be a safe integer, received: ${String(value)}`,
+    );
+  }
+  return value === 0 ? 0 : value;
+}
+
+/**
+ * Formats an integer cent amount in German locale without float arithmetic.
+ * Example: 123456 -> "1.234,56 €"
+ */
+export function formatCentsDE(
+  amountCents: number,
+  options?: { showPlusSign?: boolean },
+): string {
+  const normalized = assertSafeInteger(amountCents, "amountCents");
+  const abs = Math.abs(normalized);
+  const euros = Math.trunc(abs / 100);
+  const cents = abs % 100;
+
+  let sign = "";
+  if (normalized < 0) {
+    sign = "-";
+  } else if (options?.showPlusSign && normalized > 0) {
+    sign = "+";
+  }
+
+  const euroPart = deIntegerFormatter.format(euros);
+  const centPart = String(cents).padStart(2, "0");
+  return `${sign}${euroPart},${centPart} €`;
+}
+
+/**
+ * Formats an integer basis-point rate in German locale without float arithmetic.
+ * Example: 350 -> "3,50 %"
+ */
+export function formatBpsDE(rateBps: number): string {
+  const normalized = assertSafeInteger(rateBps, "rateBps");
+  const abs = Math.abs(normalized);
+  const whole = Math.trunc(abs / 100);
+  const frac = abs % 100;
+
+  const sign = normalized < 0 ? "-" : "";
+  const wholePart = deIntegerFormatter.format(whole);
+  const fracPart = String(frac).padStart(2, "0");
+  return `${sign}${wholePart},${fracPart} %`;
+}
+
+/**
+ * Parses a Euro input string (e.g. "1.234,56", "1234.56", "-50,5", "100")
+ * into integer cents using pure string parsing (no float multiplication).
+ * Returns null for invalid inputs or more than 2 decimal places.
+ */
+export function parseEuroInputToCents(input: string): number | null {
+  let trimmed = input.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  if (trimmed.endsWith("€")) {
+    trimmed = trimmed.slice(0, -1).trim();
+  }
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  let sign = 1;
+  if (trimmed.startsWith("-")) {
+    sign = -1;
+    trimmed = trimmed.slice(1).trim();
+  } else if (trimmed.startsWith("+")) {
+    trimmed = trimmed.slice(1).trim();
+  }
+
+  if (trimmed.length === 0 || !/^[0-9.,]+$/.test(trimmed)) {
+    return null;
+  }
+
+  const commaCount = (trimmed.match(/,/g) ?? []).length;
+  const dotCount = (trimmed.match(/\./g) ?? []).length;
+
+  let integerStr = "";
+  let fractionStr = "";
+
+  if (commaCount > 1) {
+    return null;
+  }
+
+  if (commaCount === 1) {
+    const parts = trimmed.split(",");
+    integerStr = parts[0] ?? "";
+    fractionStr = parts[1] ?? "";
+    if (fractionStr.includes(".")) {
+      return null;
+    }
+    if (dotCount > 0 && !/^\d{1,3}(\.\d{3})*$/.test(integerStr)) {
+      return null;
+    }
+    integerStr = integerStr.replaceAll(".", "");
+  } else if (dotCount === 1) {
+    const parts = trimmed.split(".");
+    const left = parts[0] ?? "";
+    const right = parts[1] ?? "";
+    // Distinguish decimal dot ("1234.56", "12.5") from German thousands separator ("1.000")
+    if (right.length === 3 && left.length >= 1 && left.length <= 3) {
+      integerStr = `${left}${right}`;
+      fractionStr = "";
+    } else {
+      integerStr = left;
+      fractionStr = right;
+    }
+  } else if (dotCount > 1) {
+    if (!/^\d{1,3}(\.\d{3})+$/.test(trimmed)) {
+      return null;
+    }
+    integerStr = trimmed.replaceAll(".", "");
+  } else {
+    integerStr = trimmed;
+  }
+
+  if (!/^\d+$/.test(integerStr)) {
+    return null;
+  }
+  if (fractionStr.length > 0 && !/^\d+$/.test(fractionStr)) {
+    return null;
+  }
+  if (fractionStr.length > 2) {
+    return null;
+  }
+
+  const paddedFraction = fractionStr.padEnd(2, "0");
+  const euros = Number(integerStr);
+  const cents = Number(paddedFraction);
+
+  if (!Number.isSafeInteger(euros) || !Number.isSafeInteger(cents)) {
+    return null;
+  }
+
+  const total = sign * (euros * 100 + cents);
+  if (!Number.isSafeInteger(total)) {
+    return null;
+  }
+
+  return total === 0 ? 0 : total;
+}
