@@ -1,0 +1,46 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+/build
+next-env.d.ts
+
+# typescript
+*.tsbuildinfo
+
+# local env files
+.env*
+!.env.example
+.npmrc
+
+# secrets & private keys
+*.pem
+*.key
+/secrets
+secrets/
+
+# temporary task plans (Agent Argon / Hydrogen workflow)
+/tasks
+tasks/
+
+# sqlite database, backups & uploaded PDFs (privacy)
+data/*.db*
+data/backups/
+data/documents/
+*.db
+*.db-shm
+*.db-wal
+*.pdf
+*.csv
+
+# native addon build cache
+scripts/native/
+*.node
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
