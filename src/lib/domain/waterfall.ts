@@ -254,3 +254,96 @@ export function calculateWaterfallSuggestion(
     suggestions,
   };
 }
+
+export interface ManualPotAllocationEntry {
+  potId: string;
+  allocatedCents: number;
+}
+
+export interface OverTargetWarning {
+  potId: string;
+  potName: string;
+  excessCents: number;
+}
+
+export interface ManualWaterfallValidationResult {
+  inputAmountCents: number;
+  totalAllocatedCents: number;
+  unallocatedCents: number;
+  exceedsInput: boolean;
+  hasPositiveAllocation: boolean;
+  overTargetWarnings: OverTargetWarning[];
+  projectedByPotId: Record<string, number>;
+}
+
+/**
+ * Validates manually adjusted waterfall pot allocations against available input and pot targets.
+ */
+export function validateManualWaterfallAllocation(
+  pots: readonly DomainPot[],
+  inputAmountCents: number,
+  entries: readonly ManualPotAllocationEntry[],
+): ManualWaterfallValidationResult {
+  const safeInput = assertNonNegativeInteger(
+    inputAmountCents,
+    "inputAmountCents",
+  );
+  validatePots(pots);
+
+  const potById = new Map<string, DomainPot>();
+  for (const pot of pots) {
+    potById.set(pot.id, pot);
+  }
+
+  const allocatedByPotId = new Map<string, number>();
+  let totalAllocatedCents = 0;
+
+  for (const entry of entries) {
+    if (allocatedByPotId.has(entry.potId)) {
+      throw new RangeError(`Duplicate potId in allocations: "${entry.potId}"`);
+    }
+    if (!potById.has(entry.potId)) {
+      throw new RangeError(`Unknown potId in allocations: "${entry.potId}"`);
+    }
+    const safeAlloc = assertNonNegativeInteger(
+      entry.allocatedCents,
+      `allocations(${entry.potId}).allocatedCents`,
+    );
+    allocatedByPotId.set(entry.potId, safeAlloc);
+    totalAllocatedCents = assertSafeInteger(
+      totalAllocatedCents + safeAlloc,
+      "totalAllocatedCents",
+    );
+  }
+
+  const sortedPots = [...pots].sort(comparePots);
+  const overTargetWarnings: OverTargetWarning[] = [];
+  const projectedByPotId: Record<string, number> = {};
+
+  for (const pot of sortedPots) {
+    const allocated = allocatedByPotId.get(pot.id) ?? 0;
+    const projected = assertSafeInteger(
+      pot.currentCents + allocated,
+      `projected(${pot.id})`,
+    );
+    projectedByPotId[pot.id] = projected;
+
+    if (pot.targetCents !== null && projected > pot.targetCents) {
+      overTargetWarnings.push({
+        potId: pot.id,
+        potName: pot.name,
+        excessCents: projected - pot.targetCents,
+      });
+    }
+  }
+
+  return {
+    inputAmountCents: safeInput,
+    totalAllocatedCents,
+    unallocatedCents: safeInput - totalAllocatedCents,
+    exceedsInput: totalAllocatedCents > safeInput,
+    hasPositiveAllocation: totalAllocatedCents > 0,
+    overTargetWarnings,
+    projectedByPotId,
+  };
+}

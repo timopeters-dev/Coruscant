@@ -3,6 +3,7 @@ import {
   calculatePotHeadroomCents,
   calculateWaterfallSuggestion,
   type DomainPot,
+  validateManualWaterfallAllocation,
 } from "./waterfall";
 
 function makePots(): DomainPot[] {
@@ -270,6 +271,96 @@ describe("calculateWaterfallSuggestion", () => {
         ],
         100,
       ),
+    ).toThrow(RangeError);
+  });
+});
+
+describe("validateManualWaterfallAllocation", () => {
+  it("validates partial and full manual allocations without over-target warnings", () => {
+    const pots = makePots();
+
+    const partial = validateManualWaterfallAllocation(pots, 100_000, [
+      { potId: "pot-notgroschen", allocatedCents: 20_000 },
+      { potId: "pot-urlaub", allocatedCents: 30_000 },
+    ]);
+    expect(partial.totalAllocatedCents).toBe(50_000);
+    expect(partial.unallocatedCents).toBe(50_000);
+    expect(partial.exceedsInput).toBe(false);
+    expect(partial.hasPositiveAllocation).toBe(true);
+    expect(partial.overTargetWarnings).toEqual([]);
+    expect(partial.projectedByPotId["pot-notgroschen"]).toBe(100_000);
+    expect(partial.projectedByPotId["pot-urlaub"]).toBe(80_000);
+    expect(partial.projectedByPotId["pot-sondertilgung"]).toBe(0);
+
+    const full = validateManualWaterfallAllocation(pots, 50_000, [
+      { potId: "pot-notgroschen", allocatedCents: 20_000 },
+      { potId: "pot-urlaub", allocatedCents: 30_000 },
+    ]);
+    expect(full.totalAllocatedCents).toBe(50_000);
+    expect(full.unallocatedCents).toBe(0);
+    expect(full.exceedsInput).toBe(false);
+    expect(full.overTargetWarnings).toEqual([]);
+  });
+
+  it("flags input exceedance, zero allocations, and over-target warnings", () => {
+    const pots = makePots();
+
+    const overInput = validateManualWaterfallAllocation(pots, 40_000, [
+      { potId: "pot-notgroschen", allocatedCents: 30_000 },
+      { potId: "pot-urlaub", allocatedCents: 20_000 },
+    ]);
+    expect(overInput.totalAllocatedCents).toBe(50_000);
+    expect(overInput.unallocatedCents).toBe(-10_000);
+    expect(overInput.exceedsInput).toBe(true);
+    expect(overInput.hasPositiveAllocation).toBe(true);
+    expect(overInput.overTargetWarnings).toEqual([
+      {
+        potId: "pot-notgroschen",
+        potName: "Notgroschen",
+        excessCents: 10_000,
+      },
+    ]);
+
+    const allZero = validateManualWaterfallAllocation(pots, 40_000, [
+      { potId: "pot-notgroschen", allocatedCents: 0 },
+      { potId: "pot-urlaub", allocatedCents: 0 },
+    ]);
+    expect(allZero.totalAllocatedCents).toBe(0);
+    expect(allZero.unallocatedCents).toBe(40_000);
+    expect(allZero.exceedsInput).toBe(false);
+    expect(allZero.hasPositiveAllocation).toBe(false);
+  });
+
+  it("throws RangeError on duplicate potIds, unknown potIds, negative or float amounts", () => {
+    const pots = makePots();
+
+    expect(() =>
+      validateManualWaterfallAllocation(pots, 10_000, [
+        { potId: "pot-notgroschen", allocatedCents: 1_000 },
+        { potId: "pot-notgroschen", allocatedCents: 2_000 },
+      ]),
+    ).toThrow(RangeError);
+
+    expect(() =>
+      validateManualWaterfallAllocation(pots, 10_000, [
+        { potId: "pot-unknown", allocatedCents: 1_000 },
+      ]),
+    ).toThrow(RangeError);
+
+    expect(() =>
+      validateManualWaterfallAllocation(pots, -1, []),
+    ).toThrow(RangeError);
+
+    expect(() =>
+      validateManualWaterfallAllocation(pots, 10_000, [
+        { potId: "pot-notgroschen", allocatedCents: 10.5 },
+      ]),
+    ).toThrow(RangeError);
+
+    expect(() =>
+      validateManualWaterfallAllocation(pots, 10_000, [
+        { potId: "pot-notgroschen", allocatedCents: -100 },
+      ]),
     ).toThrow(RangeError);
   });
 });

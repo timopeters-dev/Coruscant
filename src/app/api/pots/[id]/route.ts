@@ -1,0 +1,103 @@
+import { NextResponse } from "next/server";
+import { ZodError } from "zod";
+import {
+  deletePot,
+  getPotById,
+  LinkedContractNotFoundError,
+  LinkedPropertyNotFoundError,
+  RemainderPercentageExceededError,
+  updatePot,
+} from "@/db/queries/allocation";
+import {
+  badRequestResponse,
+  internalErrorResponse,
+  notFoundResponse,
+  parseJsonBody,
+  validationErrorResponse,
+} from "@/lib/api/http";
+import { potUpdateSchema } from "@/lib/validation/allocation";
+
+export const dynamic = "force-dynamic";
+
+interface RouteContext {
+  params: Promise<{ id: string }>;
+}
+
+export async function GET(
+  _request: Request,
+  context: RouteContext,
+): Promise<NextResponse> {
+  try {
+    const { id } = await context.params;
+    const pot = getPotById(id);
+    if (!pot) {
+      return notFoundResponse("Topf nicht gefunden.");
+    }
+    return NextResponse.json({ pot }, { status: 200 });
+  } catch {
+    return internalErrorResponse();
+  }
+}
+
+export async function PATCH(
+  request: Request,
+  context: RouteContext,
+): Promise<NextResponse> {
+  const body = await parseJsonBody(request);
+  if (!body.ok) {
+    return body.response;
+  }
+
+  const parsed = potUpdateSchema.safeParse(body.data);
+  if (!parsed.success) {
+    return validationErrorResponse(parsed.error);
+  }
+
+  try {
+    const { id } = await context.params;
+    const pot = updatePot(id, parsed.data);
+    if (!pot) {
+      return notFoundResponse("Topf nicht gefunden.");
+    }
+    return NextResponse.json({ pot }, { status: 200 });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return validationErrorResponse(error);
+    }
+    if (error instanceof LinkedPropertyNotFoundError) {
+      return badRequestResponse("Verknüpfte Immobilie existiert nicht.", {
+        linkedPropertyId: "Unbekannte Immobilie.",
+      });
+    }
+    if (error instanceof LinkedContractNotFoundError) {
+      return badRequestResponse("Verknüpfter Vertrag existiert nicht.", {
+        linkedContractId: "Unbekannter Vertrag.",
+      });
+    }
+    if (error instanceof RemainderPercentageExceededError) {
+      return badRequestResponse(
+        `Die Summe aller Rest-Prozentsätze darf 100 % nicht überschreiten (noch verfügbar: ${error.availablePercentage} %).`,
+        {
+          remainderPercentage: `Maximal noch ${error.availablePercentage} % verfügbar.`,
+        },
+      );
+    }
+    return internalErrorResponse();
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  context: RouteContext,
+): Promise<NextResponse> {
+  try {
+    const { id } = await context.params;
+    const deletedId = deletePot(id);
+    if (!deletedId) {
+      return notFoundResponse("Topf nicht gefunden.");
+    }
+    return NextResponse.json({ deletedId }, { status: 200 });
+  } catch {
+    return internalErrorResponse();
+  }
+}
