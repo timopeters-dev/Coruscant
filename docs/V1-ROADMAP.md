@@ -313,3 +313,35 @@ Anforderungen an Slice 6c:
 
 Starte gemäß `.agent/workflows/plan-slice.md` erst mit Analyse & Tech-Lead-Interview und speichere den Plan unter `tasks/plan-slice-6c.md`.
 ```
+
+---
+
+### Slice 6d: Automatischer `finanz_cockpit`-Sync & direkte Verlinkung
+
+* **Ziel & Scope:**
+  * Automatischer, regelmäßiger Abgleich mit `finanz_cockpit` (z. B. Auto-Refresh beim Laden von `/` falls letzter Snapshot älter als konfiguriertes Intervall ist, sowie optionaler periodischer Hintergrund-Sync im Server-Prozess).
+  * Direkte, dezente Verlinkung auf das persönliche `finanz_cockpit` (z. B. *„Mein Cockpit ↗“* im Header/AppShell oder bei der persönlichen Sphäre auf `/`, konfigurierbar über `NEXT_PUBLIC_FINANZ_COCKPIT_URL` bzw. Server-Config).
+* **Akzeptanzkriterien:**
+  * Beim Öffnen von Coruscant aktualisiert sich der `finanz_cockpit`-Snapshot automatisch, sobald der letzte Sync veraltet ist (ohne UI zu blockieren, mit sauberem Offline-Fallback).
+  * Ein Klick auf den Cockpit-Link öffnet das persönliche `finanz_cockpit` im neuen Tab.
+  * `pnpm typecheck`, `pnpm lint`, `pnpm test` laufen mit 0 Fehlern durch.
+
+#### Prompt für `/plan-slice` (Slice 6d)
+
+```text
+/plan-slice Wir planen Coruscant v1 – Slice 6d: Regelmäßiger Auto-Sync mit finanz_cockpit & direkte Verlinkung.
+
+Kontext & Vorgaben:
+- Lies zuerst `AGENTS.md`, `docs/SPEC.md`, `docs/DESIGN-SYSTEM.md`, `src/lib/integrations/finanz-cockpit-client.ts`, `src/app/api/external/sync/route.ts`, `src/components/app-shell.tsx` und `src/components/cockpit/`.
+- UI bleibt ruhig: Der Link auf `finanz_cockpit` soll dezent im Header/Cockpit sitzen und nur erscheinen, wenn eine Ziel-URL konfiguriert ist.
+
+Anforderungen an Slice 6d:
+1. Auto-Sync-Strategie:
+   - Konfigurierbares Sync-Intervall (z. B. Stale-Check beim Aufruf von `/` oder Hintergrund-Taktgeber mit sauberem Timeout/Offline-Fallback auf den letzten Snapshot).
+2. Verlinkung auf `finanz_cockpit`:
+   - Konfigurierbare URL (`.env.example` ergänzen) + dezenter externer Link (*„finanz_cockpit ↗“*) in `app-shell.tsx` / auf `/`.
+3. Tests:
+   - Unit-/Integrationstests für den Stale-/Auto-Sync-Check (frischer Snapshot wird nicht unnötig neu geladen, veralteter Snapshot triggert Sync, Offline-Fehler fällt sauber zurück).
+
+Starte gemäß `.agent/workflows/plan-slice.md` erst mit Analyse & Tech-Lead-Interview und speichere den Plan unter `tasks/plan-slice-6d.md`.
+```

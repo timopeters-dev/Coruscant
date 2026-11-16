@@ -33,6 +33,19 @@ export const properties = sqliteTable(
       "monthly_non_recoverable_costs_cents",
     ),
     depreciationBasisCents: integer("depreciation_basis_cents"),
+    street: text("street"),
+    houseNumber: text("house_number"),
+    postalCode: text("postal_code"),
+    city: text("city"),
+    livingAreaSqm: integer("living_area_sqm"),
+    usableAreaSqm: integer("usable_area_sqm"),
+    plotAreaSqm: integer("plot_area_sqm"),
+    constructionYear: integer("construction_year"),
+    energyClass: text("energy_class", {
+      enum: ["A+", "A", "B", "C", "D", "E", "F", "G", "H"],
+    }),
+    features: text("features"),
+    imagePath: text("image_path"),
     updatedAt: text("updated_at").notNull(),
   },
   (table) => [
@@ -43,6 +56,22 @@ export const properties = sqliteTable(
     check(
       "properties_purchase_price_non_negative",
       sql`${table.purchasePriceCents} IS NULL OR ${table.purchasePriceCents} >= 0`,
+    ),
+    check(
+      "properties_living_area_positive",
+      sql`${table.livingAreaSqm} IS NULL OR ${table.livingAreaSqm} > 0`,
+    ),
+    check(
+      "properties_usable_area_positive",
+      sql`${table.usableAreaSqm} IS NULL OR ${table.usableAreaSqm} > 0`,
+    ),
+    check(
+      "properties_plot_area_positive",
+      sql`${table.plotAreaSqm} IS NULL OR ${table.plotAreaSqm} > 0`,
+    ),
+    check(
+      "properties_construction_year_range",
+      sql`${table.constructionYear} IS NULL OR (${table.constructionYear} >= 1500 AND ${table.constructionYear} <= 2100)`,
     ),
   ],
 );

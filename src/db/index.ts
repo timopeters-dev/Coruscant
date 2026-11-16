@@ -45,8 +45,18 @@ export function runStartupMigrations(
   if (migratedDatabases.has(sqlite)) {
     return;
   }
-  migrate(db, { migrationsFolder });
-  migratedDatabases.add(sqlite);
+  const previousFk = sqlite.pragma("foreign_keys", { simple: true });
+  sqlite.pragma("foreign_keys = OFF");
+  try {
+    migrate(db, { migrationsFolder });
+    const fkViolations = sqlite.pragma("foreign_key_check");
+    if (Array.isArray(fkViolations) && fkViolations.length > 0) {
+      throw new Error("Foreign key integrity check failed after migrations");
+    }
+    migratedDatabases.add(sqlite);
+  } finally {
+    sqlite.pragma(`foreign_keys = ${previousFk ? "ON" : "OFF"}`);
+  }
 }
 
 export function createDbClient(

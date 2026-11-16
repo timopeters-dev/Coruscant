@@ -10,6 +10,7 @@ import {
   parseJsonBody,
   validationErrorResponse,
 } from "@/lib/api/http";
+import { deletePropertyImageIfExists } from "@/lib/storage/property-image-storage";
 import { propertyUpdateSchema } from "@/lib/validation/contracts";
 
 export const dynamic = "force-dynamic";
@@ -66,11 +67,18 @@ export async function DELETE(
 ): Promise<NextResponse> {
   try {
     const { id } = await context.params;
-    const deletedId = deleteProperty(id);
-    if (!deletedId) {
+    const deleted = deleteProperty(id);
+    if (!deleted) {
       return notFoundResponse("Immobilie nicht gefunden.");
     }
-    return NextResponse.json({ deletedId }, { status: 200 });
+    if (deleted.imagePath) {
+      try {
+        deletePropertyImageIfExists(deleted.imagePath);
+      } catch {
+        // Best-effort cleanup after DB delete
+      }
+    }
+    return NextResponse.json({ deletedId: deleted.id }, { status: 200 });
   } catch {
     return internalErrorResponse();
   }

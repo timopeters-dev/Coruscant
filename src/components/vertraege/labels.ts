@@ -5,6 +5,13 @@ import type {
   RepaymentType,
 } from "@/lib/domain/contracts";
 import type { PropertyUsage } from "@/lib/domain/properties";
+import {
+  PROPERTY_ENERGY_CLASSES,
+  type PropertyEnergyClass,
+} from "@/lib/validation/contracts";
+
+export const PROPERTY_ENERGY_CLASS_OPTIONS: readonly PropertyEnergyClass[] =
+  PROPERTY_ENERGY_CLASSES;
 
 export const PROPERTY_USAGE_LABELS: Record<PropertyUsage, string> = {
   owner_occupied: "Eigennutzung",

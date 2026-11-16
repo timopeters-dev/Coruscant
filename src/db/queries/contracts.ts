@@ -51,6 +51,17 @@ export function createProperty(input: PropertyCreateInput): PropertyRow {
       purchaseDate: input.purchaseDate ?? null,
       purchasePriceCents: input.purchasePriceCents ?? null,
       estimatedValueCents: input.estimatedValueCents,
+      street: input.street ?? null,
+      houseNumber: input.houseNumber ?? null,
+      postalCode: input.postalCode ?? null,
+      city: input.city ?? null,
+      livingAreaSqm: input.livingAreaSqm ?? null,
+      usableAreaSqm: input.usableAreaSqm ?? null,
+      plotAreaSqm: input.plotAreaSqm ?? null,
+      constructionYear: input.constructionYear ?? null,
+      energyClass: input.energyClass ?? null,
+      features: input.features ?? null,
+      imagePath: null,
       updatedAt: now,
     })
     .returning()
@@ -88,6 +99,36 @@ export function updateProperty(
           : existing.purchasePriceCents,
       estimatedValueCents:
         input.estimatedValueCents ?? existing.estimatedValueCents,
+      street: input.street !== undefined ? input.street : existing.street,
+      houseNumber:
+        input.houseNumber !== undefined
+          ? input.houseNumber
+          : existing.houseNumber,
+      postalCode:
+        input.postalCode !== undefined ? input.postalCode : existing.postalCode,
+      city: input.city !== undefined ? input.city : existing.city,
+      livingAreaSqm:
+        input.livingAreaSqm !== undefined
+          ? input.livingAreaSqm
+          : existing.livingAreaSqm,
+      usableAreaSqm:
+        input.usableAreaSqm !== undefined
+          ? input.usableAreaSqm
+          : existing.usableAreaSqm,
+      plotAreaSqm:
+        input.plotAreaSqm !== undefined
+          ? input.plotAreaSqm
+          : existing.plotAreaSqm,
+      constructionYear:
+        input.constructionYear !== undefined
+          ? input.constructionYear
+          : existing.constructionYear,
+      energyClass:
+        input.energyClass !== undefined
+          ? input.energyClass
+          : existing.energyClass,
+      features:
+        input.features !== undefined ? input.features : existing.features,
       updatedAt: now,
     })
     .where(eq(properties.id, id))
@@ -97,15 +138,48 @@ export function updateProperty(
   return updated ?? null;
 }
 
-export function deleteProperty(id: string): string | null {
+export function updatePropertyImagePath(
+  id: string,
+  imagePath: string | null,
+): { property: PropertyRow; previousImagePath: string | null } | null {
+  const existing = getPropertyById(id);
+  if (!existing) {
+    return null;
+  }
+
+  const db = getDb();
+  const now = new Date().toISOString();
+  const [updated] = db
+    .update(properties)
+    .set({
+      imagePath,
+      updatedAt: now,
+    })
+    .where(eq(properties.id, id))
+    .returning()
+    .all();
+
+  if (!updated) {
+    return null;
+  }
+
+  return {
+    property: updated,
+    previousImagePath: existing.imagePath ?? null,
+  };
+}
+
+export function deleteProperty(
+  id: string,
+): { id: string; imagePath: string | null } | null {
   const db = getDb();
   const [deleted] = db
     .delete(properties)
     .where(eq(properties.id, id))
-    .returning({ id: properties.id })
+    .returning({ id: properties.id, imagePath: properties.imagePath })
     .all();
 
-  return deleted?.id ?? null;
+  return deleted ?? null;
 }
 
 function assertLinkedPropertyExists(linkedPropertyId: string | null): void {

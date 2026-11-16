@@ -309,4 +309,141 @@ describe("Database client and startup migrations", () => {
       sqlite.close();
     }
   });
+
+  it("preserves linked_property_id on financial_contracts, pots, and documents when migrating from 0001 to 0002", () => {
+    const dbPath = makeTempDbPath("upgrade-0001-to-0002.db");
+    const sourceDrizzleDir = path.resolve(process.cwd(), "drizzle");
+    const tempDrizzleDir = path.join(path.dirname(dbPath), "drizzle-0001");
+    fs.mkdirSync(path.join(tempDrizzleDir, "meta"), { recursive: true });
+
+    fs.copyFileSync(
+      path.join(sourceDrizzleDir, "0000_greedy_dagger.sql"),
+      path.join(tempDrizzleDir, "0000_greedy_dagger.sql"),
+    );
+    fs.copyFileSync(
+      path.join(sourceDrizzleDir, "0001_cool_bloodscream.sql"),
+      path.join(tempDrizzleDir, "0001_cool_bloodscream.sql"),
+    );
+
+    const fullJournal = JSON.parse(
+      fs.readFileSync(
+        path.join(sourceDrizzleDir, "meta/_journal.json"),
+        "utf-8",
+      ),
+    ) as {
+      version: string;
+      dialect: string;
+      entries: Array<{ idx: number; tag: string }>;
+    };
+    fs.writeFileSync(
+      path.join(tempDrizzleDir, "meta/_journal.json"),
+      JSON.stringify({
+        ...fullJournal,
+        entries: fullJournal.entries.filter((entry) => entry.idx <= 1),
+      }),
+    );
+
+    const now = "2026-11-16T12:00:00.000Z";
+    const initialClient = createDbClient(dbPath, tempDrizzleDir);
+    try {
+      initialClient.sqlite
+        .prepare(
+          `INSERT INTO properties (id, name, usage, estimated_value_cents, updated_at)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run("prop-upgrade", "Musterhaus Upgrade", "owner_occupied", 45000000, now);
+
+      initialClient.sqlite
+        .prepare(
+          `INSERT INTO financial_contracts (id, name, sphere, category, status, current_balance_cents, balance_as_of_date, monthly_rate_cents, interest_rate_bps, linked_property_id, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          "contract-upgrade",
+          "Musterkredit",
+          "household",
+          "loan",
+          "active",
+          25000000,
+          "2026-11-01",
+          120000,
+          350,
+          "prop-upgrade",
+          now,
+        );
+
+      initialClient.sqlite
+        .prepare(
+          `INSERT INTO pots (id, name, priority, current_cents, rule_type, linked_property_id, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          "pot-upgrade",
+          "Instandhaltung",
+          1,
+          500000,
+          "fixed_monthly",
+          "prop-upgrade",
+          now,
+        );
+
+      initialClient.sqlite
+        .prepare(
+          `INSERT INTO documents (id, filename, storage_path, sha256_hash, status, document_type, linked_property_id, is_tax_relevant, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          "doc-upgrade",
+          "kaufvertrag.pdf",
+          "2026/00000000-0000-0000-0000-000000000001.pdf",
+          "hash-upgrade-1",
+          "verified",
+          "contract",
+          "prop-upgrade",
+          0,
+          now,
+        );
+    } finally {
+      initialClient.sqlite.close();
+    }
+
+    // Now open with full drizzle/ folder (runs 0002_romantic_whiplash.sql)
+    const upgradedClient = createDbClient(dbPath);
+    try {
+      expect(
+        upgradedClient.sqlite.pragma("foreign_keys", { simple: true }),
+      ).toBe(1);
+
+      const contractRow = upgradedClient.db
+        .select()
+        .from(financialContracts)
+        .where(eq(financialContracts.id, "contract-upgrade"))
+        .get();
+      expect(contractRow?.linkedPropertyId).toBe("prop-upgrade");
+
+      const potRow = upgradedClient.db
+        .select()
+        .from(pots)
+        .where(eq(pots.id, "pot-upgrade"))
+        .get();
+      expect(potRow?.linkedPropertyId).toBe("prop-upgrade");
+
+      const docRow = upgradedClient.db
+        .select()
+        .from(documents)
+        .where(eq(documents.id, "doc-upgrade"))
+        .get();
+      expect(docRow?.linkedPropertyId).toBe("prop-upgrade");
+
+      const propRow = upgradedClient.db
+        .select()
+        .from(properties)
+        .where(eq(properties.id, "prop-upgrade"))
+        .get();
+      expect(propRow?.name).toBe("Musterhaus Upgrade");
+      expect(propRow?.street).toBeNull();
+    } finally {
+      upgradedClient.sqlite.close();
+    }
+  });
 });

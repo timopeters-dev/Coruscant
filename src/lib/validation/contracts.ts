@@ -44,12 +44,63 @@ export const nullableOptionalIsoDate = z.preprocess(
 
 export const propertyUsageSchema = z.enum(["owner_occupied", "rented"]);
 
+export const PROPERTY_ENERGY_CLASSES = [
+  "A+",
+  "A",
+  "B",
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+  "H",
+] as const;
+
+export type PropertyEnergyClass = (typeof PROPERTY_ENERGY_CLASSES)[number];
+
+export const propertyEnergyClassSchema = z.enum(PROPERTY_ENERGY_CLASSES);
+
+const nullableOptionalPositiveAreaSqm = z
+  .number()
+  .int()
+  .min(1, "Fläche muss mindestens 1 m² betragen.")
+  .max(1_000_000, "Fläche darf höchstens 1.000.000 m² betragen.")
+  .nullable()
+  .optional();
+
+const nullableOptionalConstructionYear = z
+  .number()
+  .int()
+  .min(1500, "Baujahr muss zwischen 1500 und 2100 liegen.")
+  .max(2100, "Baujahr muss zwischen 1500 und 2100 liegen.")
+  .nullable()
+  .optional();
+
+const nullableOptionalEnergyClass = z.preprocess(
+  emptyStringToNull,
+  propertyEnergyClassSchema.nullable().optional(),
+);
+
+const propertyMetadataFields = {
+  street: nullableOptionalTrimmedString(120),
+  houseNumber: nullableOptionalTrimmedString(20),
+  postalCode: nullableOptionalTrimmedString(12),
+  city: nullableOptionalTrimmedString(120),
+  livingAreaSqm: nullableOptionalPositiveAreaSqm,
+  usableAreaSqm: nullableOptionalPositiveAreaSqm,
+  plotAreaSqm: nullableOptionalPositiveAreaSqm,
+  constructionYear: nullableOptionalConstructionYear,
+  energyClass: nullableOptionalEnergyClass,
+  features: nullableOptionalTrimmedString(500),
+};
+
 export const propertyCreateSchema = z.object({
   name: z.string().trim().min(1, "Name ist erforderlich.").max(120),
   usage: propertyUsageSchema.default("owner_occupied"),
   purchaseDate: nullableOptionalIsoDate,
   purchasePriceCents: nonNegativeSafeInt.nullable().optional(),
   estimatedValueCents: nonNegativeSafeInt,
+  ...propertyMetadataFields,
 });
 
 export const propertyUpdateSchema = z
@@ -59,6 +110,7 @@ export const propertyUpdateSchema = z
     purchaseDate: nullableOptionalIsoDate,
     purchasePriceCents: nonNegativeSafeInt.nullable().optional(),
     estimatedValueCents: nonNegativeSafeInt,
+    ...propertyMetadataFields,
   })
   .partial()
   .refine(

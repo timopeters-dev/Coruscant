@@ -244,14 +244,46 @@ export function VertraegeWorkspace({
                   }}
                   className="cursor-pointer p-5 transition-colors hover:border-[var(--border-sub)] hover:bg-[var(--surface-elevated)]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="space-y-1">
-                      <h3 className="text-base font-semibold tracking-tight text-[var(--text-primary)]">
-                        {property.name}
-                      </h3>
-                      <Badge variant="secondary">
-                        {PROPERTY_USAGE_LABELS[property.usage]}
-                      </Badge>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-3">
+                      {property.imagePath ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={`/api/properties/${property.id}/image?v=${encodeURIComponent(property.updatedAt)}`}
+                          alt={property.name}
+                          className="h-14 w-14 shrink-0 rounded-lg border border-[var(--border)] object-cover"
+                        />
+                      ) : null}
+                      <div className="min-w-0 space-y-1">
+                        <h3 className="truncate text-base font-semibold tracking-tight text-[var(--text-primary)]">
+                          {property.name}
+                        </h3>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <Badge variant="secondary">
+                            {PROPERTY_USAGE_LABELS[property.usage]}
+                          </Badge>
+                          {(() => {
+                            const location = [
+                              property.postalCode,
+                              property.city,
+                            ]
+                              .filter(Boolean)
+                              .join(" ");
+                            const metaParts = [
+                              location,
+                              property.livingAreaSqm != null
+                                ? `${property.livingAreaSqm} m²`
+                                : "",
+                            ].filter(Boolean);
+                            if (metaParts.length === 0) return null;
+                            return (
+                              <span className="tabular-nums text-xs text-[var(--text-secondary)]">
+                                {metaParts.join(" · ")}
+                              </span>
+                            );
+                          })()}
+                        </div>
+                      </div>
                     </div>
                     {isCalibrated ? (
                       <StatusBadge variant="calibrated" detail="Kaufpreis" />
@@ -649,6 +681,13 @@ export function VertraegeWorkspace({
               )
             : []
         }
+        unlinkedContracts={
+          selectedProperty
+            ? contracts.filter(
+                (c) => c.linkedPropertyId === null && c.status !== "closed",
+              )
+            : []
+        }
         linkedDocuments={
           selectedProperty
             ? (documentsByPropertyId[selectedProperty.id] ?? [])
@@ -662,7 +701,7 @@ export function VertraegeWorkspace({
           setSelectedPropertyId(null);
           setSelectedContractId(contract.id);
         }}
-        onDeleted={handleRefresh}
+        onMutated={handleRefresh}
       />
 
       <ContractDetailDrawer
