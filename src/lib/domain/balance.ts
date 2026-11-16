@@ -1,6 +1,10 @@
 import { type DomainContract, projectContractBalance } from "./contracts";
 import { parseIsoDate } from "./date";
-import { assertNonNegativeInteger, assertSafeInteger } from "./money";
+import {
+  assertNonNegativeInteger,
+  assertSafeInteger,
+  roundHalfUpBigInt,
+} from "./money";
 import type { DomainPot } from "./waterfall";
 
 export interface DomainProperty {
@@ -58,6 +62,7 @@ export function calculateHouseholdBalance(input: BalanceInput): BalanceSummary {
   }
 
   let personalExternalAssetsCents = 0;
+  let externalOverdraftCents = 0;
   if (input.externalSnapshot != null) {
     const cash = assertNonNegativeInteger(
       input.externalSnapshot.liquidCashCents,
@@ -71,11 +76,15 @@ export function calculateHouseholdBalance(input: BalanceInput): BalanceSummary {
       input.externalSnapshot.cryptoCents,
       "externalSnapshot.cryptoCents",
     );
-    assertSafeInteger(
+    const totalPersonalNetWorthCents = assertSafeInteger(
       input.externalSnapshot.totalPersonalNetWorthCents,
       "externalSnapshot.totalPersonalNetWorthCents",
     );
     personalExternalAssetsCents = cash + etf + crypto;
+    externalOverdraftCents = Math.max(
+      0,
+      personalExternalAssetsCents - totalPersonalNetWorthCents,
+    );
   }
 
   const freeAssetsCents = householdLiquidCents + personalExternalAssetsCents;
@@ -91,7 +100,7 @@ export function calculateHouseholdBalance(input: BalanceInput): BalanceSummary {
   let savingsContractsValueCents = 0;
   let householdLiabilitiesCents = 0;
   let personalContractsAssetsCents = 0;
-  let personalLiabilitiesCents = 0;
+  let personalLiabilitiesCents = externalOverdraftCents;
 
   for (const contract of input.contracts) {
     if (contract.status === "closed") {
@@ -140,5 +149,125 @@ export function calculateHouseholdBalance(input: BalanceInput): BalanceSummary {
     liabilitiesCents,
     netWorthCents,
     householdNetWorthCents,
+  };
+}
+
+export type BalanceBarSegmentId = "free" | "bound" | "liabilities";
+
+export interface BalanceBarSegment {
+  id: BalanceBarSegmentId;
+  amountCents: number;
+  shareBps: number;
+}
+
+export interface BalanceBarBreakdown {
+  totalVolumeCents: number;
+  hasData: boolean;
+  freeCents: number;
+  boundCents: number;
+  liabilitiesCents: number;
+  freeShareBps: number;
+  boundShareBps: number;
+  liabilitiesShareBps: number;
+  segments: BalanceBarSegment[];
+}
+
+const SEGMENT_PRIORITY: readonly BalanceBarSegmentId[] = [
+  "free",
+  "bound",
+  "liabilities",
+];
+
+/**
+ * Calculates the 3-segment balance bar breakdown (Free vs. Bound vs. Liabilities)
+ * normalized to exactly 10,000 basis points (100.00%) when total volume > 0.
+ */
+export function calculateBalanceBarBreakdown(
+  summary: Pick<
+    BalanceSummary,
+    "freeAssetsCents" | "boundAssetsCents" | "liabilitiesCents"
+  >,
+): BalanceBarBreakdown {
+  const freeCents = assertNonNegativeInteger(
+    summary.freeAssetsCents,
+    "freeAssetsCents",
+  );
+  const boundCents = assertNonNegativeInteger(
+    summary.boundAssetsCents,
+    "boundAssetsCents",
+  );
+  const liabilitiesCents = assertNonNegativeInteger(
+    summary.liabilitiesCents,
+    "liabilitiesCents",
+  );
+
+  const totalVolumeCents = freeCents + boundCents + liabilitiesCents;
+  if (totalVolumeCents === 0) {
+    return {
+      totalVolumeCents: 0,
+      hasData: false,
+      freeCents: 0,
+      boundCents: 0,
+      liabilitiesCents: 0,
+      freeShareBps: 0,
+      boundShareBps: 0,
+      liabilitiesShareBps: 0,
+      segments: [
+        { id: "free", amountCents: 0, shareBps: 0 },
+        { id: "bound", amountCents: 0, shareBps: 0 },
+        { id: "liabilities", amountCents: 0, shareBps: 0 },
+      ],
+    };
+  }
+
+  const totalBig = BigInt(totalVolumeCents);
+  const shares: Record<BalanceBarSegmentId, number> = {
+    free: Number(roundHalfUpBigInt(BigInt(freeCents) * 10_000n, totalBig)),
+    bound: Number(roundHalfUpBigInt(BigInt(boundCents) * 10_000n, totalBig)),
+    liabilities: Number(
+      roundHalfUpBigInt(BigInt(liabilitiesCents) * 10_000n, totalBig),
+    ),
+  };
+
+  const amounts: Record<BalanceBarSegmentId, number> = {
+    free: freeCents,
+    bound: boundCents,
+    liabilities: liabilitiesCents,
+  };
+
+  const sumBps = shares.free + shares.bound + shares.liabilities;
+  const diff = 10_000 - sumBps;
+  if (diff !== 0) {
+    // Deterministic adjustment on the largest positive segment (tie-breaker: free -> bound -> liabilities)
+    let targetId: BalanceBarSegmentId | null = null;
+    for (const id of SEGMENT_PRIORITY) {
+      if (amounts[id] <= 0) continue;
+      if (targetId === null || amounts[id] > amounts[targetId]) {
+        targetId = id;
+      }
+    }
+    if (targetId !== null) {
+      shares[targetId] += diff;
+    }
+  }
+
+  return {
+    totalVolumeCents,
+    hasData: true,
+    freeCents,
+    boundCents,
+    liabilitiesCents,
+    freeShareBps: shares.free,
+    boundShareBps: shares.bound,
+    liabilitiesShareBps: shares.liabilities,
+    segments: [
+      { id: "free", amountCents: freeCents, shareBps: shares.free },
+      { id: "bound", amountCents: boundCents, shareBps: shares.bound },
+      {
+        id: "liabilities",
+        amountCents: liabilitiesCents,
+        shareBps: shares.liabilities,
+      },
+    ],
   };
 }

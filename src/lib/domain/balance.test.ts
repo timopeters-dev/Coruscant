@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { calculateHouseholdBalance } from "./balance";
+import {
+  calculateBalanceBarBreakdown,
+  calculateHouseholdBalance,
+} from "./balance";
 import type { DomainContract } from "./contracts";
 import type { DomainPot } from "./waterfall";
 
@@ -189,6 +192,132 @@ describe("calculateHouseholdBalance", () => {
         ],
         contracts: [],
         pots: [],
+      }),
+    ).toThrow(RangeError);
+  });
+
+  it("accounts for external overdraft when totalPersonalNetWorthCents < clamped external assets", () => {
+    const withOverdraft = calculateHouseholdBalance({
+      asOfDate: "2026-11-16",
+      properties: [],
+      contracts: [],
+      pots: [
+        {
+          id: "pot-1",
+          name: "Rücklage",
+          priority: 1,
+          currentCents: 100_000,
+          targetCents: null,
+          ruleType: "fill_to_target",
+        },
+      ],
+      externalSnapshot: {
+        liquidCashCents: 0,
+        etfStocksCents: 2_000_000,
+        cryptoCents: 0,
+        totalPersonalNetWorthCents: 1_950_000,
+        fetchedAt: "2026-11-16T10:00:00.000Z",
+      },
+    });
+
+    expect(withOverdraft.personalExternalAssetsCents).toBe(2_000_000);
+    expect(withOverdraft.personalLiabilitiesCents).toBe(50_000);
+    expect(withOverdraft.liabilitiesCents).toBe(50_000);
+    expect(withOverdraft.totalAssetsCents).toBe(2_100_000);
+    expect(withOverdraft.netWorthCents).toBe(2_050_000);
+
+    const negativeExternalNetWorth = calculateHouseholdBalance({
+      asOfDate: "2026-11-16",
+      properties: [],
+      contracts: [],
+      pots: [],
+      externalSnapshot: {
+        liquidCashCents: 0,
+        etfStocksCents: 0,
+        cryptoCents: 0,
+        totalPersonalNetWorthCents: -75_000,
+        fetchedAt: "2026-11-16T10:00:00.000Z",
+      },
+    });
+
+    expect(negativeExternalNetWorth.personalExternalAssetsCents).toBe(0);
+    expect(negativeExternalNetWorth.personalLiabilitiesCents).toBe(75_000);
+    expect(negativeExternalNetWorth.liabilitiesCents).toBe(75_000);
+    expect(negativeExternalNetWorth.netWorthCents).toBe(-75_000);
+  });
+});
+
+describe("calculateBalanceBarBreakdown", () => {
+  it("computes basis-point shares summing to exactly 10,000 bps", () => {
+    const breakdown = calculateBalanceBarBreakdown({
+      freeAssetsCents: 2_500_000,
+      boundAssetsCents: 5_000_000,
+      liabilitiesCents: 2_500_000,
+    });
+
+    expect(breakdown.hasData).toBe(true);
+    expect(breakdown.totalVolumeCents).toBe(10_000_000);
+    expect(breakdown.freeShareBps).toBe(2_500);
+    expect(breakdown.boundShareBps).toBe(5_000);
+    expect(breakdown.liabilitiesShareBps).toBe(2_500);
+    expect(
+      breakdown.freeShareBps +
+        breakdown.boundShareBps +
+        breakdown.liabilitiesShareBps,
+    ).toBe(10_000);
+  });
+
+  it("handles zero total volume gracefully", () => {
+    const breakdown = calculateBalanceBarBreakdown({
+      freeAssetsCents: 0,
+      boundAssetsCents: 0,
+      liabilitiesCents: 0,
+    });
+
+    expect(breakdown.hasData).toBe(false);
+    expect(breakdown.totalVolumeCents).toBe(0);
+    expect(breakdown.freeShareBps).toBe(0);
+    expect(breakdown.boundShareBps).toBe(0);
+    expect(breakdown.liabilitiesShareBps).toBe(0);
+  });
+
+  it("normalizes 1/3 : 1/3 : 1/3 rounding remainder deterministically to 10,000 bps", () => {
+    const breakdown = calculateBalanceBarBreakdown({
+      freeAssetsCents: 100,
+      boundAssetsCents: 100,
+      liabilitiesCents: 100,
+    });
+
+    expect(breakdown.hasData).toBe(true);
+    expect(breakdown.freeShareBps).toBe(3_334);
+    expect(breakdown.boundShareBps).toBe(3_333);
+    expect(breakdown.liabilitiesShareBps).toBe(3_333);
+    expect(
+      breakdown.freeShareBps +
+        breakdown.boundShareBps +
+        breakdown.liabilitiesShareBps,
+    ).toBe(10_000);
+  });
+
+  it("handles liabilities-only volume as 10,000 bps liabilities", () => {
+    const breakdown = calculateBalanceBarBreakdown({
+      freeAssetsCents: 0,
+      boundAssetsCents: 0,
+      liabilitiesCents: 1_500_000,
+    });
+
+    expect(breakdown.hasData).toBe(true);
+    expect(breakdown.freeShareBps).toBe(0);
+    expect(breakdown.boundShareBps).toBe(0);
+    expect(breakdown.liabilitiesShareBps).toBe(10_000);
+  });
+
+  it("throws RangeError on negative inputs", () => {
+    expect(() =>
+      calculateBalanceBarBreakdown({
+        freeAssetsCents: -1,
+        boundAssetsCents: 0,
+        liabilitiesCents: 0,
       }),
     ).toThrow(RangeError);
   });

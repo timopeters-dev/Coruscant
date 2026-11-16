@@ -1,0 +1,143 @@
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import type { BalanceBarBreakdown } from "@/lib/domain/balance";
+import { formatBpsDE, formatCentsDE } from "@/lib/domain/money";
+
+interface BalanceBarProps {
+  breakdown: BalanceBarBreakdown;
+}
+
+const SEGMENT_META = [
+  {
+    key: "free",
+    label: "Frei",
+    description: "Haushalts-Töpfe + finanz_cockpit",
+    dotClass: "bg-[var(--emerald)]",
+    barClass: "bg-[var(--emerald)]",
+  },
+  {
+    key: "bound",
+    label: "Gebunden",
+    description: "Immobilien + Sparverträge",
+    dotClass: "bg-[var(--sky)]",
+    barClass: "bg-[var(--sky)]",
+  },
+  {
+    key: "liabilities",
+    label: "Schulden",
+    description: "Aktive Kredite & Darlehen",
+    dotClass: "bg-[var(--rose)]",
+    barClass: "bg-[var(--rose)]",
+  },
+] as const;
+
+export function BalanceBar({ breakdown }: BalanceBarProps) {
+  const values = {
+    free: {
+      amountCents: breakdown.freeCents,
+      shareBps: breakdown.freeShareBps,
+    },
+    bound: {
+      amountCents: breakdown.boundCents,
+      shareBps: breakdown.boundShareBps,
+    },
+    liabilities: {
+      amountCents: breakdown.liabilitiesCents,
+      shareBps: breakdown.liabilitiesShareBps,
+    },
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <div>
+            <CardTitle className="text-base">
+              Vermögensstruktur: Frei vs. Gebunden vs. Schulden
+            </CardTitle>
+            <CardDescription>
+              Normiert auf das Gesamtvolumen (Aktiva + Passiva)
+            </CardDescription>
+          </div>
+          {breakdown.hasData ? (
+            <span className="tabular-nums text-xs text-[var(--text-secondary)]">
+              Gesamtvolumen:{" "}
+              <span className="font-medium text-[var(--text-primary)]">
+                {formatCentsDE(breakdown.totalVolumeCents)}
+              </span>
+            </span>
+          ) : null}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {breakdown.hasData ? (
+          <div
+            className="flex h-3.5 w-full overflow-hidden rounded-full bg-[var(--surface-elevated)]"
+            role="img"
+            aria-label="Vermögensstruktur Frei, Gebunden und Schulden"
+          >
+            {SEGMENT_META.map((seg) => {
+              const segData = values[seg.key];
+              if (segData.shareBps <= 0) return null;
+              return (
+                <div
+                  key={seg.key}
+                  className={seg.barClass}
+                  style={{ width: `${segData.shareBps / 100}%` }}
+                  title={`${seg.label}: ${formatCentsDE(segData.amountCents)} (${formatBpsDE(segData.shareBps)})`}
+                />
+              );
+            })}
+          </div>
+        ) : (
+          <div className="flex h-3.5 w-full items-center justify-center rounded-full bg-[var(--surface-elevated)]">
+            <span className="sr-only">Noch keine Vermögensdaten vorhanden</span>
+          </div>
+        )}
+
+        {!breakdown.hasData ? (
+          <p className="text-xs text-[var(--text-secondary)]">
+            Noch keine Aktiva oder Verbindlichkeiten erfasst. Lege Verträge,
+            Immobilien oder Töpfe an oder synchronisiere mit finanz_cockpit.
+          </p>
+        ) : null}
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          {SEGMENT_META.map((seg) => {
+            const segData = values[seg.key];
+            return (
+              <div
+                key={seg.key}
+                className="rounded-lg border border-[var(--border-sub)] bg-[var(--surface-elevated)]/50 px-3 py-2.5"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--text-primary)]">
+                    <span
+                      className={`h-2 w-2 rounded-full ${seg.dotClass}`}
+                      aria-hidden="true"
+                    />
+                    {seg.label}
+                  </span>
+                  <span className="tabular-nums text-xs font-medium text-[var(--text-secondary)]">
+                    {formatBpsDE(segData.shareBps)}
+                  </span>
+                </div>
+                <div className="mt-1 tabular-nums text-sm font-semibold text-[var(--text-primary)]">
+                  {formatCentsDE(segData.amountCents)}
+                </div>
+                <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
+                  {seg.description}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
