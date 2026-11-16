@@ -1,21 +1,24 @@
 "use client";
 
 import * as React from "react";
-import { Building2, FileText, Pencil, Trash2 } from "lucide-react";
+import { Building2, Pencil, Trash2 } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import type { FinancialContractRow, PropertyRow } from "@/db/queries/contracts";
+import type { DocumentRow } from "@/db/queries/documents";
 import type { ContractProjectionResult } from "@/lib/domain/contracts";
 import { formatBpsDE, formatCentsDE } from "@/lib/domain/money";
 import type { PropertySummary } from "@/lib/domain/properties";
 import { getContractTypeLabel, PROPERTY_USAGE_LABELS } from "./labels";
+import { LinkedDocumentsSection } from "./linked-documents-section";
 
 interface PropertyDetailDrawerProps {
   property: PropertyRow | null;
   summary: PropertySummary | null;
   linkedContracts: FinancialContractRow[];
+  linkedDocuments: DocumentRow[];
   projectionsById: Record<string, ContractProjectionResult>;
   asOfDate: string;
   onClose: () => void;
@@ -43,6 +46,7 @@ function PropertyDetailDrawerInner({
   property,
   summary,
   linkedContracts,
+  linkedDocuments,
   projectionsById,
   asOfDate,
   onClose,
@@ -241,16 +245,10 @@ function PropertyDetailDrawerInner({
           )}
         </div>
 
-        <div className="rounded-xl border border-dashed border-[var(--border-sub)] bg-[var(--surface-elevated)]/30 p-4">
-          <div className="flex items-center gap-2 text-xs font-medium text-[var(--text-primary)]">
-            <FileText className="h-3.5 w-3.5 text-[var(--amber)]" />
-            <span>Verknüpfte Belege (ab Slice 6)</span>
-          </div>
-          <p className="mt-1 text-xs text-[var(--text-secondary)]">
-            Kaufverträge, Gutachten und Handwerkerrechnungen werden ab Slice 6
-            über die KI-Dokumenten-Inbox hier verknüpft.
-          </p>
-        </div>
+        <LinkedDocumentsSection
+          documents={linkedDocuments}
+          emptyText="Noch keine verifizierten Belege verknüpft. Kaufverträge, Gutachten und Handwerkerrechnungen können über die Dokumenten-Inbox zugeordnet werden."
+        />
 
         <div className="space-y-3 border-t border-[var(--border)] pt-4">
           <div className="flex flex-wrap gap-2">

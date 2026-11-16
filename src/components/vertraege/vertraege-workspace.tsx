@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import type { FinancialContractRow, PropertyRow } from "@/db/queries/contracts";
+import type { DocumentRow } from "@/db/queries/documents";
 import {
   type ContractCategory,
   type ContractMilestone,
@@ -40,6 +41,8 @@ interface VertraegeWorkspaceProps {
   contracts: FinancialContractRow[];
   propertySummaries: Record<string, PropertySummary>;
   projectionsById: Record<string, ContractProjectionResult>;
+  documentsByContractId: Record<string, DocumentRow[]>;
+  documentsByPropertyId: Record<string, DocumentRow[]>;
 }
 
 type CategoryFilter = "all" | ContractCategory;
@@ -51,6 +54,8 @@ export function VertraegeWorkspace({
   contracts,
   propertySummaries,
   projectionsById,
+  documentsByContractId,
+  documentsByPropertyId,
 }: VertraegeWorkspaceProps) {
   const router = useRouter();
 
@@ -644,6 +649,11 @@ export function VertraegeWorkspace({
               )
             : []
         }
+        linkedDocuments={
+          selectedProperty
+            ? (documentsByPropertyId[selectedProperty.id] ?? [])
+            : []
+        }
         projectionsById={projectionsById}
         asOfDate={asOfDate}
         onClose={() => setSelectedPropertyId(null)}
@@ -666,6 +676,11 @@ export function VertraegeWorkspace({
           selectedContract?.linkedPropertyId
             ? (propertyById.get(selectedContract.linkedPropertyId) ?? null)
             : null
+        }
+        linkedDocuments={
+          selectedContract
+            ? (documentsByContractId[selectedContract.id] ?? [])
+            : []
         }
         asOfDate={asOfDate}
         onClose={() => setSelectedContractId(null)}

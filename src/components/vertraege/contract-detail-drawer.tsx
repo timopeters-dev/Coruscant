@@ -3,7 +3,6 @@
 import * as React from "react";
 import {
   CalendarClock,
-  FileText,
   Pause,
   Pencil,
   Play,
@@ -15,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import type { FinancialContractRow, PropertyRow } from "@/db/queries/contracts";
+import type { DocumentRow } from "@/db/queries/documents";
 import type {
   ContractProjectionResult,
   ContractStatus,
@@ -25,11 +25,13 @@ import {
   CONTRACT_STATUS_LABELS,
   getContractTypeLabel,
 } from "./labels";
+import { LinkedDocumentsSection } from "./linked-documents-section";
 
 interface ContractDetailDrawerProps {
   contract: FinancialContractRow | null;
   projection: ContractProjectionResult | null;
   linkedProperty: PropertyRow | null;
+  linkedDocuments: DocumentRow[];
   asOfDate: string;
   onClose: () => void;
   onEdit: (contract: FinancialContractRow) => void;
@@ -55,6 +57,7 @@ function ContractDetailDrawerInner({
   contract,
   projection,
   linkedProperty,
+  linkedDocuments,
   asOfDate,
   onClose,
   onEdit,
@@ -352,16 +355,10 @@ function ContractDetailDrawerInner({
           </div>
         ) : null}
 
-        <div className="rounded-xl border border-dashed border-[var(--border-sub)] bg-[var(--surface-elevated)]/30 p-4">
-          <div className="flex items-center gap-2 text-xs font-medium text-[var(--text-primary)]">
-            <FileText className="h-3.5 w-3.5 text-[var(--amber)]" />
-            <span>Verknüpfte Belege &amp; Eichung (ab Slice 6)</span>
-          </div>
-          <p className="mt-1 text-xs text-[var(--text-secondary)]">
-            Kontoauszüge und Jahresmitteilungen können ab Slice 6 hochgeladen
-            werden, um den Vertragsstand per 1-Klick zu eichen.
-          </p>
-        </div>
+        <LinkedDocumentsSection
+          documents={linkedDocuments}
+          emptyText="Noch keine verifizierten Belege verknüpft. Kontoauszüge und Jahresmitteilungen können über die Dokumenten-Inbox hochgeladen und zur Eichung verknüpft werden."
+        />
 
         <div className="space-y-3 border-t border-[var(--border)] pt-4">
           <div className="flex flex-wrap gap-2">
