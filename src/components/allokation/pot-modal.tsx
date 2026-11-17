@@ -15,6 +15,7 @@ import {
 } from "@/lib/domain/money";
 import type { PotLinkOption } from "@/lib/domain/pot-sync";
 import type { PotRuleType } from "@/lib/domain/waterfall";
+import type { PotPurpose } from "@/lib/validation/allocation";
 
 interface PotModalProps {
   open: boolean;
@@ -114,6 +115,9 @@ function PotModalInner({
     initialPot?.externalLinkKind && initialPot.externalLinkRef
       ? `${initialPot.externalLinkKind}:${initialPot.externalLinkRef}`
       : "",
+  );
+  const [purpose, setPurpose] = React.useState<PotPurpose | "">(
+    initialPot?.purpose ?? "",
   );
   const [errors, setErrors] = React.useState<FieldErrors>({});
   const [submitting, setSubmitting] = React.useState(false);
@@ -299,6 +303,7 @@ function PotModalInner({
           remainderPercentage: parsedPct,
           linkedPropertyId: linkedPropertyId || null,
           linkedContractId: linkedContractId || null,
+          purpose: purpose || null,
         }),
       });
 
@@ -512,6 +517,20 @@ function PotModalInner({
               </p>
             ) : null}
           </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="pot-purpose">Zweck (für den Investment-Coach)</Label>
+          <Select
+            id="pot-purpose"
+            value={purpose}
+            onChange={(e) => setPurpose(e.target.value as PotPurpose | "")}
+          >
+            <option value="">Nicht festgelegt</option>
+            <option value="emergency_fund">Notgroschen</option>
+            <option value="goal">Zweckgebundenes Ziel</option>
+            <option value="investment">Langfristiger Vermögensaufbau</option>
+          </Select>
         </div>
 
         <div className="space-y-1.5">

@@ -38,6 +38,97 @@ afterEach(() => {
   }
 });
 
+describe("/api/pots purpose", () => {
+  it("speichert purpose im Roundtrip, lässt es bei PATCH ohne purpose unverändert und migriert Bestand auf null", async () => {
+    const created = await createPot(
+      new Request("http://localhost/api/pots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Muster-Notgroschen",
+          ruleType: "fill_to_target",
+          targetCents: 300_000,
+          purpose: "emergency_fund",
+        }),
+      }),
+    );
+    expect(created.status).toBe(201);
+    const { pot } = (await created.json()) as {
+      pot: { id: string; purpose: string | null };
+    };
+    expect(pot.purpose).toBe("emergency_fund");
+
+    const withoutPurpose = await createPot(
+      new Request("http://localhost/api/pots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Muster-Topf",
+          ruleType: "fixed_monthly",
+          fixedMonthlyCents: 10_000,
+        }),
+      }),
+    );
+    const { pot: plain } = (await withoutPurpose.json()) as {
+      pot: { purpose: string | null };
+    };
+    expect(plain.purpose).toBeNull();
+
+    const renamed = await patchPotById(
+      new Request(`http://localhost/api/pots/${pot.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Muster-Notgroschen 2" }),
+      }),
+      { params: Promise.resolve({ id: pot.id }) },
+    );
+    const { pot: afterRename } = (await renamed.json()) as {
+      pot: { purpose: string | null };
+    };
+    expect(afterRename.purpose).toBe("emergency_fund");
+
+    const changed = await patchPotById(
+      new Request(`http://localhost/api/pots/${pot.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ purpose: "goal" }),
+      }),
+      { params: Promise.resolve({ id: pot.id }) },
+    );
+    const { pot: afterChange } = (await changed.json()) as {
+      pot: { purpose: string | null };
+    };
+    expect(afterChange.purpose).toBe("goal");
+
+    const cleared = await patchPotById(
+      new Request(`http://localhost/api/pots/${pot.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ purpose: null }),
+      }),
+      { params: Promise.resolve({ id: pot.id }) },
+    );
+    const { pot: afterClear } = (await cleared.json()) as {
+      pot: { purpose: string | null };
+    };
+    expect(afterClear.purpose).toBeNull();
+
+    const invalid = await createPot(
+      new Request("http://localhost/api/pots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Ungültig",
+          ruleType: "fixed_monthly",
+          fixedMonthlyCents: 100,
+          purpose: "notgroschen",
+        }),
+      }),
+    );
+    expect(invalid.status).toBe(400);
+  });
+});
+
 describe("/api/pots CRUD, percentage guard, reorder, and atomic allocation", () => {
   it("supports all 3 rule types, links, percentage guard, reorder, atomic allocation, and cascade delete", async () => {
     // Setup property & contract for linking

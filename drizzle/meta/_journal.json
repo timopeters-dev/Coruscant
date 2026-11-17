@@ -43,6 +43,13 @@
       "when": 1794928022031,
       "tag": "0005_odd_reavers",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1794932441033,
+      "tag": "0006_heavy_thaddeus_ross",
+      "breakpoints": true
     }
   ]
 }

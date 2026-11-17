@@ -187,6 +187,10 @@ export const pots = sqliteTable(
     externalLinkScope: text("external_link_scope", {
       enum: ["personal", "household"],
     }),
+    /** Zweck des Topfs für den Investment-Coach; NULL = nicht festgelegt. */
+    purpose: text("purpose", {
+      enum: ["emergency_fund", "goal", "investment"],
+    }),
     /** Age of the calibrated stand in finanz_cockpit (balanceAsOf, fallback fetchedAt). */
     externalSyncedAt: text("external_synced_at"),
     /** When the link was last set/changed (local time); starts the pending-transfer window. */

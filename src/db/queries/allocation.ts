@@ -473,6 +473,7 @@ function createPotInTransaction(db: DbInstance, input: PotCreateInput): PotRow {
         remainderPercentage: input.remainderPercentage,
         linkedContractId: input.linkedContractId,
         linkedPropertyId: input.linkedPropertyId,
+        purpose: input.purpose,
         externalLinkKind: linkState.kind,
         externalLinkRef: linkState.ref,
         externalLinkScope: linkState.scope,
@@ -553,6 +554,7 @@ function updatePotInTransaction(
           ? patch.linkedPropertyId
           : existing.linkedPropertyId,
       externalLink: effectiveLink,
+      purpose: patch.purpose !== undefined ? patch.purpose : existing.purpose,
     });
 
     const linkState = resolveLinkState(
@@ -591,6 +593,7 @@ function updatePotInTransaction(
         remainderPercentage: merged.remainderPercentage,
         linkedContractId: merged.linkedContractId,
         linkedPropertyId: merged.linkedPropertyId,
+        purpose: merged.purpose,
         externalLinkKind: linkState.kind,
         externalLinkRef: linkState.ref,
         externalLinkScope: linkState.scope,

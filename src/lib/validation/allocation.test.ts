@@ -5,6 +5,7 @@ import {
   potAllocateSchema,
   potCreateSchema,
   potReorderSchema,
+  potUpdateSchema,
 } from "./allocation";
 
 describe("cashflowCreateSchema & cashflowUpdateSchema", () => {
@@ -112,6 +113,7 @@ describe("potCreateSchema", () => {
       linkedPropertyId: null,
       linkedContractId: "contract-1",
       externalLink: null,
+      purpose: null,
     });
 
     const fixed = potCreateSchema.parse({
@@ -133,6 +135,33 @@ describe("potCreateSchema", () => {
     expect(pct.remainderPercentage).toBe(60);
     expect(pct.fixedMonthlyCents).toBeNull();
     expect(pct.targetCents).toBe(300_000);
+  });
+
+  it("validiert purpose: gültig, null und weggelassen akzeptiert, Nicht-Enum abgelehnt", () => {
+    const base = {
+      name: "Muster-Notgroschen",
+      ruleType: "fill_to_target" as const,
+      targetCents: 100_000,
+    };
+    expect(potCreateSchema.parse({ ...base, purpose: "emergency_fund" }).purpose).toBe(
+      "emergency_fund",
+    );
+    expect(potCreateSchema.parse({ ...base, purpose: "goal" }).purpose).toBe("goal");
+    expect(potCreateSchema.parse({ ...base, purpose: "investment" }).purpose).toBe(
+      "investment",
+    );
+    expect(potCreateSchema.parse({ ...base, purpose: null }).purpose).toBeNull();
+    expect(potCreateSchema.parse(base).purpose).toBeNull();
+    expect(potCreateSchema.safeParse({ ...base, purpose: "notgroschen" }).success).toBe(
+      false,
+    );
+  });
+
+  it("potUpdateSchema: purpose optional, Nicht-Enum abgelehnt, Update ohne purpose lässt undefined", () => {
+    expect(potUpdateSchema.parse({ purpose: "goal" }).purpose).toBe("goal");
+    expect(potUpdateSchema.parse({ purpose: null }).purpose).toBeNull();
+    expect(potUpdateSchema.parse({ name: "Neu" }).purpose).toBeUndefined();
+    expect(potUpdateSchema.safeParse({ purpose: "notgroschen" }).success).toBe(false);
   });
 
   it("validates the optional externalLink (kind/ref)", () => {

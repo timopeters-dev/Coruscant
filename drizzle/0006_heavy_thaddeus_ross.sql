@@ -1,0 +1,1 @@
+ALTER TABLE `pots` ADD `purpose` text;

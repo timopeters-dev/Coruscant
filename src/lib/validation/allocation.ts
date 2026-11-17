@@ -67,6 +67,14 @@ export const potRuleTypeSchema = z.enum([
   "percentage_of_remainder",
 ]);
 
+export const potPurposeSchema = z.enum([
+  "emergency_fund",
+  "goal",
+  "investment",
+]);
+
+export type PotPurpose = z.infer<typeof potPurposeSchema>;
+
 export const externalLinkSchema = z
   .object({
     kind: z.enum(["account", "position"]),
@@ -92,6 +100,7 @@ const potBaseObject = z.object({
   linkedContractId: nullableOptionalTrimmedId(120),
   linkedPropertyId: nullableOptionalTrimmedId(120),
   externalLink: externalLinkSchema.nullable().optional(),
+  purpose: potPurposeSchema.nullable().optional(),
 });
 
 type PotBaseValues = z.infer<typeof potBaseObject>;
@@ -106,6 +115,7 @@ export interface NormalizedPotInput {
   linkedContractId: string | null;
   linkedPropertyId: string | null;
   externalLink: ExternalLinkInput | null;
+  purpose: PotPurpose | null;
 }
 
 export function normalizePotPayload(input: PotBaseValues): NormalizedPotInput {
@@ -115,6 +125,7 @@ export function normalizePotPayload(input: PotBaseValues): NormalizedPotInput {
     linkedContractId: input.linkedContractId ?? null,
     linkedPropertyId: input.linkedPropertyId ?? null,
     externalLink: input.externalLink ?? null,
+    purpose: input.purpose ?? null,
   };
 
   if (input.ruleType === "fill_to_target") {
@@ -201,6 +212,7 @@ export const potUpdateSchema = z
     linkedContractId: nullableOptionalTrimmedId(120),
     linkedPropertyId: nullableOptionalTrimmedId(120),
     externalLink: externalLinkSchema.nullable().optional(),
+    purpose: potPurposeSchema.nullable().optional(),
   })
   .partial()
   .refine(
