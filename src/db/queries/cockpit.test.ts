@@ -153,4 +153,53 @@ describe("loadCockpitData integration", () => {
     expect(data.projectedAssetContractsCount).toBe(1);
     expect(data.projectedLiabilityContractsCount).toBe(0);
   });
+
+  it("evaluates isSnapshotStale and syncIntervalMinutes deterministically", () => {
+    const originalInterval = process.env.FINANZ_COCKPIT_SYNC_INTERVAL_MINUTES;
+    try {
+      process.env.FINANZ_COCKPIT_SYNC_INTERVAL_MINUTES = "15";
+      const now = new Date("2026-11-16T12:15:00.000Z");
+
+      // Missing snapshot -> stale
+      const withoutSnapshot = loadCockpitData("2026-11-16", now);
+      expect(withoutSnapshot.syncIntervalMinutes).toBe(15);
+      expect(withoutSnapshot.isSnapshotStale).toBe(true);
+      expect(withoutSnapshot.nextSyncAtMs).toBeNull();
+
+      // Stale snapshot (20 min old)
+      insertExternalSnapshot({
+        source: "finanz_cockpit",
+        liquidCashCents: 100_000,
+        etfStocksCents: 0,
+        cryptoCents: 0,
+        totalPersonalNetWorthCents: 100_000,
+        fetchedAt: "2026-11-16T11:55:00.000Z",
+      });
+      const withStale = loadCockpitData("2026-11-16", now);
+      expect(withStale.isSnapshotStale).toBe(true);
+      expect(withStale.nextSyncAtMs).toBeNull();
+
+      // Fresh snapshot (14 min old -> nextSyncAtMs is 1 min after now)
+      const freshFetchedAt = "2026-11-16T12:01:00.000Z";
+      insertExternalSnapshot({
+        source: "finanz_cockpit",
+        liquidCashCents: 200_000,
+        etfStocksCents: 0,
+        cryptoCents: 0,
+        totalPersonalNetWorthCents: 200_000,
+        fetchedAt: freshFetchedAt,
+      });
+      const withFresh = loadCockpitData("2026-11-16", now);
+      expect(withFresh.isSnapshotStale).toBe(false);
+      expect(withFresh.nextSyncAtMs).toBe(
+        Date.parse(freshFetchedAt) + 15 * 60_000,
+      );
+    } finally {
+      if (originalInterval === undefined) {
+        delete process.env.FINANZ_COCKPIT_SYNC_INTERVAL_MINUTES;
+      } else {
+        process.env.FINANZ_COCKPIT_SYNC_INTERVAL_MINUTES = originalInterval;
+      }
+    }
+  });
 });

@@ -3,13 +3,102 @@ import {
   getLatestExternalSnapshot,
   insertExternalSnapshot,
 } from "@/db/queries/cockpit";
-import { internalErrorResponse } from "@/lib/api/http";
-import { fetchFinanzCockpitSummary } from "@/lib/integrations/finanz-cockpit-client";
+import { badRequestResponse, internalErrorResponse } from "@/lib/api/http";
+import { evaluateSnapshotFreshness } from "@/lib/domain/external-sync";
+import {
+  fetchFinanzCockpitSummary,
+  getFinanzCockpitBridgeConfig,
+} from "@/lib/integrations/finanz-cockpit-client";
+import { externalSyncRequestSchema } from "@/lib/validation/external";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(): Promise<Response> {
+async function parseSyncMode(
+  request?: Request,
+): Promise<
+  { ok: true; mode: "manual" | "auto" } | { ok: false; response: Response }
+> {
+  if (!request) {
+    return { ok: true, mode: "manual" };
+  }
+
+  let rawText: string;
   try {
+    rawText = await request.text();
+  } catch {
+    return {
+      ok: false,
+      response: badRequestResponse("Ungültiger Request-Body."),
+    };
+  }
+
+  if (rawText.trim().length === 0) {
+    return { ok: true, mode: "manual" };
+  }
+
+  let parsedJson: unknown;
+  try {
+    parsedJson = JSON.parse(rawText);
+  } catch {
+    return {
+      ok: false,
+      response: badRequestResponse("Ungültiger JSON-Body."),
+    };
+  }
+
+  const parsed = externalSyncRequestSchema.safeParse(parsedJson);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      response: badRequestResponse("Ungültiger Sync-Modus.", {
+        mode: "Erlaubt sind nur 'manual' oder 'auto'.",
+      }),
+    };
+  }
+
+  return { ok: true, mode: parsed.data.mode };
+}
+
+export async function POST(request?: Request): Promise<Response> {
+  try {
+    const modeResult = await parseSyncMode(request);
+    if (!modeResult.ok) {
+      return modeResult.response;
+    }
+
+    if (modeResult.mode === "auto") {
+      const config = getFinanzCockpitBridgeConfig();
+      if (config.syncIntervalMinutes === 0) {
+        return NextResponse.json(
+          {
+            status: "skipped",
+            reason: "disabled",
+            snapshot: getLatestExternalSnapshot(),
+            message: "Automatischer Sync ist deaktiviert.",
+          },
+          { status: 200 },
+        );
+      }
+
+      const latestSnapshot = getLatestExternalSnapshot();
+      const freshness = evaluateSnapshotFreshness({
+        latestFetchedAt: latestSnapshot?.fetchedAt ?? null,
+        intervalMinutes: config.syncIntervalMinutes,
+      });
+
+      if (!freshness.shouldSync) {
+        return NextResponse.json(
+          {
+            status: "skipped",
+            reason: "fresh",
+            snapshot: latestSnapshot,
+            message: "finanz_cockpit-Snapshot ist noch aktuell.",
+          },
+          { status: 200 },
+        );
+      }
+    }
+
     const result = await fetchFinanzCockpitSummary();
 
     if (result.ok) {

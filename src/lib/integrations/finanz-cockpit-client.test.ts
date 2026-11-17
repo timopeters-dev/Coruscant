@@ -27,7 +27,57 @@ describe("getFinanzCockpitBridgeConfig", () => {
         FINANZ_COCKPIT_URL: "ftp://invalid",
         EXTERNAL_SUMMARY_TOKEN: "secret-token",
       }),
-    ).toMatchObject({ configured: false, validUrl: false });
+    ).toMatchObject({ configured: false, validUrl: false, publicUrl: null });
+  });
+
+  it("resolves publicUrl with FINANZ_COCKPIT_PUBLIC_URL precedence, fallback to FINANZ_COCKPIT_URL, and rejects unsafe URLs", () => {
+    expect(
+      getFinanzCockpitBridgeConfig({
+        FINANZ_COCKPIT_URL: "http://127.0.0.1:3001",
+      }).publicUrl,
+    ).toBe("http://127.0.0.1:3001");
+
+    expect(
+      getFinanzCockpitBridgeConfig({
+        FINANZ_COCKPIT_URL: "http://internal-cockpit:3001",
+        FINANZ_COCKPIT_PUBLIC_URL: "https://cockpit.muster.local",
+      }).publicUrl,
+    ).toBe("https://cockpit.muster.local");
+
+    expect(
+      getFinanzCockpitBridgeConfig({
+        FINANZ_COCKPIT_URL: "http://127.0.0.1:3001",
+        FINANZ_COCKPIT_PUBLIC_URL: "javascript:alert(1)",
+      }).publicUrl,
+    ).toBeNull();
+
+    expect(
+      getFinanzCockpitBridgeConfig({
+        FINANZ_COCKPIT_PUBLIC_URL: "ftp://example.com",
+      }).publicUrl,
+    ).toBeNull();
+  });
+
+  it("parses syncIntervalMinutes with default 15 and safe fallback on invalid values", () => {
+    expect(getFinanzCockpitBridgeConfig({}).syncIntervalMinutes).toBe(15);
+    expect(
+      getFinanzCockpitBridgeConfig({
+        FINANZ_COCKPIT_SYNC_INTERVAL_MINUTES: "0",
+      }).syncIntervalMinutes,
+    ).toBe(0);
+    expect(
+      getFinanzCockpitBridgeConfig({
+        FINANZ_COCKPIT_SYNC_INTERVAL_MINUTES: "60",
+      }).syncIntervalMinutes,
+    ).toBe(60);
+
+    for (const invalid of ["abc", "-1", "2.5", "99999"]) {
+      expect(
+        getFinanzCockpitBridgeConfig({
+          FINANZ_COCKPIT_SYNC_INTERVAL_MINUTES: invalid,
+        }).syncIntervalMinutes,
+      ).toBe(15);
+    }
   });
 });
 

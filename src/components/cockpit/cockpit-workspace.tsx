@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -21,6 +21,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { CockpitPageData } from "@/db/queries/cockpit";
+import {
+  computeNextAutoSyncDelayMs,
+  resolveInitialLastAutoAttemptMs,
+  resolveSkippedFreshReschedule,
+  shouldRunAutoSyncOnVisibility,
+} from "@/lib/domain/external-sync";
 import { formatBpsDE, formatCentsDE } from "@/lib/domain/money";
 
 interface CockpitWorkspaceProps {
@@ -67,56 +73,180 @@ export function CockpitWorkspace({ data }: CockpitWorkspaceProps) {
   const router = useRouter();
   const [isSyncing, setIsSyncing] = useState(false);
   const [banner, setBanner] = useState<SyncBannerState | null>(null);
+  const isSyncingRef = useRef(false);
+  const lastAutoAttemptMsRef = useRef(0);
+  const rescheduleAutoSyncRef = useRef<(() => void) | null>(null);
 
-  async function handleSync() {
-    if (isSyncing) return;
-    setIsSyncing(true);
-    setBanner(null);
+  const latestFetchedAt = data.latestSnapshot?.fetchedAt ?? null;
 
-    try {
-      const response = await fetch("/api/external/sync", {
-        method: "POST",
-        cache: "no-store",
-      });
-      const payload = (await response.json()) as {
-        status?: "synced" | "offline_fallback" | "unconfigured";
-        message?: string;
-        snapshot?: { fetchedAt: string } | null;
-      };
+  const runSync = useCallback(
+    async (mode: "manual" | "auto", bypassCooldown = false) => {
+      if (isSyncingRef.current) return;
 
-      if (response.ok && payload.status === "synced") {
+      if (mode === "auto") {
+        if (!data.isBridgeConfigured || data.syncIntervalMinutes <= 0) {
+          return;
+        }
+        const nowMs = Date.now();
+        if (
+          !bypassCooldown &&
+          !shouldRunAutoSyncOnVisibility({
+            lastAutoAttemptMs: lastAutoAttemptMsRef.current,
+            intervalMinutes: data.syncIntervalMinutes,
+            nowMs,
+          })
+        ) {
+          return;
+        }
+        lastAutoAttemptMsRef.current = nowMs;
+      } else {
+        lastAutoAttemptMsRef.current = Date.now();
         setBanner(null);
-        router.refresh();
-        return;
       }
 
-      const fallbackDate =
-        payload.snapshot?.fetchedAt ?? data.latestSnapshot?.fetchedAt ?? null;
-      const reason =
-        payload.message ??
-        (payload.status === "unconfigured"
-          ? "finanz_cockpit-Bridge ist noch nicht konfiguriert (FINANZ_COCKPIT_URL / EXTERNAL_SUMMARY_TOKEN)."
-          : "finanz_cockpit aktuell nicht erreichbar.");
-      const messageWithFallback = fallbackDate
-        ? `${reason} Anzeige nutzt letzten Snapshot vom ${formatTimestampDE(fallbackDate)}.`
-        : reason;
+      isSyncingRef.current = true;
+      setIsSyncing(true);
 
-      setBanner({
-        tone: payload.status === "unconfigured" ? "info" : "warning",
-        message: messageWithFallback,
-      });
-    } catch {
-      const fallbackDate = data.latestSnapshot?.fetchedAt ?? null;
-      setBanner({
-        tone: "warning",
-        message: fallbackDate
-          ? `finanz_cockpit aktuell nicht erreichbar – Anzeige nutzt letzten Snapshot vom ${formatTimestampDE(fallbackDate)}.`
-          : "finanz_cockpit aktuell nicht erreichbar.",
-      });
-    } finally {
-      setIsSyncing(false);
+      try {
+        const response = await fetch("/api/external/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode }),
+          cache: "no-store",
+        });
+        const payload = (await response.json()) as {
+          status?: "synced" | "skipped" | "offline_fallback" | "unconfigured";
+          reason?: "fresh" | "disabled";
+          message?: string;
+          snapshot?: { fetchedAt: string } | null;
+        };
+
+        if (response.ok && payload.status === "synced") {
+          setBanner(null);
+          router.refresh();
+          return;
+        }
+
+        if (payload.status === "skipped") {
+          if (payload.reason === "fresh") {
+            const skippedResolution = resolveSkippedFreshReschedule({
+              snapshotFetchedAt: payload.snapshot?.fetchedAt ?? null,
+              latestFetchedAt,
+              intervalMinutes: data.syncIntervalMinutes,
+            });
+            lastAutoAttemptMsRef.current = skippedResolution.nextLastAttemptMs;
+            if (skippedResolution.shouldRefresh) {
+              router.refresh();
+            }
+          }
+          return;
+        }
+
+        if (mode === "auto") {
+          return;
+        }
+
+        const fallbackDate = payload.snapshot?.fetchedAt ?? latestFetchedAt;
+        const reason =
+          payload.message ??
+          (payload.status === "unconfigured"
+            ? "finanz_cockpit-Bridge ist noch nicht konfiguriert (FINANZ_COCKPIT_URL / EXTERNAL_SUMMARY_TOKEN)."
+            : "finanz_cockpit aktuell nicht erreichbar.");
+        const messageWithFallback = fallbackDate
+          ? `${reason} Anzeige nutzt letzten Snapshot vom ${formatTimestampDE(fallbackDate)}.`
+          : reason;
+
+        setBanner({
+          tone: payload.status === "unconfigured" ? "info" : "warning",
+          message: messageWithFallback,
+        });
+      } catch {
+        if (mode === "auto") {
+          return;
+        }
+        setBanner({
+          tone: "warning",
+          message: latestFetchedAt
+            ? `finanz_cockpit aktuell nicht erreichbar – Anzeige nutzt letzten Snapshot vom ${formatTimestampDE(latestFetchedAt)}.`
+            : "finanz_cockpit aktuell nicht erreichbar.",
+        });
+      } finally {
+        isSyncingRef.current = false;
+        setIsSyncing(false);
+        rescheduleAutoSyncRef.current?.();
+      }
+    },
+    [
+      data.isBridgeConfigured,
+      data.syncIntervalMinutes,
+      latestFetchedAt,
+      router,
+    ],
+  );
+
+  useEffect(() => {
+    if (!data.isBridgeConfigured || data.syncIntervalMinutes <= 0) {
+      return;
     }
-  }
+
+    let active = true;
+    let timerId: number | null = null;
+    const intervalMs = data.syncIntervalMinutes * 60_000;
+
+    lastAutoAttemptMsRef.current = resolveInitialLastAutoAttemptMs({
+      currentLastAttemptMs: lastAutoAttemptMsRef.current,
+      isSnapshotStale: data.isSnapshotStale,
+      nextSyncAtMs: data.nextSyncAtMs,
+      intervalMinutes: data.syncIntervalMinutes,
+    });
+
+    const scheduleTimer = (delayMs: number) => {
+      if (!active) return;
+      if (timerId !== null) {
+        window.clearTimeout(timerId);
+      }
+      timerId = window.setTimeout(() => {
+        void runSync("auto", true);
+      }, delayMs);
+    };
+
+    rescheduleAutoSyncRef.current = () => {
+      const nextDelayMs = Math.max(
+        0,
+        lastAutoAttemptMsRef.current + intervalMs - Date.now(),
+      );
+      scheduleTimer(nextDelayMs);
+    };
+
+    const initialDelayMs = computeNextAutoSyncDelayMs({
+      isSnapshotStale: data.isSnapshotStale,
+      nextSyncAtMs: data.nextSyncAtMs,
+      intervalMinutes: data.syncIntervalMinutes,
+    });
+    scheduleTimer(initialDelayMs);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void runSync("auto");
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      active = false;
+      rescheduleAutoSyncRef.current = null;
+      if (timerId !== null) {
+        window.clearTimeout(timerId);
+      }
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [
+    data.isBridgeConfigured,
+    data.isSnapshotStale,
+    data.nextSyncAtMs,
+    data.syncIntervalMinutes,
+    runSync,
+  ]);
 
   const { balance, barBreakdown, milestones, topPots, latestSnapshot } = data;
   const netWorthClass =
@@ -189,7 +319,7 @@ export function CockpitWorkspace({ data }: CockpitWorkspaceProps) {
             type="button"
             variant="outline"
             size="sm"
-            onClick={handleSync}
+            onClick={() => void runSync("manual")}
             disabled={isSyncing}
           >
             <RefreshCw

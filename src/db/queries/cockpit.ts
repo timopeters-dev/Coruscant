@@ -18,6 +18,7 @@ import {
 } from "@/lib/domain/cockpit";
 import { projectContractBalance } from "@/lib/domain/contracts";
 import { getTodayIsoDate } from "@/lib/domain/date";
+import { evaluateSnapshotFreshness } from "@/lib/domain/external-sync";
 import { getFinanzCockpitBridgeConfig } from "@/lib/integrations/finanz-cockpit-client";
 import type { FinanzCockpitSummary } from "@/lib/validation/external";
 
@@ -33,6 +34,9 @@ export interface CockpitPageData {
   projectedAssetContractsCount: number;
   projectedLiabilityContractsCount: number;
   isBridgeConfigured: boolean;
+  syncIntervalMinutes: number;
+  isSnapshotStale: boolean;
+  nextSyncAtMs: number | null;
 }
 
 export function getLatestExternalSnapshot(): ExternalSnapshotRow | null {
@@ -72,11 +76,18 @@ export function insertExternalSnapshot(
 
 export function loadCockpitData(
   asOfDate: string = getTodayIsoDate(),
+  now: Date = new Date(),
 ): CockpitPageData {
   const properties = listProperties();
   const contracts = listContracts();
   const pots = listPots();
   const latestSnapshot = getLatestExternalSnapshot();
+  const bridgeConfig = getFinanzCockpitBridgeConfig();
+  const freshness = evaluateSnapshotFreshness({
+    latestFetchedAt: latestSnapshot?.fetchedAt ?? null,
+    intervalMinutes: bridgeConfig.syncIntervalMinutes,
+    now,
+  });
 
   const balance = calculateHouseholdBalance({
     asOfDate,
@@ -122,6 +133,9 @@ export function loadCockpitData(
     projectedContractsCount,
     projectedAssetContractsCount,
     projectedLiabilityContractsCount,
-    isBridgeConfigured: getFinanzCockpitBridgeConfig().configured,
+    isBridgeConfigured: bridgeConfig.configured,
+    syncIntervalMinutes: bridgeConfig.syncIntervalMinutes,
+    isSnapshotStale: freshness.shouldSync,
+    nextSyncAtMs: freshness.nextSyncAtMs,
   };
 }

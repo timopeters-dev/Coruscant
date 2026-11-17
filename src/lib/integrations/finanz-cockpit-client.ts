@@ -1,4 +1,8 @@
 import {
+  DEFAULT_FINANZ_COCKPIT_SYNC_INTERVAL_MINUTES,
+  MAX_FINANZ_COCKPIT_SYNC_INTERVAL_MINUTES,
+} from "@/lib/domain/external-sync";
+import {
   type FinanzCockpitSummary,
   finanzCockpitSummarySchema,
 } from "@/lib/validation/external";
@@ -17,6 +21,8 @@ export interface FinanzCockpitBridgeConfig {
   baseUrl: string | null;
   token: string | null;
   validUrl: boolean;
+  publicUrl: string | null;
+  syncIntervalMinutes: number;
 }
 
 export type FetchFinanzCockpitSummaryResult =
@@ -44,21 +50,54 @@ function isValidHttpUrl(rawUrl: string): boolean {
   }
 }
 
+export function parseSyncIntervalMinutes(rawValue?: string): number {
+  const trimmed = rawValue?.trim() ?? "";
+  if (trimmed.length === 0) {
+    return DEFAULT_FINANZ_COCKPIT_SYNC_INTERVAL_MINUTES;
+  }
+  if (!/^\d+$/.test(trimmed)) {
+    return DEFAULT_FINANZ_COCKPIT_SYNC_INTERVAL_MINUTES;
+  }
+  const parsed = Number.parseInt(trimmed, 10);
+  if (
+    !Number.isSafeInteger(parsed) ||
+    parsed < 0 ||
+    parsed > MAX_FINANZ_COCKPIT_SYNC_INTERVAL_MINUTES
+  ) {
+    return DEFAULT_FINANZ_COCKPIT_SYNC_INTERVAL_MINUTES;
+  }
+  return parsed;
+}
+
 export function getFinanzCockpitBridgeConfig(
   env: Record<string, string | undefined> = process.env,
 ): FinanzCockpitBridgeConfig {
   const rawUrl = env.FINANZ_COCKPIT_URL?.trim() ?? "";
+  const rawPublicUrl = env.FINANZ_COCKPIT_PUBLIC_URL?.trim() ?? "";
   const rawToken = env.EXTERNAL_SUMMARY_TOKEN?.trim() ?? "";
 
   const baseUrl = rawUrl.length > 0 ? rawUrl : null;
   const token = rawToken.length > 0 ? rawToken : null;
   const validUrl = baseUrl !== null && isValidHttpUrl(baseUrl);
 
+  const candidatePublicUrl =
+    rawPublicUrl.length > 0 ? rawPublicUrl : (baseUrl ?? "");
+  const publicUrl =
+    candidatePublicUrl.length > 0 && isValidHttpUrl(candidatePublicUrl)
+      ? candidatePublicUrl
+      : null;
+
+  const syncIntervalMinutes = parseSyncIntervalMinutes(
+    env.FINANZ_COCKPIT_SYNC_INTERVAL_MINUTES,
+  );
+
   return {
     configured: Boolean(baseUrl && token && validUrl),
     baseUrl,
     token,
     validUrl,
+    publicUrl,
+    syncIntervalMinutes,
   };
 }
 

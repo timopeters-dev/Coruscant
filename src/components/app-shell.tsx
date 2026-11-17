@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  ExternalLink,
   LayoutDashboard,
   FileSpreadsheet,
   GitFork,
@@ -18,17 +19,23 @@ const NAV_ITEMS = [
   { href: "/dokumente", label: "Dokumente", Icon: Inbox },
 ] as const;
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  finanzCockpitUrl,
+}: {
+  children: React.ReactNode;
+  finanzCockpitUrl?: string | null;
+}) {
   const pathname = usePathname();
 
   return (
     <div className="flex min-h-screen flex-col bg-[var(--bg)] text-[var(--text-primary)]">
       <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--surface)]/90 backdrop-blur-sm print:static print:border-b print:bg-white">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4 sm:gap-4 sm:px-6">
           <div className="flex items-center gap-8">
             <Link
               href="/"
-              className="flex items-center gap-2.5 text-sm font-semibold tracking-tight text-[var(--text-primary)]"
+              className="flex items-center gap-2 text-sm font-semibold tracking-tight text-[var(--text-primary)] sm:gap-2.5"
             >
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--accent)] text-xs font-bold text-[var(--accent-foreground)]">
                 C
@@ -65,7 +72,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </nav>
           </div>
 
-          <ThemeToggle />
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {finanzCockpitUrl ? (
+              <a
+                href={finanzCockpitUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="finanz_cockpit in neuem Tab öffnen"
+                className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-[var(--border)] bg-[var(--surface)] px-1.5 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)] sm:gap-1.5 sm:px-2.5 sm:text-xs print:hidden"
+              >
+                <span>finanz_cockpit</span>
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              </a>
+            ) : null}
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 

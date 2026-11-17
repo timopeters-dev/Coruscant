@@ -14,3 +14,9 @@ export const finanzCockpitSummarySchema = z.object({
 });
 
 export type FinanzCockpitSummary = z.infer<typeof finanzCockpitSummarySchema>;
+
+export const externalSyncRequestSchema = z.object({
+  mode: z.enum(["manual", "auto"]).default("manual"),
+});
+
+export type ExternalSyncRequest = z.infer<typeof externalSyncRequestSchema>;

@@ -39,7 +39,7 @@ export function ThemeToggle() {
             aria-pressed={isActive}
             title={label}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+              "inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs font-medium transition-colors sm:px-2.5",
               isActive
                 ? "bg-[var(--surface)] text-[var(--text-primary)] shadow-xs"
                 : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
