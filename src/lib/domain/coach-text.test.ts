@@ -10,6 +10,20 @@ describe("redactFreeText", () => {
     expect(redactFreeText("de02 1203 0000 0000 2020 51")).toBe("[IBAN entfernt]");
   });
 
+  it("maskiert ausländische IBANs mit Buchstaben-Bankcode (GB, NL)", () => {
+    expect(redactFreeText("IBAN GB29 NWBK 6016 1331 9268 19 danke")).toBe(
+      "IBAN [IBAN entfernt] danke",
+    );
+    expect(redactFreeText("NL91ABNA0417164300")).toBe("[IBAN entfernt]");
+    expect(redactFreeText("nl91 abna 0417 1643 00")).toBe("[IBAN entfernt]");
+  });
+
+  it("lässt ISINs unverändert", () => {
+    expect(redactFreeText("Der ETF IE00B4L5Y983 und LU0392494562 passen")).toBe(
+      "Der ETF IE00B4L5Y983 und LU0392494562 passen",
+    );
+  });
+
   it("maskiert E-Mail-Adressen", () => {
     expect(redactFreeText("Schreib an kontakt@example.com danke")).toBe(
       "Schreib an [E-Mail entfernt] danke",

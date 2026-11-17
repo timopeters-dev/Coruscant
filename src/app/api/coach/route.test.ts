@@ -303,11 +303,34 @@ describe("POST /api/coach/chat", () => {
       post({ messages: [{ role: "user", text: "Was ist ein ETF?" }] }),
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ reply: REPLY, model: "fake-model" });
+    const json = (await res.json()) as { reply: unknown; model: string; contextJson: string };
+    expect(json.reply).toEqual(REPLY);
+    expect(json.model).toBe("fake-model");
+    expect(json.contextJson).toContain('"schemaVersion": 1');
     expect(chat).toHaveBeenCalledTimes(1);
     const [contextJson, messages] = chat.mock.calls[0] as unknown as [string, unknown[]];
     expect(contextJson).not.toContain("Mustermann");
     expect(messages).toHaveLength(1);
+  });
+
+  it("akzeptiert Verläufe mit Coach-Nachricht über 1.000 Zeichen (Roundtrip)", async () => {
+    seed();
+    const { coach, chat } = fakeCoach();
+    const res = await createChatHandler(() => coach)(
+      post({
+        messages: [
+          { role: "user", text: "Erste Frage" },
+          { role: "coach", text: "a".repeat(2_000) },
+          { role: "user", text: "Zweite Frage" },
+        ],
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(chat).toHaveBeenCalledTimes(1);
+    const tooLong = await createChatHandler(() => coach)(
+      post({ messages: [{ role: "user", text: "a".repeat(1_001) }] }),
+    );
+    expect(tooLong.status).toBe(400);
   });
 
   it("antwortet mit 400, wenn die letzte Rolle coach ist oder ein context mitgesendet wird", async () => {

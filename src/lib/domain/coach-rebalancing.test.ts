@@ -76,7 +76,7 @@ describe("calculateRebalancingPlan", () => {
     expect(result.contributionOnly).toEqual({ status: "unavailable", reason: "too_long" });
     // Grenze: genau 600 Monate sind noch ok
     const edge = plan([600_000, 300_000, 100_000], [5000, 3000, 2000], 334);
-    expect(edge.contributionOnly).toMatchObject({ status: "ok", monthsNeeded: 599 });
+    expect(edge.contributionOnly).toMatchObject({ status: "ok", monthsNeeded: 600 });
     const over = plan([600_000, 300_000, 100_000], [5000, 3000, 2000], 333);
     expect(over.contributionOnly).toEqual({ status: "unavailable", reason: "too_long" });
   });
@@ -93,17 +93,53 @@ describe("calculateRebalancingPlan", () => {
     expect(sum(Object.values(result.contributionSplitCents))).toBe(10_000);
   });
 
-  it("verteilt die Sparrate exakt und nur auf untergewichtete Klassen", () => {
-    const result = plan([600_000, 300_000, 100_000], [5000, 3000, 2000], 33_333);
-    expect(sum(Object.values(result.contributionSplitCents))).toBe(33_333);
-    expect(result.contributionSplitCents.etf).toBe(0);
-    expect(result.contributionSplitCents.stock).toBeGreaterThanOrEqual(0);
-    const underweight = result.classes.filter((c) => c.deltaCents > 0);
-    for (const c of result.classes) {
-      if (!underweight.includes(c)) {
-        expect(result.contributionSplitCents[c.assetClass]).toBe(0);
+  it("verteilt die Sparrate exakt und deckt jede Klasse bis zum Zielvolumen T' ab", () => {
+    // Befund-Beispiel: Ist ETF 0, Aktie 5.000, Krypto 5.000; Soll 50/40/10; Sparrate 4.000
+    const result = plan([0, 5_000, 5_000], [5000, 4000, 1000], 4_000);
+    expect(result.contributionOnly.status).toBe("ok");
+    const split = result.contributionSplitCents;
+    expect(sum(Object.values(split))).toBe(4_000);
+    // T' = 50.000 (Krypto 5.000 / 10 %) → Soll bei T': 25.000 / 20.000 / 5.000
+    // Fehlbeträge 25.000 / 15.000 / 0 → Aufteilung 2.500 / 1.500 / 0
+    expect(split).toEqual({ etf: 2_500, stock: 1_500, crypto: 0 });
+    expect(result.contributionOnly).toMatchObject({
+      requiredContributionCents: 40_000,
+      monthsNeeded: 10,
+    });
+  });
+
+  it.each([
+    [[0, 5_000, 5_000], [5000, 4000, 1000], 4_000],
+    [[600_000, 300_000, 100_000], [5000, 3000, 2000], 33_333],
+    [[123_457, 98_765, 4_321], [6000, 3000, 1000], 77_777],
+    [[10_000, 0, 90_000], [2500, 2500, 5000], 1_234],
+  ] as [[number, number, number], [number, number, number], number][])(
+    "Invariante: current + split × Monate deckt jede Klasse auf T' (%j, %j, Rate %i)",
+    (current, target, rate) => {
+      const result = plan(current, target, rate);
+      if (result.contributionOnly.status !== "ok") {
+        throw new Error("Plan sollte erreichbar sein");
       }
-    }
+      const { monthsNeeded, requiredContributionCents } = result.contributionOnly;
+      const total = sum(current);
+      const tPrime = total + requiredContributionCents;
+      const split = [
+        result.contributionSplitCents.etf,
+        result.contributionSplitCents.stock,
+        result.contributionSplitCents.crypto,
+      ];
+      expect(sum(split)).toBe(rate);
+      current.forEach((cur, i) => {
+        // Soll bei T' (aufgerundet) darf nach monthsNeeded Monaten nicht unterschritten sein.
+        const targetAtTPrime = Math.ceil((tPrime * target[i]!) / 10_000);
+        expect(cur + split[i]! * monthsNeeded).toBeGreaterThanOrEqual(targetAtTPrime);
+      });
+    },
+  );
+
+  it("verteilt bei bereits erreichtem Soll nach Soll-Gewichten", () => {
+    const result = plan([500_000, 300_000, 200_000], [5000, 3000, 2000], 1_000);
+    expect(result.contributionSplitCents).toEqual({ etf: 500, stock: 300, crypto: 200 });
   });
 
   it("wirft bei ungültigen Eingaben", () => {

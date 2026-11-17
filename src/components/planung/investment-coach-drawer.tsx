@@ -37,11 +37,10 @@ interface AssessmentResponse {
   assessment: CoachAssessment;
   rebalancingPlan: RebalancingPlan | null;
   model: string;
+  contextJson: string;
 }
 
-interface ChatEntry extends CoachChatMessage {
-  declined?: boolean;
-}
+type ChatEntry = CoachChatMessage & { declined?: boolean };
 
 const ERROR_TEXT_BY_CODE: Record<string, string> = {
   not_configured: "KI nicht konfiguriert (GEMINI_API_KEY fehlt).",
@@ -115,6 +114,9 @@ function RebalancingTable({ plan }: { plan: RebalancingPlan }) {
               <th className="px-2 py-1.5 text-right font-medium">Ist %</th>
               <th className="px-2 py-1.5 text-right font-medium">Soll %</th>
               <th className="px-2 py-1.5 text-right font-medium">Δ €</th>
+              {contributionOnly.status === "ok" ? (
+                <th className="px-2 py-1.5 text-right font-medium">Sparrate/Monat</th>
+              ) : null}
             </tr>
           </thead>
           <tbody>
@@ -126,6 +128,11 @@ function RebalancingTable({ plan }: { plan: RebalancingPlan }) {
                 <td className="px-2 py-2 text-right">
                   {formatCentsDE(c.deltaCents, { showPlusSign: true })}
                 </td>
+                {contributionOnly.status === "ok" ? (
+                  <td className="px-2 py-2 text-right">
+                    {formatCentsDE(plan.contributionSplitCents[c.assetClass])}
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>
@@ -162,7 +169,10 @@ export function InvestmentCoachDrawer({
   const [chatLoading, setChatLoading] = React.useState(false);
   const [chatError, setChatError] = React.useState<string | null>(null);
 
-  const effectiveRate = Math.min(Math.max(0, savingsRate), MAX_COACH_SAVINGS_RATE_CENTS);
+  // Zuletzt tatsächlich an die KI gesendeter Kontext (vom Server gebaut).
+  const [sentContextJson, setSentContextJson] = React.useState<string | null>(null);
+
+  const effectiveRate =Math.min(Math.max(0, savingsRate), MAX_COACH_SAVINGS_RATE_CENTS);
   const previewJson = React.useMemo(
     () => serializeInvestmentContext(withSavingsRate(context, effectiveRate)),
     [context, effectiveRate],
@@ -181,7 +191,9 @@ export function InvestmentCoachDrawer({
         setAssessmentError(await readError(response));
         return;
       }
-      setAssessment((await response.json()) as AssessmentResponse);
+      const body = (await response.json()) as AssessmentResponse;
+      setAssessment(body);
+      setSentContextJson(body.contextJson);
     } catch {
       setAssessmentError(ERROR_TEXT_BY_CODE.network_error!);
     } finally {
@@ -213,7 +225,11 @@ export function InvestmentCoachDrawer({
         setChatError(await readError(response));
         return;
       }
-      const body = (await response.json()) as { reply: CoachChatReply };
+      const body = (await response.json()) as {
+        reply: CoachChatReply;
+        contextJson?: string;
+      };
+      if (body.contextJson) setSentContextJson(body.contextJson);
       setMessages([
         ...next,
         {
@@ -485,11 +501,13 @@ export function InvestmentCoachDrawer({
             Was die KI sieht
           </summary>
           <p className="mt-2 text-xs text-[var(--text-secondary)]">
-            Genau dieser anonymisierte Kontext wird bei jeder Anfrage übermittelt.
+            {sentContextJson !== null
+              ? "Genau dieser anonymisierte Kontext wurde zuletzt gesendet."
+              : "Vorschau – der Server baut den Kontext bei jeder Anfrage neu; nach dem Senden siehst du hier den tatsächlich gesendeten Kontext."}{" "}
             Namen, Konten und Verträge sind durch Referenzen ersetzt.
           </p>
           <pre className="mt-2 max-h-72 overflow-auto rounded-lg bg-[var(--surface-elevated)] p-3 text-xs tabular-nums">
-            {previewJson}
+            {sentContextJson ?? previewJson}
           </pre>
         </details>
       </div>

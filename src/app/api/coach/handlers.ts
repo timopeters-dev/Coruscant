@@ -139,14 +139,15 @@ export function createChatHandler(
       const built = buildContextForRequest(parsed.data.monthlySavingsRateCents);
       if (!built.ok) return built.response;
 
+      const contextJson = serializeInvestmentContext(built.context);
       const result = await coachFactory().chat(
-        serializeInvestmentContext(built.context),
+        contextJson,
         parsed.data.messages,
       );
       if (!result.ok) return coachErrorResponse(result.code, result.message);
 
       return NextResponse.json(
-        { reply: result.data, model: result.model },
+        { reply: result.data, model: result.model, contextJson },
         { status: 200 },
       );
     } catch {

@@ -178,10 +178,14 @@ function coverageTenths(
   return Number((BigInt(cents) * 10n) / BigInt(monthlyCostsCents));
 }
 
-function buildPortfolio(
-  input: InvestmentContextInput,
-): InvestmentContext["portfolio"] & { positionCount: number } {
-  const active = input.positions
+/**
+ * Einzige Quelle für die Ref-Vergabe der Positionen (Wert absteigend, Gleichstand nach id;
+ * Refs je Klasse). Wird vom Builder und von der UI-Label-Zuordnung gemeinsam genutzt.
+ */
+export function rankContextPositions<
+  P extends { id: string; assetClass: ContextAssetClass; marketValueCents: number },
+>(positions: readonly P[]): { position: P; ref: string }[] {
+  const active = positions
     .map((p) => ({
       ...p,
       marketValueCents: assertNonNegativeInteger(
@@ -201,13 +205,43 @@ function buildPortfolio(
     stock: 0,
     crypto: 0,
   };
-  const withRefs = active.map((p) => {
+  return active.map((p) => {
     classCounters[p.assetClass] += 1;
     return {
       position: p,
       ref: `${REF_PREFIX[p.assetClass]}-${classCounters[p.assetClass]}`,
     };
   });
+}
+
+/** Töpfe, die als Ziele (ZIEL-n) in den Kontext gehen – geordnet nach priority, id. */
+export function selectContextGoalPots<
+  T extends { id: string; priority: number; purpose: ContextPotPurpose | null },
+>(pots: readonly T[]): T[] {
+  return pots
+    .filter((p) => p.purpose !== "emergency_fund")
+    .sort((a, b) => a.priority - b.priority || compareStrings(a.id, b.id))
+    .slice(0, MAX_CONTEXT_GOALS);
+}
+
+/** Meilensteine (MEILENSTEIN-n): aktive Verträge, nicht überfällig, chronologisch, gekappt. */
+export function selectContextMilestones(
+  contracts: readonly DomainContract[],
+  asOfDate: string,
+) {
+  return extractContractMilestones(
+    contracts.filter((c) => c.status === "active"),
+    asOfDate,
+  )
+    .filter((m) => !m.isOverdue)
+    .slice(0, MAX_CONTEXT_MILESTONES);
+}
+
+function buildPortfolio(
+  input: InvestmentContextInput,
+): InvestmentContext["portfolio"] & { positionCount: number } {
+  const withRefs = rankContextPositions(input.positions);
+  const active = withRefs.map((w) => w.position);
 
   const totalValueCents = assertSafeInteger(
     active.reduce((sum, p) => sum + p.marketValueCents, 0),
@@ -313,10 +347,7 @@ export function buildInvestmentContext(
   const propertyLinked = (p: { linkedPropertyId: string | null }) =>
     p.linkedPropertyId !== null;
 
-  const goals = input.pots
-    .filter((p) => p.purpose !== "emergency_fund")
-    .sort((a, b) => a.priority - b.priority || compareStrings(a.id, b.id))
-    .slice(0, MAX_CONTEXT_GOALS)
+  const goals = selectContextGoalPots(input.pots)
     .map((pot, index): InvestmentContext["goals"][number] => {
       const contract =
         pot.linkedContractId !== null
@@ -339,10 +370,7 @@ export function buildInvestmentContext(
       };
     });
 
-  const activeContracts = input.contracts.filter((c) => c.status === "active");
-  const milestones = extractContractMilestones(activeContracts, input.asOfDate)
-    .filter((m) => !m.isOverdue)
-    .slice(0, MAX_CONTEXT_MILESTONES)
+  const milestones = selectContextMilestones(input.contracts, input.asOfDate)
     .map((m, index): InvestmentContext["milestones"][number] => {
       const contract = contractById.get(m.contractId);
       let outstanding: number | null = null;

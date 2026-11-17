@@ -105,7 +105,7 @@ export function createGeminiInvestmentCoach(
               }
             : {
                 role: "model",
-                parts: [{ text: JSON.stringify({ answer: message.text }) }],
+                parts: [{ text: JSON.stringify({ answer: redactFreeText(message.text) }) }],
               },
       );
 

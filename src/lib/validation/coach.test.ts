@@ -134,6 +134,24 @@ describe("Request-Schemas", () => {
     ).toBe(false);
   });
 
+  it("erlaubt Coach-Nachrichten bis 2.000, Nutzer-Nachrichten nur bis 1.000 Zeichen", () => {
+    const user = { role: "user" as const, text: "Frage" };
+    expect(
+      coachChatRequestSchema.safeParse({
+        messages: [{ role: "user", text: "x" }, { role: "coach", text: "a".repeat(2000) }, user],
+      }).success,
+    ).toBe(true);
+    expect(
+      coachChatRequestSchema.safeParse({
+        messages: [{ role: "user", text: "x" }, { role: "coach", text: "a".repeat(2001) }, user],
+      }).success,
+    ).toBe(false);
+    expect(
+      coachChatRequestSchema.safeParse({ messages: [{ role: "user", text: "a".repeat(1001) }] })
+        .success,
+    ).toBe(false);
+  });
+
   it("lehnt einen vom Client eingeschleusten context ab", () => {
     expect(
       coachChatRequestSchema.safeParse({

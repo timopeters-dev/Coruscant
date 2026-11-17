@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const COACH_ASSET_CLASSES = ["etf", "stock", "crypto"] as const;
 export const MAX_COACH_CHAT_MESSAGE_LENGTH = 1000;
+export const MAX_COACH_REPLY_ANSWER_LENGTH = 2000;
 export const MAX_COACH_REQUEST_MESSAGES = 40;
 export const MAX_COACH_SAVINGS_RATE_CENTS = 10_000_000;
 
@@ -72,7 +73,7 @@ export type CoachAssessment = z.infer<typeof coachAssessmentSchema>;
 
 export const coachChatReplySchema = z
   .object({
-    answer: text(1, 2000),
+    answer: text(1, MAX_COACH_REPLY_ANSWER_LENGTH),
     followUpQuestions: z.array(text(1, 160)).max(3),
     declinedSecurityAdvice: z.boolean(),
   })
@@ -90,12 +91,21 @@ export const coachAssessmentRequestSchema = z
   .object({ monthlySavingsRateCents: savingsRate.optional() })
   .strict();
 
-export const coachChatMessageSchema = z
-  .object({
-    role: z.enum(["user", "coach"]),
-    text: text(1, MAX_COACH_CHAT_MESSAGE_LENGTH),
-  })
-  .strict();
+// Nutzer bis 1.000 Zeichen; Coach-Antworten (answer ≤ 2.000) laufen im Verlauf zurück.
+export const coachChatMessageSchema = z.discriminatedUnion("role", [
+  z
+    .object({
+      role: z.literal("user"),
+      text: text(1, MAX_COACH_CHAT_MESSAGE_LENGTH),
+    })
+    .strict(),
+  z
+    .object({
+      role: z.literal("coach"),
+      text: text(1, MAX_COACH_REPLY_ANSWER_LENGTH),
+    })
+    .strict(),
+]);
 
 export type CoachChatMessage = z.infer<typeof coachChatMessageSchema>;
 

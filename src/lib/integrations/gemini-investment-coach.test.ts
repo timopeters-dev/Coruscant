@@ -180,6 +180,18 @@ describe("chat", () => {
     expect(body.generationConfig.temperature).toBe(0.4);
   });
 
+  it("maskiert PII auch in zurückgespielten Coach-Nachrichten", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(geminiResponse(VALID_REPLY));
+    await makeCoach(fetchFn as unknown as typeof fetch).chat(CONTEXT, [
+      { role: "user", text: "Hallo" },
+      { role: "coach", text: "Ihre IBAN DE02 1203 0000 0000 2020 51 wurde genannt." },
+      { role: "user", text: "Weiter" },
+    ]);
+    const raw = JSON.stringify(bodyOf(fetchFn));
+    expect(raw).not.toContain("DE02 1203");
+    expect(raw).toContain("[IBAN entfernt]");
+  });
+
   it("kürzt auf höchstens 10 Turns", async () => {
     const fetchFn = vi.fn().mockResolvedValue(geminiResponse(VALID_REPLY));
     const messages = Array.from({ length: 31 }, (_, i) => ({

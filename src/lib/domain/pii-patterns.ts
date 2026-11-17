@@ -5,7 +5,7 @@
  * nicht mitmaskiert werden.
  */
 const IBAN_SOURCE =
-  "\\b[a-z]{2}\\d{2}(?: ?(?=[a-z0-9]{0,3}\\d)[a-z0-9]{4}){2,7}(?: ?[a-z0-9]{1,3})?\\b";
+  "\\b[a-z]{2}\\d{2}(?: ?[a-z0-9]{4})(?: ?(?=[a-z0-9]{0,3}\\d)[a-z0-9]{4}){1,6}(?: ?[a-z0-9]{1,3})?\\b";
 const EMAIL_SOURCE = "[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}";
 
 /** Kürzeste IBAN (Norwegen) hat 15 Zeichen; ISINs (12 Zeichen) sind damit keine IBANs. */
@@ -15,8 +15,15 @@ export function createIbanRegex(): RegExp {
   return new RegExp(IBAN_SOURCE, "gi");
 }
 
+/** Auch ausländische IBANs (GB/NL mit Buchstaben-Bankcode) enthalten viele Ziffern. */
+const MIN_IBAN_DIGITS = 10;
+
 export function isIbanLike(candidate: string): boolean {
-  return candidate.replace(/\s/g, "").length >= MIN_IBAN_LENGTH;
+  const compact = candidate.replace(/\s/g, "");
+  return (
+    compact.length >= MIN_IBAN_LENGTH &&
+    (compact.match(/\d/g)?.length ?? 0) >= MIN_IBAN_DIGITS
+  );
 }
 
 export function createEmailRegex(): RegExp {
