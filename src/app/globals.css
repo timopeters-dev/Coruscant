@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-elevated: #f1f5f9;
+  --border: #e2e8f0;
+  --border-sub: #cbd5e1;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --accent: #4f46e5;
+  --accent-foreground: #ffffff;
+  --amber: #d97706;
+  --emerald: #059669;
+  --rose: #e11d48;
+  --sky: #0284c7;
+}
+
+.dark {
+  --bg: #0b1120;
+  --surface: #111827;
+  --surface-elevated: #1e293b;
+  --border: #1e293b;
+  --border-sub: #334155;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --accent: #6366f1;
+  --accent-foreground: #ffffff;
+  --amber: #f59e0b;
+  --emerald: #34d399;
+  --rose: #fb7185;
+  --sky: #38bdf8;
+}
+
+@media print {
+  :root,
+  .dark {
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --surface-elevated: #f1f5f9;
+    --border: #e2e8f0;
+    --border-sub: #cbd5e1;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --accent: #4f46e5;
+    --accent-foreground: #ffffff;
+    --amber: #d97706;
+    --emerald: #059669;
+    --rose: #e11d48;
+    --sky: #0284c7;
+  }
+
+  body {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+  }
+}
+
+@layer base {
+  html {
+    background-color: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+      BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text-primary);
+    min-height: 100vh;
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}

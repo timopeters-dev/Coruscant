@@ -29,6 +29,7 @@ tasks/
 data/*.db*
 data/backups/
 data/documents/
+data/property-images/
 *.db
 *.db-shm
 *.db-wal

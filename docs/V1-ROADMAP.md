@@ -233,3 +233,115 @@ Anforderungen an Slice 6:
 
 Starte gemäß Workflow mit Analyse & Tech-Lead-Interview und speichere den Plan unter `tasks/plan-slice-6.md`.
 ```
+
+---
+
+### Slice 6b: Vertrag/Kredit direkt aus PDF anlegen (KI-Formular-Vorausfüllung)
+
+* **Ziel & Scope:**
+  * Erweiterung des KI-Extraktors (`src/lib/integrations/gemini-document-extractor.ts` & `src/lib/validation/documents.ts`) um ein optionales `extractedContract`-Schema (`name`, `provider`, `category`, `currentBalanceCents`, `balanceAsOfDate`, `monthlyRateCents`, `interestRateBps`, `repaymentType`, `specialRepaymentMaxYearlyCents`, `fixedInterestUntil`, `targetSumCents`, `allocationThresholdPercent`, `futureLoanInterestRateBps`, `milestoneDate`, `milestoneLabel`), inkl. gezieltem Prompt-Hinweis auf Konditionenübersicht / ESIS-Merkblatt bei mehrseitigen Kreditverträgen.
+  * Atomarer API-Flow (SQLite-Transaktion), um einen neuen `FinancialContract` anzulegen, optional einer Immobilie (`linkedPropertyId`) zuzuordnen und das hochgeladene PDF direkt als `verified` am Vertrag zu verknüpfen (`linkedContractId`, 1:N-Historie bleibt erhalten).
+  * **Einstieg A (`/vertraege`):** Im „Neuer Vertrag“-Modal (`contract-modal.tsx`) ein Bereich *„Aus PDF vorbefüllen (KI)“*, der das PDF hochlädt, analysiert und alle erkannten Formularfelder direkt ausfüllt (unbekannte Felder bleiben leer).
+  * **Einstieg B (`/dokumente`):** Im Review-Panel (`document-review-panel.tsx`) Modus-Umschalter *„Bestehendem Vertrag zuordnen“* vs. *„Als neuen Vertrag anlegen“* (mit Property-Auswahl und vorausgefüllten Vertragsfeldern).
+* **Akzeptanzkriterien:**
+  * Ein hochgeladener Hauskredit- oder Bausparvertrag füllt das Vertragsformular automatisch vor; nach 1-Klick-Bestätigung existieren Vertrag, Immobilien-Zuordnung und verknüpftes PDF konsistent in der DB.
+  * Teil-Erkennungen (z. B. Zins erkannt, Rate `null`) stürzen nicht ab, sondern lassen fehlende Felder sauber editierbar.
+  * `pnpm typecheck`, `pnpm lint`, `pnpm test` laufen mit 0 Fehlern durch.
+
+#### Prompt für `/plan-slice` (Slice 6b)
+
+```text
+/plan-slice Wir planen Coruscant v1 – Slice 6b: Vertrag/Kredit direkt aus PDF anlegen (KI-Vorausfüllung in /vertraege & /dokumente).
+
+Kontext & Vorgaben:
+- Lies zuerst `AGENTS.md`, `docs/SPEC.md`, `docs/DESIGN-SYSTEM.md`, `docs/V1-ROADMAP.md`, `src/lib/validation/documents.ts`, `src/lib/validation/contracts.ts`, `src/lib/integrations/gemini-document-extractor.ts`, `src/components/vertraege/contract-modal.tsx`, `src/components/dokumente/document-review-panel.tsx` und `src/app/api/documents/route.ts`.
+- Strikte Integer-Cent- (`amountCents`) und Basispunkt-Arithmetik (`interestRateBps`, z. B. 3,45 % -> 345).
+- KI darf niemals stillschweigend einen Vertrag anlegen: immer erst vorausgefüllte Formular-Vorschau, dann explizite Nutzer-Bestätigung.
+- Ein Vertrag kann 1:N mehrere PDFs besitzen (`documents.linkedContractId`).
+
+Anforderungen an Slice 6b:
+1. Schema & KI-Extraktion:
+   - Erweitere `aiDocumentExtractionSchema` in `src/lib/validation/documents.ts` um ein optionales `extractedContract`-Objekt (alle Vertragskonditionen für `loan` und `savings_contract`, nullable bei Nicht-Erkennung).
+   - Erweitere `EXTRACTION_PROMPT` in `gemini-document-extractor.ts` (inkl. Hinweis auf Konditionenübersicht / ESIS-Merkblatt bei mehrseitigen Verträgen und exakter Umrechnung von Zinssätzen in Basispunkte).
+2. Atomarer Backend-Flow:
+   - Endpunkt / Transaktion zum gleichzeitigen Erstellen eines `FinancialContract` (inkl. `linkedPropertyId`) und Verifizieren/Verknüpfen des hochgeladenen `Document` (`linkedContractId`, `status = 'verified'`).
+   - Saubere Behandlung, falls das PDF bereits existiert (SHA256-Duplikatschutz).
+3. Zwei UI-Einstiege ohne doppelte Logik:
+   - Einstieg A (`/vertraege` in `contract-modal.tsx`): Bei Neuanlage optionaler Bereich „Aus PDF vorbefüllen (KI)“ → Upload + Analyse → Formularfelder werden vorausgefüllt (mit Hinweis, welche Felder manuell zu prüfen sind) → Speichern legt Vertrag + Verknüpfung atomar an.
+   - Einstieg B (`/dokumente` in `document-review-panel.tsx`): Modus-Umschalter „Bestehendem Vertrag zuordnen“ vs. „Als neuen Vertrag anlegen“ (inkl. Zuordnung zu `Immobilie #0` und editierbaren Vertragsfeldern).
+4. Tests:
+   - Unit-Tests für `extractedContract`-Validierung (Happy-Path, Teil-Erkennung mit `null`-Feldern, ungültige Bps/Cent-Werte) und Integrationstest für die atomare Vertrag+Dokument-Erstellung.
+
+Starte gemäß `.agent/workflows/plan-slice.md` erst mit Analyse & Tech-Lead-Interview und speichere den Plan unter `tasks/plan-slice-6b.md`.
+```
+
+---
+
+### Slice 6c: Immobilien-Stammdaten, Objektbild & Vertrags-Verknüpfung im Drawer
+
+* **Ziel & Scope:**
+  * Erweiterung von `properties` in `src/db/schema.ts` um optionale Stammdaten: `street`, `houseNumber`, `postalCode`, `city`, `livingAreaSqm`, `usableAreaSqm`, `plotAreaSqm`, `constructionYear`, `energyClass` sowie `imagePath` (lokales Titelbild).
+  * Sicherer Bild-Upload (`POST /api/properties/[id]/image` & `GET /api/properties/[id]/image` & `DELETE`) unter `data/property-images/` (JPEG/PNG/WebP, Größenlimit, Path-Traversal-Schutz) inkl. Anzeige auf der Immobilien-Karte und im `property-detail-drawer.tsx`.
+  * UX-Polish im `property-detail-drawer.tsx`: Direkte Möglichkeit, **bestehende Verträge** aus einer Liste unverknüpfter Verträge mit 1 Klick der Immobilie zuzuordnen (oder Verknüpfung zu lösen).
+* **Akzeptanzkriterien:**
+  * Alle neuen Immobilien-Felder sind optional; bestehende Immobilien funktionieren ohne Pflichtangaben weiter.
+  * Bild-Upload prüft MIME-Type, Dateigröße und schützt vor Path Traversal; `data/property-images/` ist in `.gitignore` abgedeckt.
+  * Im Immobilien-Drawer lassen sich bestehende Verträge direkt verknüpfen und lösen.
+  * `pnpm typecheck`, `pnpm lint`, `pnpm test` laufen mit 0 Fehlern durch.
+
+#### Prompt für `/plan-slice` (Slice 6c)
+
+```text
+/plan-slice Wir planen Coruscant v1 – Slice 6c: Erweiterte Immobilien-Stammdaten, Objekt-Anzeigebild & direkte Vertrags-Verknüpfung im Immobilien-Drawer.
+
+Kontext & Vorgaben:
+- Lies zuerst `AGENTS.md`, `docs/SPEC.md`, `docs/DESIGN-SYSTEM.md`, `docs/V1-ROADMAP.md`, `src/db/schema.ts`, `src/lib/validation/contracts.ts`, `src/lib/storage/pdf-storage.ts`, `src/components/vertraege/property-modal.tsx`, `src/components/vertraege/property-detail-drawer.tsx` und `src/components/vertraege/vertraege-workspace.tsx`.
+- Datenschutz: `street` und `houseNumber` bleiben rein lokal; `data/property-images/` darf nicht in Git landen (`.gitignore` prüfen/ergänzen).
+- Design-System: Objektbild dezent und ruhig in die Karte und den Drawer integrieren (kein überladenes Immobilienportal-Layout).
+
+Anforderungen an Slice 6c:
+1. Schema & Migration (`properties`):
+   - Optionale Felder ergänzen: `street`, `houseNumber`, `postalCode`, `city`, `livingAreaSqm`, `usableAreaSqm`, `plotAreaSqm`, `constructionYear`, `energyClass`, `imagePath`.
+   - `zod`-Validierung für Create/Update anpassen (sinnvolle Grenzen z. B. Baujahr, Flächen als positive Ganzzahlen).
+2. Objekt-Anzeigebild:
+   - Storage-Helper + API `POST`/`GET`/`DELETE /api/properties/[id]/image` (erlaubte Typen: JPEG, PNG, WebP; Max-Größe z. B. 5 MB; Magic-Bytes/MIME-Prüfung, Path-Traversal-Schutz).
+   - Bild-Upload/-Entfernen im `property-modal.tsx` oder `property-detail-drawer.tsx` sowie sauberes Thumbnail auf der Immobilien-Karte.
+3. UX-Polish im `property-detail-drawer.tsx`:
+   - Sektion „Verknüpfte Verträge“ um ein kompaktes Control „Bestehenden Vertrag verknüpfen“ erweitern (listet unverknüpfte Verträge auf und setzt `linkedPropertyId` per PATCH auf `/api/contracts/[id]`), plus Möglichkeit zum Lösen einer Verknüpfung.
+4. Tests:
+   - Validierungs-Tests für die neuen Immobilien-Felder (inkl. Grenz-/Negativfälle), API-Tests für Bild-Upload/Auslieferung/Löschung (inkl. ungültiger MIME-Type / 404) und Verknüpfungs-Update.
+
+Starte gemäß `.agent/workflows/plan-slice.md` erst mit Analyse & Tech-Lead-Interview und speichere den Plan unter `tasks/plan-slice-6c.md`.
+```
+
+---
+
+### Slice 6d: Automatischer `finanz_cockpit`-Sync & direkte Verlinkung
+
+* **Ziel & Scope:**
+  * Automatischer, regelmäßiger Abgleich mit `finanz_cockpit` (z. B. Auto-Refresh beim Laden von `/` falls letzter Snapshot älter als konfiguriertes Intervall ist, sowie optionaler periodischer Hintergrund-Sync im Server-Prozess).
+  * Direkte, dezente Verlinkung auf das persönliche `finanz_cockpit` (z. B. *„Mein Cockpit ↗“* im Header/AppShell oder bei der persönlichen Sphäre auf `/`, konfigurierbar über `NEXT_PUBLIC_FINANZ_COCKPIT_URL` bzw. Server-Config).
+* **Akzeptanzkriterien:**
+  * Beim Öffnen von Coruscant aktualisiert sich der `finanz_cockpit`-Snapshot automatisch, sobald der letzte Sync veraltet ist (ohne UI zu blockieren, mit sauberem Offline-Fallback).
+  * Ein Klick auf den Cockpit-Link öffnet das persönliche `finanz_cockpit` im neuen Tab.
+  * `pnpm typecheck`, `pnpm lint`, `pnpm test` laufen mit 0 Fehlern durch.
+
+#### Prompt für `/plan-slice` (Slice 6d)
+
+```text
+/plan-slice Wir planen Coruscant v1 – Slice 6d: Regelmäßiger Auto-Sync mit finanz_cockpit & direkte Verlinkung.
+
+Kontext & Vorgaben:
+- Lies zuerst `AGENTS.md`, `docs/SPEC.md`, `docs/DESIGN-SYSTEM.md`, `src/lib/integrations/finanz-cockpit-client.ts`, `src/app/api/external/sync/route.ts`, `src/components/app-shell.tsx` und `src/components/cockpit/`.
+- UI bleibt ruhig: Der Link auf `finanz_cockpit` soll dezent im Header/Cockpit sitzen und nur erscheinen, wenn eine Ziel-URL konfiguriert ist.
+
+Anforderungen an Slice 6d:
+1. Auto-Sync-Strategie:
+   - Konfigurierbares Sync-Intervall (z. B. Stale-Check beim Aufruf von `/` oder Hintergrund-Taktgeber mit sauberem Timeout/Offline-Fallback auf den letzten Snapshot).
+2. Verlinkung auf `finanz_cockpit`:
+   - Konfigurierbare URL (`.env.example` ergänzen) + dezenter externer Link (*„finanz_cockpit ↗“*) in `app-shell.tsx` / auf `/`.
+3. Tests:
+   - Unit-/Integrationstests für den Stale-/Auto-Sync-Check (frischer Snapshot wird nicht unnötig neu geladen, veralteter Snapshot triggert Sync, Offline-Fehler fällt sauber zurück).
+
+Starte gemäß `.agent/workflows/plan-slice.md` erst mit Analyse & Tech-Lead-Interview und speichere den Plan unter `tasks/plan-slice-6d.md`.
+```
