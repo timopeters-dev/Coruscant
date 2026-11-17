@@ -1,13 +1,20 @@
 import crypto from "node:crypto";
-import { asc, desc, eq, ne } from "drizzle-orm";
+import { asc, desc, eq, inArray, ne } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
+  appMeta,
   cashflowItems,
   financialContracts,
   potAllocations,
   pots,
   properties,
 } from "@/db/schema";
+import {
+  type AllocationSettings,
+  allocationModeSchema,
+  allocationSettingsSchema,
+  variableExpenseBasisSchema,
+} from "@/lib/validation/external";
 import {
   type CashflowCreateInput,
   type CashflowUpdateInput,
@@ -583,4 +590,98 @@ export function executeWaterfallAllocation(
       unallocatedCents: input.inputAmountCents - totalAllocatedCents,
     };
   });
+}
+
+// --- Allocation Settings (app_meta) ---
+
+const ALLOCATION_META_KEYS = {
+  mode: "allocation_cashflow_mode",
+  variableBasis: "allocation_variable_basis",
+  includeContractsInModeB: "allocation_include_contracts_mode_b",
+} as const;
+
+export const DEFAULT_ALLOCATION_SETTINGS: AllocationSettings = {
+  mode: "mode_a",
+  variableBasis: "budget",
+  includeContractsInModeB: false,
+};
+
+export function getAllocationSettings(): AllocationSettings {
+  const db = getDb();
+  const rows = db
+    .select()
+    .from(appMeta)
+    .where(
+      inArray(appMeta.key, [
+        ALLOCATION_META_KEYS.mode,
+        ALLOCATION_META_KEYS.variableBasis,
+        ALLOCATION_META_KEYS.includeContractsInModeB,
+      ]),
+    )
+    .all();
+
+  const map = new Map(rows.map((r) => [r.key, r.value]));
+
+  const parsedMode = allocationModeSchema.safeParse(
+    map.get(ALLOCATION_META_KEYS.mode),
+  );
+  const parsedBasis = variableExpenseBasisSchema.safeParse(
+    map.get(ALLOCATION_META_KEYS.variableBasis),
+  );
+  const rawInclude = map.get(ALLOCATION_META_KEYS.includeContractsInModeB);
+
+  return {
+    mode: parsedMode.success ? parsedMode.data : DEFAULT_ALLOCATION_SETTINGS.mode,
+    variableBasis: parsedBasis.success
+      ? parsedBasis.data
+      : DEFAULT_ALLOCATION_SETTINGS.variableBasis,
+    includeContractsInModeB:
+      rawInclude === "true"
+        ? true
+        : rawInclude === "false"
+          ? false
+          : DEFAULT_ALLOCATION_SETTINGS.includeContractsInModeB,
+  };
+}
+
+export function saveAllocationSettings(
+  patch: Partial<AllocationSettings>,
+): AllocationSettings {
+  const current = getAllocationSettings();
+  const next = allocationSettingsSchema.parse({
+    mode: patch.mode ?? current.mode,
+    variableBasis: patch.variableBasis ?? current.variableBasis,
+    includeContractsInModeB:
+      patch.includeContractsInModeB ?? current.includeContractsInModeB,
+  });
+
+  const db = getDb();
+  const now = new Date().toISOString();
+
+  const entries: Array<{ key: string; value: string }> = [
+    { key: ALLOCATION_META_KEYS.mode, value: next.mode },
+    { key: ALLOCATION_META_KEYS.variableBasis, value: next.variableBasis },
+    {
+      key: ALLOCATION_META_KEYS.includeContractsInModeB,
+      value: String(next.includeContractsInModeB),
+    },
+  ];
+
+  db.transaction((tx) => {
+    for (const entry of entries) {
+      tx.insert(appMeta)
+        .values({
+          key: entry.key,
+          value: entry.value,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: appMeta.key,
+          set: { value: entry.value, updatedAt: now },
+        })
+        .run();
+    }
+  });
+
+  return next;
 }

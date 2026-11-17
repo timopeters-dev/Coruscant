@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  calculateModeBCashflow,
   calculateMonthlyCashflow,
   deriveContractCashflowItems,
   type DomainCashflowItem,
+  type ModeBHouseholdInput,
   normalizeItemToMonthlyCents,
 } from "./cashflow";
 import type { DomainContract } from "./contracts";
@@ -201,5 +203,171 @@ describe("deriveContractCashflowItems", () => {
       linkedContractId: "loan-1",
       active: true,
     });
+  });
+});
+
+describe("calculateModeBCashflow", () => {
+  const baseHousehold: ModeBHouseholdInput = {
+    balanceCents: 425_000,
+    recurringInflowCents: 460_000,
+    recurringOutflowCents: 195_000,
+    variableBudgetsCents: 95_000,
+    variableRollingAvg3MCents: 104_500,
+    variableRollingAvg6MCents: 99_200,
+  };
+
+  const manualItems: DomainCashflowItem[] = [
+    {
+      id: "m-in",
+      name: "Kindergeld",
+      direction: "inflow",
+      amountCents: 25_000,
+      frequency: "monthly",
+      source: "manual",
+      active: true,
+    },
+    {
+      id: "m-out-yearly",
+      name: "Musterverein",
+      direction: "outflow",
+      amountCents: 12_000,
+      frequency: "yearly",
+      source: "manual",
+      active: true,
+    },
+    {
+      id: "m-inactive",
+      name: "Inaktiv",
+      direction: "outflow",
+      amountCents: 50_000,
+      frequency: "monthly",
+      source: "manual",
+      active: false,
+    },
+  ];
+
+  const contractItems: DomainCashflowItem[] = [
+    {
+      id: "contract:c1",
+      name: "Hauskredit Musterbank",
+      direction: "outflow",
+      amountCents: 100_000,
+      frequency: "monthly",
+      source: "contract_linked",
+      linkedContractId: "c1",
+      active: true,
+    },
+  ];
+
+  it("computes Mode B cashflow across all three variable basis modes", () => {
+    const budgetMode = calculateModeBCashflow({
+      household: baseHousehold,
+      variableBasis: "budget",
+      manualItems,
+      contractItems,
+      includeContractItems: false,
+    });
+    expect(budgetMode).toEqual({
+      calibratedInflowCents: 460_000,
+      calibratedFixedOutflowCents: 195_000,
+      variableOutflowCents: 95_000,
+      manualInflowCents: 25_000,
+      manualOutflowCents: 1_000,
+      contractOutflowCents: 0,
+      totalInflowCents: 485_000,
+      totalOutflowCents: 291_000,
+      monthlySurplusCents: 194_000,
+      isDeficit: false,
+      selectedVariableBasis: "budget",
+    });
+
+    const avg3M = calculateModeBCashflow({
+      household: baseHousehold,
+      variableBasis: "avg_3m",
+      manualItems,
+    });
+    expect(avg3M.variableOutflowCents).toBe(104_500);
+    expect(avg3M.monthlySurplusCents).toBe(184_500);
+
+    const avg6M = calculateModeBCashflow({
+      household: baseHousehold,
+      variableBasis: "avg_6m",
+      manualItems,
+    });
+    expect(avg6M.variableOutflowCents).toBe(99_200);
+    expect(avg6M.monthlySurplusCents).toBe(189_800);
+  });
+
+  it("includes derived contract outflows only when includeContractItems is true", () => {
+    const withContracts = calculateModeBCashflow({
+      household: baseHousehold,
+      variableBasis: "budget",
+      manualItems,
+      contractItems,
+      includeContractItems: true,
+    });
+
+    expect(withContracts.contractOutflowCents).toBe(100_000);
+    expect(withContracts.totalOutflowCents).toBe(391_000);
+    expect(withContracts.monthlySurplusCents).toBe(94_000);
+  });
+
+  it("handles 0-cent values, negative balanceCents, and deficit surplus", () => {
+    const deficit = calculateModeBCashflow({
+      household: {
+        balanceCents: -25_000,
+        recurringInflowCents: 0,
+        recurringOutflowCents: 50_000,
+        variableBudgetsCents: 0,
+        variableRollingAvg3MCents: 0,
+        variableRollingAvg6MCents: 0,
+      },
+      variableBasis: "budget",
+      manualItems: [],
+    });
+
+    expect(deficit.monthlySurplusCents).toBe(-50_000);
+    expect(deficit.isDeficit).toBe(true);
+  });
+
+  it("rejects floats and negative amounts in household metrics", () => {
+    expect(() =>
+      calculateModeBCashflow({
+        household: { ...baseHousehold, recurringInflowCents: 12.34 },
+        variableBasis: "budget",
+        manualItems: [],
+      }),
+    ).toThrow(RangeError);
+
+    expect(() =>
+      calculateModeBCashflow({
+        household: { ...baseHousehold, variableBudgetsCents: -100 },
+        variableBasis: "budget",
+        manualItems: [],
+      }),
+    ).toThrow(RangeError);
+  });
+
+  it("throws RangeError on safe-integer overflow during Mode B summation", () => {
+    expect(() =>
+      calculateModeBCashflow({
+        household: {
+          ...baseHousehold,
+          recurringInflowCents: Number.MAX_SAFE_INTEGER,
+        },
+        variableBasis: "budget",
+        manualItems: [
+          {
+            id: "m-overflow",
+            name: "Overflow",
+            direction: "inflow",
+            amountCents: 100,
+            frequency: "monthly",
+            source: "manual",
+            active: true,
+          },
+        ],
+      }),
+    ).toThrow(RangeError);
   });
 });

@@ -1,0 +1,51 @@
+import { NextResponse } from "next/server";
+import {
+  getAllocationSettings,
+  saveAllocationSettings,
+} from "@/db/queries/allocation";
+import {
+  internalErrorResponse,
+  parseJsonBody,
+  validationErrorResponse,
+} from "@/lib/api/http";
+import { allocationSettingsSchema } from "@/lib/validation/external";
+
+export const dynamic = "force-dynamic";
+
+const allocationSettingsPatchSchema = allocationSettingsSchema
+  .partial()
+  .refine(
+    (data) =>
+      data.mode !== undefined ||
+      data.variableBasis !== undefined ||
+      data.includeContractsInModeB !== undefined,
+    { message: "Mindestens ein Einstellungsfeld muss übergeben werden." },
+  );
+
+export async function GET(): Promise<Response> {
+  try {
+    const settings = getAllocationSettings();
+    return NextResponse.json(settings, { status: 200 });
+  } catch {
+    return internalErrorResponse();
+  }
+}
+
+export async function PATCH(request: Request): Promise<Response> {
+  try {
+    const bodyResult = await parseJsonBody(request);
+    if (!bodyResult.ok) {
+      return bodyResult.response;
+    }
+
+    const parsed = allocationSettingsPatchSchema.safeParse(bodyResult.data);
+    if (!parsed.success) {
+      return validationErrorResponse(parsed.error);
+    }
+
+    const updated = saveAllocationSettings(parsed.data);
+    return NextResponse.json(updated, { status: 200 });
+  } catch {
+    return internalErrorResponse();
+  }
+}

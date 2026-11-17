@@ -7,9 +7,12 @@ import {
   ArrowDown,
   ArrowUp,
   Building2,
+  ChevronDown,
+  ChevronUp,
   Landmark,
   Pencil,
   Plus,
+  RefreshCw,
   Send,
   Trash2,
 } from "lucide-react";
@@ -24,17 +27,33 @@ import type {
 } from "@/db/queries/allocation";
 import type { FinancialContractRow, PropertyRow } from "@/db/queries/contracts";
 import {
+  calculateModeBCashflow,
   type CashflowFrequency,
   type DomainCashflowItem,
   type MonthlyCashflowSummary,
   normalizeItemToMonthlyCents,
+  type VariableExpenseBasis,
 } from "@/lib/domain/cashflow";
+import type { HouseholdSourceStatus } from "@/lib/integrations/household-dummy";
 import { formatCentsDE } from "@/lib/domain/money";
 import type { PotRuleType } from "@/lib/domain/waterfall";
+import type {
+  AllocationMode,
+  AllocationSettings,
+  HouseholdSummary,
+} from "@/lib/validation/external";
 import { cn } from "@/lib/utils";
 import { AllocateModal } from "./allocate-modal";
 import { CashflowItemModal } from "./cashflow-item-modal";
 import { PotModal } from "./pot-modal";
+
+interface HouseholdWorkspaceData {
+  household: HouseholdSummary | null;
+  isDummy: boolean;
+  sourceStatus: HouseholdSourceStatus;
+  fetchedAt: string | null;
+  bridgeConfigured: boolean;
+}
 
 interface AllokationWorkspaceProps {
   manualItems: CashflowItemRow[];
@@ -45,6 +64,8 @@ interface AllokationWorkspaceProps {
   recentAllocations: RecentPotAllocationRow[];
   properties: PropertyRow[];
   contracts: FinancialContractRow[];
+  initialSettings: AllocationSettings;
+  householdData: HouseholdWorkspaceData;
 }
 
 const FREQUENCY_LABELS: Record<CashflowFrequency, string> = {
@@ -85,8 +106,18 @@ export function AllokationWorkspace({
   recentAllocations,
   properties,
   contracts,
+  initialSettings,
+  householdData,
 }: AllokationWorkspaceProps) {
   const router = useRouter();
+
+  const [mode, setMode] = React.useState<AllocationMode>(initialSettings.mode);
+  const [variableBasis, setVariableBasis] =
+    React.useState<VariableExpenseBasis>(initialSettings.variableBasis);
+  const [includeContractsInModeB, setIncludeContractsInModeB] =
+    React.useState<boolean>(initialSettings.includeContractsInModeB);
+  const [breakdownOpen, setBreakdownOpen] = React.useState(false);
+  const [isSyncingBridge, setIsSyncingBridge] = React.useState(false);
 
   const [cashflowModalOpen, setCashflowModalOpen] = React.useState(false);
   const [editingCashflowItem, setEditingCashflowItem] =
@@ -126,6 +157,104 @@ export function AllokationWorkspace({
       return sum;
     }, 0);
   }, [pots]);
+
+  const modeBSummary = React.useMemo(() => {
+    if (!householdData.household) {
+      return null;
+    }
+    return calculateModeBCashflow({
+      household: householdData.household,
+      variableBasis,
+      manualItems,
+      contractItems: derivedContractItems,
+      includeContractItems: includeContractsInModeB,
+    });
+  }, [
+    householdData.household,
+    variableBasis,
+    manualItems,
+    derivedContractItems,
+    includeContractsInModeB,
+  ]);
+
+  const activeSurplusCents =
+    mode === "mode_b"
+      ? (modeBSummary?.monthlySurplusCents ?? 0)
+      : summary.monthlySurplusCents;
+
+  async function persistSettings(
+    patch: Partial<AllocationSettings>,
+    rollback: () => void,
+  ) {
+    setActionError(null);
+    try {
+      const response = await fetch("/api/allocation/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!response.ok) {
+        rollback();
+        setActionError(
+          "Allokations-Einstellungen konnten nicht gespeichert werden.",
+        );
+      }
+    } catch {
+      rollback();
+      setActionError(
+        "Netzwerkfehler beim Speichern der Allokations-Einstellungen.",
+      );
+    }
+  }
+
+  function handleModeChange(nextMode: AllocationMode) {
+    const prevMode = mode;
+    setMode(nextMode);
+    void persistSettings({ mode: nextMode }, () => setMode(prevMode));
+  }
+
+  function handleVariableBasisChange(nextBasis: VariableExpenseBasis) {
+    const prevBasis = variableBasis;
+    setVariableBasis(nextBasis);
+    void persistSettings({ variableBasis: nextBasis }, () =>
+      setVariableBasis(prevBasis),
+    );
+  }
+
+  function handleToggleIncludeContractsInModeB() {
+    const prevValue = includeContractsInModeB;
+    const nextValue = !prevValue;
+    setIncludeContractsInModeB(nextValue);
+    void persistSettings({ includeContractsInModeB: nextValue }, () =>
+      setIncludeContractsInModeB(prevValue),
+    );
+  }
+
+  async function handleSyncBridge() {
+    setIsSyncingBridge(true);
+    setActionError(null);
+    try {
+      const response = await fetch("/api/external/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "manual" }),
+      });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as
+          | { message?: string }
+          | null;
+        setActionError(
+          body?.message ?? "finanz_cockpit-Synchronisation fehlgeschlagen.",
+        );
+        return;
+      }
+      router.refresh();
+    } catch {
+      setActionError("Netzwerkfehler bei der finanz_cockpit-Synchronisation.");
+    } finally {
+      setIsSyncingBridge(false);
+    }
+  }
 
   async function handleToggleCashflowActive(item: CashflowItemRow) {
     setBusyId(item.id);
@@ -230,12 +359,43 @@ export function AllokationWorkspace({
             Cashflow &amp; Wasserfall
           </h1>
           <p className="text-sm text-[var(--text-secondary)]">
-            Haushalts-Positionen (Modus A), priorisierte Ziel-Töpfe und
-            1-Klick-Verteilung.
+            {mode === "mode_a"
+              ? "Haushalts-Positionen (Modus A), priorisierte Ziel-Töpfe und 1-Klick-Verteilung."
+              : "Gemeinschaftskonto-Bridge (Modus B), priorisierte Ziel-Töpfe und 1-Klick-Verteilung."}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <div
+            role="group"
+            aria-label="Cashflow-Modus"
+            className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-0.5"
+          >
+            <button
+              type="button"
+              onClick={() => handleModeChange("mode_a")}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                mode === "mode_a"
+                  ? "bg-[var(--surface)] text-[var(--text-primary)] shadow-xs"
+                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+              )}
+            >
+              Modus A · Pauschalen
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeChange("mode_b")}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                mode === "mode_b"
+                  ? "bg-[var(--surface)] text-[var(--text-primary)] shadow-xs"
+                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+              )}
+            >
+              Modus B · Gemeinschaftskonto
+            </button>
+          </div>
           <Button
             variant="secondary"
             onClick={() => {
@@ -277,63 +437,416 @@ export function AllokationWorkspace({
         </div>
       ) : null}
 
-      {/* Hero-Übersicht (Modus A) */}
-      <Card className="border-dashed border-[var(--border-sub)]">
-        <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle className="text-base">
-              Haushalts-Überschuss (Modus A)
-            </CardTitle>
-            <StatusBadge variant="modeled" detail="Modus A" />
-          </div>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-3">
-          <div className="space-y-1">
-            <p className="text-xs text-[var(--text-secondary)]">
-              Monatliche Einnahmen
-            </p>
-            <p className="tabular-nums text-xl font-semibold text-[var(--emerald)]">
-              {formatCentsDE(summary.totalInflowCents)}
-            </p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-xs text-[var(--text-secondary)]">
-              Monatliche Ausgaben (inkl. Verträge)
-            </p>
-            <p className="tabular-nums text-xl font-semibold text-[var(--rose)]">
-              {formatCentsDE(summary.totalOutflowCents)}
-            </p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-xs text-[var(--text-secondary)]">
-              Frei verteilbarer Überschuss / Monat
-            </p>
-            <p
-              className={cn(
-                "tabular-nums text-xl font-semibold",
-                summary.isDeficit
-                  ? "text-[var(--rose)]"
-                  : "text-[var(--emerald)]",
-              )}
-            >
-              {formatCentsDE(summary.monthlySurplusCents, {
-                showPlusSign: !summary.isDeficit,
-              })}
-            </p>
-            {summary.isDeficit ? (
-              <p className="text-xs text-[var(--rose)]">
-                Unterdeckung im Haushalts-Cashflow
+      {/* Hero-Übersicht (Modus A oder Modus B) */}
+      {mode === "mode_a" ? (
+        <Card className="border-dashed border-[var(--border-sub)]">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-base">
+                Haushalts-Überschuss (Modus A)
+              </CardTitle>
+              <StatusBadge variant="modeled" detail="Modus A" />
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-3">
+            <div className="space-y-1">
+              <p className="text-xs text-[var(--text-secondary)]">
+                Monatliche Einnahmen
               </p>
+              <p className="tabular-nums text-xl font-semibold text-[var(--emerald)]">
+                {formatCentsDE(summary.totalInflowCents)}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-[var(--text-secondary)]">
+                Monatliche Ausgaben (inkl. Verträge)
+              </p>
+              <p className="tabular-nums text-xl font-semibold text-[var(--rose)]">
+                {formatCentsDE(summary.totalOutflowCents)}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-[var(--text-secondary)]">
+                Frei verteilbarer Überschuss / Monat
+              </p>
+              <p
+                className={cn(
+                  "tabular-nums text-xl font-semibold",
+                  summary.isDeficit
+                    ? "text-[var(--rose)]"
+                    : "text-[var(--emerald)]",
+                )}
+              >
+                {formatCentsDE(summary.monthlySurplusCents, {
+                  showPlusSign: !summary.isDeficit,
+                })}
+              </p>
+              {summary.isDeficit ? (
+                <p className="text-xs text-[var(--rose)]">
+                  Unterdeckung im Haushalts-Cashflow
+                </p>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+      ) : householdData.household === null || !modeBSummary ? (
+        <Card className="border-dashed border-[var(--border-sub)]">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-base">
+                Gemeinschaftskonto-Überschuss (Modus B)
+              </CardTitle>
+              <StatusBadge variant="modeled" detail="Keine Daten" />
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-[var(--text-secondary)]">
+              Noch kein Gemeinschaftskonto (
+              <code className="font-mono">scope = household</code>) aus{" "}
+              <code className="font-mono">finanz_cockpit</code> synchronisiert.
+              Markiere in <code className="font-mono">finanz_cockpit</code>{" "}
+              mindestens ein Konto als Gemeinschaftskonto und starte einen Sync.
+            </p>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={isSyncingBridge || !householdData.bridgeConfigured}
+              onClick={handleSyncBridge}
+            >
+              <RefreshCw
+                className={cn(
+                  "h-3.5 w-3.5",
+                  isSyncingBridge && "animate-spin",
+                )}
+                aria-hidden="true"
+              />
+              finanz_cockpit synchronisieren
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card
+          className={
+            householdData.isDummy
+              ? "border-dashed border-[var(--border-sub)]"
+              : "border-[var(--border)]"
+          }
+        >
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <CardTitle className="text-base">
+                  Gemeinschaftskonto-Überschuss (Modus B)
+                </CardTitle>
+                {householdData.isDummy ? (
+                  <StatusBadge variant="modeled" detail="Dev-Dummy" />
+                ) : (
+                  <StatusBadge variant="calibrated" />
+                )}
+              </div>
+
+              <div
+                role="group"
+                aria-label="Basis für variable Alltagskosten"
+                className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-0.5"
+              >
+                {(
+                  [
+                    { id: "budget", label: "Plan-Budget" },
+                    { id: "avg_3m", label: "Ø 3 Monate" },
+                    { id: "avg_6m", label: "Ø 6 Monate" },
+                  ] as const
+                ).map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => handleVariableBasisChange(option.id)}
+                    className={cn(
+                      "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                      variableBasis === option.id
+                        ? "bg-[var(--surface)] text-[var(--text-primary)] shadow-xs"
+                        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-1">
+              <p className="text-xs text-[var(--text-secondary)]">
+                Kontostand Gemeinschaftskonto
+              </p>
+              <p
+                className={cn(
+                  "tabular-nums text-xl font-semibold",
+                  householdData.household.balanceCents < 0
+                    ? "text-[var(--rose)]"
+                    : "text-[var(--text-primary)]",
+                )}
+              >
+                {formatCentsDE(householdData.household.balanceCents)}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-[var(--text-secondary)]">
+                Monatliche Einnahmen
+              </p>
+              <p className="tabular-nums text-xl font-semibold text-[var(--emerald)]">
+                {formatCentsDE(modeBSummary.totalInflowCents)}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-[var(--text-secondary)]">
+                Fixkosten + Variable
+              </p>
+              <p className="tabular-nums text-xl font-semibold text-[var(--rose)]">
+                {formatCentsDE(modeBSummary.totalOutflowCents)}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-[var(--text-secondary)]">
+                Frei verteilbarer Überschuss / Monat
+              </p>
+              <p
+                className={cn(
+                  "tabular-nums text-xl font-semibold",
+                  modeBSummary.isDeficit
+                    ? "text-[var(--rose)]"
+                    : "text-[var(--emerald)]",
+                )}
+              >
+                {formatCentsDE(modeBSummary.monthlySurplusCents, {
+                  showPlusSign: !modeBSummary.isDeficit,
+                })}
+              </p>
+              {modeBSummary.isDeficit ? (
+                <p className="text-xs text-[var(--rose)]">
+                  Unterdeckung im Haushalts-Cashflow
+                </p>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Sektion: Geeichte Gemeinschaftskonto-Basis (nur Modus B) */}
+      {mode === "mode_b" && householdData.household && modeBSummary ? (
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold tracking-tight text-[var(--text-primary)]">
+                Geeichte Gemeinschaftskonto-Basis
+              </h2>
+              {householdData.isDummy ? (
+                <StatusBadge variant="modeled" detail="Dev-Dummy" />
+              ) : (
+                <StatusBadge variant="calibrated" />
+              )}
+            </div>
+            {householdData.bridgeConfigured ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={isSyncingBridge}
+                onClick={handleSyncBridge}
+              >
+                <RefreshCw
+                  className={cn(
+                    "h-3.5 w-3.5",
+                    isSyncingBridge && "animate-spin",
+                  )}
+                  aria-hidden="true"
+                />
+                Sync
+              </Button>
             ) : null}
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Sektion 1: Haushalts-Positionen (Modus A) */}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Card
+              className={
+                householdData.isDummy
+                  ? "border-dashed border-[var(--border-sub)]"
+                  : undefined
+              }
+            >
+              <CardContent className="space-y-1 py-4">
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Wiederkehrende Einnahmen
+                </p>
+                <p className="tabular-nums text-base font-semibold text-[var(--emerald)]">
+                  +{formatCentsDE(modeBSummary.calibratedInflowCents)}
+                </p>
+              </CardContent>
+            </Card>
+            <Card
+              className={
+                householdData.isDummy
+                  ? "border-dashed border-[var(--border-sub)]"
+                  : undefined
+              }
+            >
+              <CardContent className="space-y-1 py-4">
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Erkannte Fixkosten
+                </p>
+                <p className="tabular-nums text-base font-semibold text-[var(--rose)]">
+                  −{formatCentsDE(modeBSummary.calibratedFixedOutflowCents)}
+                </p>
+              </CardContent>
+            </Card>
+            <Card
+              className={
+                householdData.isDummy
+                  ? "border-dashed border-[var(--border-sub)]"
+                  : undefined
+              }
+            >
+              <CardContent className="space-y-1 py-4">
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Variable Alltagskosten (
+                  {variableBasis === "budget"
+                    ? "Plan-Budget"
+                    : variableBasis === "avg_3m"
+                      ? "Ø 3M"
+                      : "Ø 6M"}
+                  )
+                </p>
+                <p className="tabular-nums text-base font-semibold text-[var(--rose)]">
+                  −{formatCentsDE(modeBSummary.variableOutflowCents)}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {householdData.household.categoriesBreakdown.length > 0 ? (
+            <div
+              className={cn(
+                "rounded-xl border bg-[var(--surface)]",
+                householdData.isDummy
+                  ? "border-dashed border-[var(--border-sub)]"
+                  : "border-[var(--border)]",
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => setBreakdownOpen((prev) => !prev)}
+                className="flex w-full items-center justify-between px-4 py-3 text-left text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              >
+                <span>
+                  Aufschlüsselung variabler Kategorien (
+                  <span className="tabular-nums">
+                    {householdData.household.categoriesBreakdown.length}
+                  </span>
+                  )
+                </span>
+                {breakdownOpen ? (
+                  <ChevronUp className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                )}
+              </button>
+
+              {breakdownOpen ? (
+                <div className="overflow-x-auto border-t border-[var(--border)]">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-[var(--border)] bg-[var(--surface-elevated)]/60 text-left text-[var(--text-secondary)]">
+                        <th className="px-4 py-2 font-medium">Kategorie</th>
+                        <th
+                          className={cn(
+                            "px-4 py-2 text-right font-medium",
+                            variableBasis === "budget" &&
+                              "text-[var(--text-primary)]",
+                          )}
+                        >
+                          Plan-Budget
+                        </th>
+                        <th
+                          className={cn(
+                            "px-4 py-2 text-right font-medium",
+                            variableBasis === "avg_3m" &&
+                              "text-[var(--text-primary)]",
+                          )}
+                        >
+                          Ø 3 Monate
+                        </th>
+                        <th
+                          className={cn(
+                            "px-4 py-2 text-right font-medium",
+                            variableBasis === "avg_6m" &&
+                              "text-[var(--text-primary)]",
+                          )}
+                        >
+                          Ø 6 Monate
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--border)]">
+                      {householdData.household.categoriesBreakdown.map(
+                        (cat) => (
+                          <tr key={cat.categoryId}>
+                            <td className="px-4 py-2.5 font-medium text-[var(--text-primary)]">
+                              <span className="inline-flex items-center gap-2">
+                                <span
+                                  className="h-2 w-2 rounded-full"
+                                  style={{ backgroundColor: cat.color }}
+                                />
+                                {cat.categoryName}
+                              </span>
+                            </td>
+                            <td
+                              className={cn(
+                                "tabular-nums px-4 py-2.5 text-right",
+                                variableBasis === "budget"
+                                  ? "font-semibold text-[var(--text-primary)]"
+                                  : "text-[var(--text-secondary)]",
+                              )}
+                            >
+                              {formatCentsDE(cat.budgetCents)}
+                            </td>
+                            <td
+                              className={cn(
+                                "tabular-nums px-4 py-2.5 text-right",
+                                variableBasis === "avg_3m"
+                                  ? "font-semibold text-[var(--text-primary)]"
+                                  : "text-[var(--text-secondary)]",
+                              )}
+                            >
+                              {formatCentsDE(cat.avg3MCents)}
+                            </td>
+                            <td
+                              className={cn(
+                                "tabular-nums px-4 py-2.5 text-right",
+                                variableBasis === "avg_6m"
+                                  ? "font-semibold text-[var(--text-primary)]"
+                                  : "text-[var(--text-secondary)]",
+                              )}
+                            >
+                              {formatCentsDE(cat.avg6MCents)}
+                            </td>
+                          </tr>
+                        ),
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {/* Sektion 1: Manuelle Planposten / Haushalts-Positionen */}
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-lg font-semibold tracking-tight text-[var(--text-primary)]">
-            Haushalts-Positionen (Modus A)
+            {mode === "mode_a"
+              ? "Haushalts-Positionen (Modus A)"
+              : "Manuelle Planposten"}
           </h2>
           <span className="text-xs text-[var(--text-secondary)]">
             <span className="tabular-nums">{manualItems.length}</span> manuell ·{" "}
@@ -499,13 +1012,33 @@ export function AllokationWorkspace({
               </h3>
               <Badge variant="default">Vertrag · Live-Sync</Badge>
             </div>
-            <Link
-              href="/vertraege"
-              className="text-xs font-medium text-[var(--accent)] hover:underline"
-            >
-              Verträge verwalten →
-            </Link>
+            <div className="flex flex-wrap items-center gap-3">
+              {mode === "mode_b" ? (
+                <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-[var(--text-primary)]">
+                  <input
+                    type="checkbox"
+                    checked={includeContractsInModeB}
+                    onChange={handleToggleIncludeContractsInModeB}
+                    className="h-3.5 w-3.5 rounded border-[var(--border)] accent-[var(--accent)]"
+                  />
+                  Zusätzlich von Modus-B-Überschuss abziehen
+                </label>
+              ) : null}
+              <Link
+                href="/vertraege"
+                className="text-xs font-medium text-[var(--accent)] hover:underline"
+              >
+                Verträge verwalten →
+              </Link>
+            </div>
           </div>
+          {mode === "mode_b" ? (
+            <p className="text-[11px] text-[var(--text-secondary)]">
+              {includeContractsInModeB
+                ? "Aktiviert: Diese Vertragsraten werden zusätzlich zu den Gemeinschaftskonto-Fixkosten abgezogen."
+                : "Standardmäßig deaktiviert, um Doppelzählungen mit bereits über das Gemeinschaftskonto erkannten Fixkosten zu vermeiden."}
+            </p>
+          ) : null}
 
           {derivedContractItems.length === 0 ? (
             <p className="text-xs text-[var(--text-secondary)]">
@@ -540,7 +1073,7 @@ export function AllokationWorkspace({
               Hinweis:{" "}
               <span className="tabular-nums">{excludedContractsCount}</span>{" "}
               persönliche oder pausierte/geschlossene Verträge fließen bewusst
-              nicht in Modus A ein.
+              nicht in {mode === "mode_b" ? "Modus B" : "Modus A"} ein.
             </p>
           ) : null}
         </div>
@@ -827,7 +1360,7 @@ export function AllokationWorkspace({
         open={allocateModalOpen}
         onOpenChange={setAllocateModalOpen}
         pots={pots}
-        monthlySurplusCents={summary.monthlySurplusCents}
+        monthlySurplusCents={activeSurplusCents}
         onAllocated={() => router.refresh()}
       />
     </div>

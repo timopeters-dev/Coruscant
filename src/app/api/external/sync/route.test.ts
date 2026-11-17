@@ -6,6 +6,7 @@ import * as dbModule from "@/db";
 import {
   getLatestExternalSnapshot,
   insertExternalSnapshot,
+  parseSnapshotHousehold,
 } from "@/db/queries/cockpit";
 import * as cockpitQueries from "@/db/queries/cockpit";
 import * as bridgeClient from "@/lib/integrations/finanz-cockpit-client";
@@ -324,5 +325,49 @@ describe("POST /api/external/sync", () => {
       createSyncRequest({ mode: "background" }),
     );
     expect(invalidModeResponse.status).toBe(400);
+  });
+
+  it("persists and roundtrips household_json in external_snapshots on sync", async () => {
+    const household = {
+      balanceCents: 425_000,
+      recurringInflowCents: 460_000,
+      recurringOutflowCents: 195_000,
+      variableBudgetsCents: 95_000,
+      variableRollingAvg3MCents: 104_500,
+      variableRollingAvg6MCents: 99_200,
+      categoriesBreakdown: [
+        {
+          categoryId: "cat-lebensmittel",
+          categoryName: "Lebensmittel",
+          color: "#059669",
+          budgetCents: 60_000,
+          avg3MCents: 61_500,
+          avg6MCents: 58_200,
+        },
+      ],
+    };
+
+    vi.spyOn(bridgeClient, "fetchFinanzCockpitSummary").mockResolvedValue({
+      ok: true,
+      data: {
+        source: "finanz_cockpit",
+        liquidCashCents: 200_000,
+        etfStocksCents: 500_000,
+        cryptoCents: 0,
+        totalPersonalNetWorthCents: 700_000,
+        fetchedAt: "2026-11-17T12:00:00.000Z",
+        household,
+      },
+    });
+
+    const response = await syncExternal(createSyncRequest({ mode: "manual" }));
+    expect(response.status).toBe(200);
+
+    const latest = getLatestExternalSnapshot();
+    expect(latest).not.toBeNull();
+    expect(parseSnapshotHousehold(latest)).toEqual(household);
+    expect(
+      parseSnapshotHousehold({ householdJson: "{corrupt-json" }),
+    ).toBeNull();
   });
 });

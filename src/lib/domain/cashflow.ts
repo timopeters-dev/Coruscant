@@ -1,5 +1,9 @@
 import type { DomainContract } from "./contracts";
-import { assertNonNegativeInteger, roundHalfUpBigInt } from "./money";
+import {
+  assertNonNegativeInteger,
+  assertSafeInteger,
+  roundHalfUpBigInt,
+} from "./money";
 
 export type CashflowDirection = "inflow" | "outflow";
 export type CashflowFrequency = "monthly" | "quarterly" | "yearly";
@@ -146,4 +150,153 @@ export function deriveContractCashflowItems(
   }
 
   return derived;
+}
+
+export type VariableExpenseBasis = "budget" | "avg_3m" | "avg_6m";
+
+export interface ModeBHouseholdInput {
+  balanceCents: number;
+  recurringInflowCents: number;
+  recurringOutflowCents: number;
+  variableBudgetsCents: number;
+  variableRollingAvg3MCents: number;
+  variableRollingAvg6MCents: number;
+}
+
+export interface CalculateModeBCashflowInput {
+  household: ModeBHouseholdInput;
+  variableBasis: VariableExpenseBasis;
+  manualItems: readonly DomainCashflowItem[];
+  contractItems?: readonly DomainCashflowItem[];
+  includeContractItems?: boolean;
+}
+
+export interface ModeBCashflowSummary {
+  calibratedInflowCents: number;
+  calibratedFixedOutflowCents: number;
+  variableOutflowCents: number;
+  manualInflowCents: number;
+  manualOutflowCents: number;
+  contractOutflowCents: number;
+  totalInflowCents: number;
+  totalOutflowCents: number;
+  monthlySurplusCents: number;
+  isDeficit: boolean;
+  selectedVariableBasis: VariableExpenseBasis;
+}
+
+/**
+ * Calculates the Mode B (joint household account) monthly cashflow summary
+ * using calibrated bank recurring inflows/outflows, the selected variable
+ * expense basis, manual plan items, and optionally derived contract outflows.
+ */
+export function calculateModeBCashflow(
+  input: CalculateModeBCashflowInput,
+): ModeBCashflowSummary {
+  assertSafeInteger(input.household.balanceCents, "household.balanceCents");
+  const calibratedInflowCents = assertNonNegativeInteger(
+    input.household.recurringInflowCents,
+    "household.recurringInflowCents",
+  );
+  const calibratedFixedOutflowCents = assertNonNegativeInteger(
+    input.household.recurringOutflowCents,
+    "household.recurringOutflowCents",
+  );
+  const variableBudgetsCents = assertNonNegativeInteger(
+    input.household.variableBudgetsCents,
+    "household.variableBudgetsCents",
+  );
+  const variableRollingAvg3MCents = assertNonNegativeInteger(
+    input.household.variableRollingAvg3MCents,
+    "household.variableRollingAvg3MCents",
+  );
+  const variableRollingAvg6MCents = assertNonNegativeInteger(
+    input.household.variableRollingAvg6MCents,
+    "household.variableRollingAvg6MCents",
+  );
+
+  let variableOutflowCents: number;
+  switch (input.variableBasis) {
+    case "budget":
+      variableOutflowCents = variableBudgetsCents;
+      break;
+    case "avg_3m":
+      variableOutflowCents = variableRollingAvg3MCents;
+      break;
+    case "avg_6m":
+      variableOutflowCents = variableRollingAvg6MCents;
+      break;
+  }
+
+  let manualInflowCents = 0;
+  let manualOutflowCents = 0;
+  for (const item of input.manualItems) {
+    const monthlyCents = normalizeItemToMonthlyCents(
+      item.amountCents,
+      item.frequency,
+    );
+    if (!item.active || item.source !== "manual") {
+      continue;
+    }
+    if (item.direction === "inflow") {
+      manualInflowCents = assertSafeInteger(
+        manualInflowCents + monthlyCents,
+        "manualInflowCents",
+      );
+    } else {
+      manualOutflowCents = assertSafeInteger(
+        manualOutflowCents + monthlyCents,
+        "manualOutflowCents",
+      );
+    }
+  }
+
+  let contractOutflowCents = 0;
+  if (input.includeContractItems && input.contractItems) {
+    for (const item of input.contractItems) {
+      const monthlyCents = normalizeItemToMonthlyCents(
+        item.amountCents,
+        item.frequency,
+      );
+      if (!item.active) {
+        continue;
+      }
+      if (item.direction === "outflow") {
+        contractOutflowCents = assertSafeInteger(
+          contractOutflowCents + monthlyCents,
+          "contractOutflowCents",
+        );
+      }
+    }
+  }
+
+  const totalInflowCents = assertSafeInteger(
+    calibratedInflowCents + manualInflowCents,
+    "totalInflowCents",
+  );
+  const totalOutflowCents = assertSafeInteger(
+    calibratedFixedOutflowCents +
+      variableOutflowCents +
+      manualOutflowCents +
+      contractOutflowCents,
+    "totalOutflowCents",
+  );
+  const monthlySurplusCents = assertSafeInteger(
+    totalInflowCents - totalOutflowCents,
+    "monthlySurplusCents",
+  );
+
+  return {
+    calibratedInflowCents,
+    calibratedFixedOutflowCents,
+    variableOutflowCents,
+    manualInflowCents,
+    manualOutflowCents,
+    contractOutflowCents,
+    totalInflowCents,
+    totalOutflowCents,
+    monthlySurplusCents,
+    isDeficit: monthlySurplusCents < 0,
+    selectedVariableBasis: input.variableBasis,
+  };
 }

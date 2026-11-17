@@ -297,6 +297,7 @@ export const externalSnapshots = sqliteTable(
     totalPersonalNetWorthCents: integer(
       "total_personal_net_worth_cents",
     ).notNull(),
+    householdJson: text("household_json"),
     fetchedAt: text("fetched_at").notNull(),
   },
   (table) => [

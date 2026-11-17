@@ -20,7 +20,11 @@ import { projectContractBalance } from "@/lib/domain/contracts";
 import { getTodayIsoDate } from "@/lib/domain/date";
 import { evaluateSnapshotFreshness } from "@/lib/domain/external-sync";
 import { getFinanzCockpitBridgeConfig } from "@/lib/integrations/finanz-cockpit-client";
-import type { FinanzCockpitSummary } from "@/lib/validation/external";
+import {
+  type FinanzCockpitSummary,
+  type HouseholdSummary,
+  householdSummarySchema,
+} from "@/lib/validation/external";
 
 export interface CockpitPageData {
   asOfDate: string;
@@ -63,6 +67,9 @@ export function insertExternalSnapshot(
       etfStocksCents: summary.etfStocksCents,
       cryptoCents: summary.cryptoCents,
       totalPersonalNetWorthCents: summary.totalPersonalNetWorthCents,
+      householdJson: summary.household
+        ? JSON.stringify(summary.household)
+        : null,
       fetchedAt: summary.fetchedAt,
     })
     .returning()
@@ -72,6 +79,21 @@ export function insertExternalSnapshot(
     throw new Error("Failed to insert external snapshot");
   }
   return created;
+}
+
+export function parseSnapshotHousehold(
+  snapshot: Pick<ExternalSnapshotRow, "householdJson"> | null | undefined,
+): HouseholdSummary | null {
+  if (!snapshot?.householdJson) {
+    return null;
+  }
+  try {
+    const parsedJson: unknown = JSON.parse(snapshot.householdJson);
+    const result = householdSummarySchema.safeParse(parsedJson);
+    return result.success ? result.data : null;
+  } catch {
+    return null;
+  }
 }
 
 export function loadCockpitData(

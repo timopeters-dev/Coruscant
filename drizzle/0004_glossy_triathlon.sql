@@ -1,0 +1,1 @@
+ALTER TABLE `external_snapshots` ADD `household_json` text;

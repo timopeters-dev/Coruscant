@@ -168,5 +168,56 @@ describe("fetchFinanzCockpitSummary", () => {
       ),
     });
     expect(invalidPayloadRes).toMatchObject({ ok: false, code: "invalid_payload" });
+
+    const validHouseholdPayload = {
+      ...VALID_PAYLOAD,
+      household: {
+        balanceCents: 425_000,
+        recurringInflowCents: 460_000,
+        recurringOutflowCents: 195_000,
+        variableBudgetsCents: 95_000,
+        variableRollingAvg3MCents: 104_500,
+        variableRollingAvg6MCents: 99_200,
+        categoriesBreakdown: [
+          {
+            categoryId: "cat-food",
+            categoryName: "Lebensmittel",
+            color: "#059669",
+            budgetCents: 60_000,
+            avg3MCents: 61_500,
+            avg6MCents: 58_200,
+          },
+        ],
+      },
+    };
+    const householdRes = await fetchFinanzCockpitSummary({
+      baseUrl: "http://127.0.0.1:3001",
+      token: secretToken,
+      fetchFn: vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(JSON.stringify(validHouseholdPayload), { status: 200 }),
+      ),
+    });
+    expect(householdRes).toEqual({ ok: true, data: validHouseholdPayload });
+
+    const invalidHouseholdRes = await fetchFinanzCockpitSummary({
+      baseUrl: "http://127.0.0.1:3001",
+      token: secretToken,
+      fetchFn: vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            ...VALID_PAYLOAD,
+            household: {
+              ...validHouseholdPayload.household,
+              variableRollingAvg3MCents: 123.45,
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    });
+    expect(invalidHouseholdRes).toMatchObject({
+      ok: false,
+      code: "invalid_payload",
+    });
   });
 });
