@@ -35,3 +35,4 @@ Local-First Haushalts-, Vertrags-, Dokumenten- und Vermögens-Zentrale als über
 2. **`/vertraege` (Verträge & Immobilien):** Alle Kredite, Darlehen, Bausparer und `Immobilie #0`; CRUD via Modal; Detail-Drawer mit projiziertem vs. geeichtem Stand und Belegen.
 3. **`/allokation` (Cashflow & Wasserfall):** Haushalts-Positionen (Modus A), priorisierte Ziel-Töpfe und „Geld verteilen“-Modal mit 1-Klick-Vorschlag.
 4. **`/dokumente` (KI-Dokumenten-Inbox):** PDF-Upload, Queue *„Zu prüfen“* (Split-Screen: PDF links, KI-Vorschlag + Eich-Checkbox rechts) und Archiv mit Steuer-Filter.
+5. **`/planung` (Szenario-Labor, v2):** Read-only Simulation ohne DB-Mutation: *Sondertilgung vs. ETF* (gleiches Monatsbudget, Endbesteuerung, Break-even-Rendite) und *Gehaltssprung* (Füllzeitpunkt der Ziel-Töpfe über den Wasserfall). Ergebnisse sind *Modelliert* (`border-dashed`).

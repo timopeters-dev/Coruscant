@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  addMonthsToIsoDate,
+  addMonthsToYearMonth,
   countCompletedMonths,
   daysInMonth,
   diffCalendarDays,
   getTodayIsoDate,
   parseIsoDate,
+  parseYearMonth,
+  toYearMonth,
 } from "./date";
 
 describe("parseIsoDate & daysInMonth", () => {
@@ -69,5 +73,42 @@ describe("getTodayIsoDate", () => {
     expect(getTodayIsoDate(new Date("2026-01-01T00:05:00Z"), "Europe/Berlin")).toBe(
       "2026-01-01",
     );
+  });
+});
+
+describe("addMonthsToIsoDate", () => {
+  it("clamps to end of month incl. leap years", () => {
+    expect(addMonthsToIsoDate("2026-01-31", 1)).toBe("2026-02-28");
+    expect(addMonthsToIsoDate("2028-01-31", 1)).toBe("2028-02-29");
+  });
+
+  it("is the identity for 0 and crosses year boundaries", () => {
+    expect(addMonthsToIsoDate("2026-05-15", 0)).toBe("2026-05-15");
+    expect(addMonthsToIsoDate("2026-05-15", 12)).toBe("2027-05-15");
+    expect(addMonthsToIsoDate("2026-11-30", 3)).toBe("2027-02-28");
+  });
+
+  it("rejects negative, float and invalid inputs", () => {
+    expect(() => addMonthsToIsoDate("2026-01-01", -1)).toThrow(RangeError);
+    expect(() => addMonthsToIsoDate("2026-01-01", 1.5)).toThrow(RangeError);
+    expect(() => addMonthsToIsoDate("2026-02-30", 1)).toThrow(RangeError);
+  });
+});
+
+describe("year-month helpers", () => {
+  it("parses and adds months", () => {
+    expect(parseYearMonth("2026-12")).toEqual({ year: 2026, month: 12 });
+    expect(addMonthsToYearMonth("2026-12", 1)).toBe("2027-01");
+    expect(addMonthsToYearMonth("2026-01", 0)).toBe("2026-01");
+    expect(addMonthsToYearMonth("2026-01", 25)).toBe("2028-02");
+    expect(toYearMonth("2026-11-17")).toBe("2026-11");
+  });
+
+  it("rejects malformed values", () => {
+    expect(() => parseYearMonth("2026-13")).toThrow(RangeError);
+    expect(() => parseYearMonth("2026-1")).toThrow(RangeError);
+    expect(() => parseYearMonth("2026-00")).toThrow(RangeError);
+    expect(() => addMonthsToYearMonth("2026-01", -1)).toThrow(RangeError);
+    expect(() => toYearMonth("2026-1-1")).toThrow(RangeError);
   });
 });

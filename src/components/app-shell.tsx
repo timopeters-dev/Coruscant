@@ -6,6 +6,7 @@ import {
   ExternalLink,
   LayoutDashboard,
   FileSpreadsheet,
+  FlaskConical,
   GitFork,
   Inbox,
 } from "lucide-react";
@@ -16,6 +17,7 @@ const NAV_ITEMS = [
   { href: "/", label: "Cockpit", Icon: LayoutDashboard },
   { href: "/vertraege", label: "Verträge", Icon: FileSpreadsheet },
   { href: "/allokation", label: "Allokation", Icon: GitFork },
+  { href: "/planung", label: "Planung", Icon: FlaskConical },
   { href: "/dokumente", label: "Dokumente", Icon: Inbox },
 ] as const;
 
@@ -96,7 +98,7 @@ export function AppShell({
 
       <nav
         aria-label="Mobile Navigation"
-        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-[var(--border)] bg-[var(--surface)]/95 backdrop-blur-sm md:hidden print:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-[var(--border)] bg-[var(--surface)]/95 backdrop-blur-sm md:hidden print:hidden"
       >
         {NAV_ITEMS.map(({ href, label, Icon }) => {
           const isActive =

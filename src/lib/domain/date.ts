@@ -129,3 +129,79 @@ export function getTodayIsoDate(
   parseIsoDate(formatted, "todayIsoDate");
   return formatted;
 }
+
+const YEAR_MONTH_PATTERN = /^(\d{4})-(\d{2})$/;
+
+export interface YearMonthParts {
+  year: number;
+  month: number;
+}
+
+/**
+ * Parses and strictly validates a YYYY-MM string.
+ */
+export function parseYearMonth(
+  value: string,
+  fieldName = "yearMonth",
+): YearMonthParts {
+  const match = YEAR_MONTH_PATTERN.exec(value);
+  if (!match) {
+    throw new RangeError(
+      `${fieldName} must be in YYYY-MM format, received: "${value}"`,
+    );
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) {
+    throw new RangeError(
+      `${fieldName} has invalid month (${month}) in "${value}"`,
+    );
+  }
+  return { year, month };
+}
+
+function formatYearMonth(year: number, month: number): string {
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}`;
+}
+
+/**
+ * Adds a non-negative whole number of months to a YYYY-MM string.
+ */
+export function addMonthsToYearMonth(ym: string, months: number): string {
+  const { year, month } = parseYearMonth(ym, "yearMonth");
+  const safeMonths = assertSafeInteger(months, "months");
+  if (safeMonths < 0) {
+    throw new RangeError(
+      `months must be a non-negative integer, received: ${months}`,
+    );
+  }
+  const zeroBased = year * 12 + (month - 1) + safeMonths;
+  return formatYearMonth(Math.floor(zeroBased / 12), (zeroBased % 12) + 1);
+}
+
+/**
+ * Extracts the YYYY-MM prefix of a validated YYYY-MM-DD date.
+ */
+export function toYearMonth(isoDate: string): string {
+  const { year, month } = parseIsoDate(isoDate, "isoDate");
+  return formatYearMonth(year, month);
+}
+
+/**
+ * Adds a non-negative whole number of months to a YYYY-MM-DD date with
+ * end-of-month clamping (2026-01-31 + 1 -> 2026-02-28).
+ */
+export function addMonthsToIsoDate(isoDate: string, months: number): string {
+  const { year, month, day } = parseIsoDate(isoDate, "isoDate");
+  const safeMonths = assertSafeInteger(months, "months");
+  if (safeMonths < 0) {
+    throw new RangeError(
+      `months must be a non-negative integer, received: ${months}`,
+    );
+  }
+  const zeroBased = year * 12 + (month - 1) + safeMonths;
+  const targetYear = Math.floor(zeroBased / 12);
+  const targetMonth = (zeroBased % 12) + 1;
+  const targetDay = Math.min(day, daysInMonth(targetYear, targetMonth));
+  return `${formatYearMonth(targetYear, targetMonth)}-${String(targetDay).padStart(2, "0")}`;
+}
