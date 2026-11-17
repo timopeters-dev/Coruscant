@@ -5,7 +5,9 @@ import {
   PrepaymentVsEtfCard,
   type LoanOption,
 } from "./prepayment-vs-etf-card";
+import type { InvestmentContext } from "@/lib/domain/investment-context";
 import type { DomainPot } from "@/lib/domain/waterfall";
+import { InvestmentCoachCard } from "./investment-coach-card";
 
 interface PlanungWorkspaceProps {
   asOfDate: string;
@@ -15,6 +17,8 @@ interface PlanungWorkspaceProps {
   isDummy: boolean;
   pots: DomainPot[];
   startMonth: string;
+  coachContext: InvestmentContext;
+  coachRefLabels: Record<string, string>;
 }
 
 export function PlanungWorkspace({
@@ -25,6 +29,8 @@ export function PlanungWorkspace({
   isDummy,
   pots,
   startMonth,
+  coachContext,
+  coachRefLabels,
 }: PlanungWorkspaceProps) {
   return (
     <div className="flex flex-col gap-6">
@@ -42,6 +48,7 @@ export function PlanungWorkspace({
         pots={pots}
         startMonth={startMonth}
       />
+      <InvestmentCoachCard context={coachContext} refLabels={coachRefLabels} />
     </div>
   );
 }

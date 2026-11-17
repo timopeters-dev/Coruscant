@@ -1,35 +1,18 @@
-import { PlanungWorkspace } from "@/components/planung/planung-workspace";
-import type { LoanOption } from "@/components/planung/prepayment-vs-etf-card";
-import {
-  getAllocationSettings,
-  getPendingTransferCentsByPotId,
-  listManualCashflowItems,
-  listPots,
-} from "@/db/queries/allocation";
-import {
-  getLatestExternalSnapshot,
-  parseSnapshotHousehold,
-} from "@/db/queries/cockpit";
-import { listContracts } from "@/db/queries/contracts";
-import {
-  calculateConsolidatedCashflow,
-  deriveContractCashflowItems,
-} from "@/lib/domain/cashflow";
-import {
-  addMonthsToYearMonth,
-  getTodayIsoDate,
-  toYearMonth,
-} from "@/lib/domain/date";
-import { applyPendingTransfers } from "@/lib/domain/pot-sync";
+import { buildRefLabelMap, loadInvestmentContextInput } from "@/db/queries/coach";
+import { loadPlanningBase } from "@/db/queries/planning-base";
+import { addMonthsToYearMonth, getTodayIsoDate, toYearMonth } from "@/lib/domain/date";
+import { buildInvestmentContext } from "@/lib/domain/investment-context";
 import { buildPrepaymentDefaults } from "@/lib/domain/scenarios";
 import type { DomainPot } from "@/lib/domain/waterfall";
-import { resolveHouseholdDataForWorkspace } from "@/lib/integrations/household-dummy";
+import { PlanungWorkspace } from "@/components/planung/planung-workspace";
+import type { LoanOption } from "@/components/planung/prepayment-vs-etf-card";
 
 export const dynamic = "force-dynamic";
 
 export default function PlanungPage() {
   const asOfDate = getTodayIsoDate();
-  const contracts = listContracts();
+  const base = loadPlanningBase();
+  const { contracts, consolidated } = base;
 
   const loanOptions: LoanOption[] = contracts
     .filter((c) => c.category === "loan" && c.status === "active")
@@ -41,23 +24,7 @@ export default function PlanungPage() {
       defaults: buildPrepaymentDefaults(c, asOfDate),
     }));
 
-  const settings = getAllocationSettings();
-  const resolvedHousehold = resolveHouseholdDataForWorkspace(
-    parseSnapshotHousehold(getLatestExternalSnapshot()),
-  );
-  const consolidated = calculateConsolidatedCashflow({
-    household: resolvedHousehold.household,
-    variableBasis: settings.variableBasis,
-    manualItems: listManualCashflowItems(),
-    contractItems: deriveContractCashflowItems(contracts),
-    includeContractItems: settings.includeContractItems,
-  });
-
-  // Same basis as /allokation: stand + open transfers.
-  const pots: DomainPot[] = applyPendingTransfers(
-    listPots(),
-    getPendingTransferCentsByPotId(),
-  ).map((p) => ({
+  const pots: DomainPot[] = base.pots.map((p) => ({
     id: p.id,
     name: p.name,
     priority: p.priority,
@@ -68,15 +35,20 @@ export default function PlanungPage() {
     remainderPercentage: p.remainderPercentage,
   }));
 
+  // Server-seitig gebauter, anonymisierter Kontext; Labels bleiben lokal in der UI.
+  const coachInput = loadInvestmentContextInput({ asOfDate, base });
+
   return (
     <PlanungWorkspace
       asOfDate={asOfDate}
       loanOptions={loanOptions}
       baseSurplusCents={consolidated.monthlySurplusCents}
       hasHouseholdData={consolidated.hasHouseholdData}
-      isDummy={resolvedHousehold.isDummy}
+      isDummy={base.isDummy}
       pots={pots}
       startMonth={addMonthsToYearMonth(toYearMonth(asOfDate), 1)}
+      coachContext={buildInvestmentContext(coachInput)}
+      coachRefLabels={buildRefLabelMap(coachInput)}
     />
   );
 }

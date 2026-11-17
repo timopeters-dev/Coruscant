@@ -3,7 +3,7 @@ import {
   parseSnapshotAccounts,
   parseSnapshotPositions,
 } from "@/db/queries/external-snapshots";
-import { loadPlanningBase } from "@/db/queries/planning-base";
+import { loadPlanningBase, type PlanningBase } from "@/db/queries/planning-base";
 import { extractContractMilestones } from "@/lib/domain/contracts";
 import {
   MAX_CONTEXT_GOALS,
@@ -14,6 +14,8 @@ import {
 export interface LoadInvestmentContextInputOptions {
   asOfDate: string;
   monthlySavingsRateCents?: number;
+  /** Bereits geladene Planungsbasis (vermeidet doppeltes Laden). */
+  base?: PlanningBase;
 }
 
 /**
@@ -24,7 +26,7 @@ export function loadInvestmentContextInput(
   options: LoadInvestmentContextInputOptions,
 ): InvestmentContextInput {
   const snapshot = getLatestExternalSnapshot();
-  const base = loadPlanningBase();
+  const base = options.base ?? loadPlanningBase();
   const { consolidated } = base;
 
   const monthlyLivingCostsCents = consolidated.hasHouseholdData

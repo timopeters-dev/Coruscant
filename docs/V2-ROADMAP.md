@@ -32,7 +32,7 @@ flowchart LR
 | **Slice 7** | 3-Konten-Bridge & Cashflow-Adapter Modus B | Gemeinschaftskonto-Daten (Fixkosten, Gehälter, Budget vs. Ø-Ist-Toggle) aus `finanz_cockpit` + Dev-Dummy-Modus. |
 | **Slice 8** | Topf-zu-Konto/Depot-Sync | Virtuelle Töpfe (Notgroschen, ETF-Tilgungsersatz) mit echten Konten/Depots koppeln und automatisch eichen. |
 | **Slice 9** | Szenario-Labor („Was-wäre-wenn?“) | Fundierter Vergleich *Sondertilgung vs. ETF-Ansparung* und *Gehaltssprung-Simulation* mit Schiebereglern. Vorabpauschale bewusst nicht modelliert (konservativ für ETF). |
-| **Slice 10** | KI-Investment-Coach (Einsteiger-Assistent) | Portfolio- & Risiko-Analyse auf Basis echter Depot-Positionen aus `finanz_cockpit` + eigener Lebensziele. |
+| **Slice 10** ✅ | KI-Investment-Coach (Einsteiger-Assistent) | Portfolio- & Risiko-Analyse auf Basis echter Depot-Positionen aus `finanz_cockpit` + eigener Lebensziele. |
 | **Slice 11** | Zentraler Steuer-Sammler | Jahresübersicht aller steuerrelevanten Belege/Posten pro §-Kategorie inkl. Export-Mappe. |
 
 ---
@@ -152,7 +152,13 @@ Starte gemäß `.agent/workflows/plan-slice.md` erst mit Analyse & Tech-Lead-Int
 
 ---
 
-### Slice 10: KI-Investment-Coach (Einsteiger-Assistent)
+### Slice 10: KI-Investment-Coach (Einsteiger-Assistent) – umgesetzt
+
+* **Umgesetzte Entscheidungen (Plan: `tasks/plan-slice-10.md`):**
+  1. **Anonymer Kontext per Allowlist:** Nur ETF-Name und ISIN (öffentliche Fondsdaten) gehen an die KI; Einzelaktien/Krypto nur als Referenz + Gewicht; Konten, Töpfe und Verträge nur als Refs/Enums. Der Server baut den Kontext bei jedem Request neu, der Client liefert nur Sparrate und Chat-Nachrichten.
+  2. **`pots.purpose`** (`emergency_fund | goal | investment | NULL`) steuert Notgroschen-Abdeckung und Ziel-Horizonte.
+  3. **Rebalancing:** Die KI liefert nur Ziel-Gewichte (Bps, Summe 10.000), die Domäne rechnet Soll-Werte, Deltas und Monate über Zukäufe (*Modelliert*).
+  4. **Stateless-UI:** Drawer auf `/planung`, kein Persistieren; Gemini-Transport in `gemini-transport.ts` geteilt mit der Dokumenten-Extraktion.
 
 * **Ziel & Scope:**
   * Verständlicher Strategie- & Lern-Assistent auf Basis der echten Depot-Positionen (aus Slice 8) und der eigenen Ziele/Zeithorizonte aus Coruscant (Haus-Ablösung, Mutter-Darlehen, langfristiger Aufbau).
