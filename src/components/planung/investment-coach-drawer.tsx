@@ -22,6 +22,7 @@ import {
 } from "@/lib/validation/coach";
 import { cn } from "@/lib/utils";
 import { ASSET_CLASS_LABELS, describeRef, formatMonthsDE } from "./coach-labels";
+import { recomputeRebalancingPlan, rollbackFailedChat } from "./coach-state";
 import { SliderField } from "./euro-slider-field";
 
 interface InvestmentCoachDrawerProps {
@@ -201,6 +202,12 @@ export function InvestmentCoachDrawer({
     }
   }
 
+  function restoreAfterFailure(previous: ChatEntry[], failedText: string) {
+    const restored = rollbackFailedChat(previous, failedText);
+    setMessages(restored.messages);
+    setDraft(restored.draft);
+  }
+
   async function sendMessage(rawText: string) {
     const text = rawText.trim();
     if (text.length === 0 || chatLoading) return;
@@ -223,6 +230,7 @@ export function InvestmentCoachDrawer({
       });
       if (!response.ok) {
         setChatError(await readError(response));
+        restoreAfterFailure(messages, text);
         return;
       }
       const body = (await response.json()) as {
@@ -241,12 +249,25 @@ export function InvestmentCoachDrawer({
       setFollowUps(body.reply.followUpQuestions);
     } catch {
       setChatError(ERROR_TEXT_BY_CODE.network_error!);
+      restoreAfterFailure(messages, text);
     } finally {
       setChatLoading(false);
     }
   }
 
   const result = assessment?.assessment ?? null;
+  // Plan immer mit der aktuellen Sparrate (Regler) neu rechnen – rein, ohne KI-Aufruf.
+  const livePlan = React.useMemo(
+    () =>
+      result?.rebalancing
+        ? recomputeRebalancingPlan(
+            context,
+            result.rebalancing.targetWeightsBps,
+            effectiveRate,
+          )
+        : null,
+    [context, result, effectiveRate],
+  );
 
   return (
     <Sheet
@@ -382,8 +403,13 @@ export function InvestmentCoachDrawer({
                 {result.rebalancing ? (
                   <div className="flex flex-col gap-2">
                     <p className="text-sm">{result.rebalancing.rationale}</p>
-                    {assessment?.rebalancingPlan ? (
-                      <RebalancingTable plan={assessment.rebalancingPlan} />
+                    {livePlan ? (
+                      <>
+                        <RebalancingTable plan={livePlan} />
+                        <p className="text-xs tabular-nums text-[var(--text-secondary)]">
+                          Berechnet mit Sparrate {formatCentsDE(effectiveRate)} pro Monat.
+                        </p>
+                      </>
                     ) : null}
                   </div>
                 ) : (

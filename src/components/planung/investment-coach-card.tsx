@@ -64,7 +64,15 @@ export function InvestmentCoachCard({
                   {formatCentsDE(context.portfolio.totalValueCents)}
                 </span>
               </h3>
-              <StatusBadge variant="calibrated" detail="finanz_cockpit" />
+              <span className="flex items-center gap-2">
+                {context.dataQuality.snapshotAgeDays !== null ? (
+                  <span className="text-xs tabular-nums text-[var(--text-secondary)]">
+                    Stand vor {context.dataQuality.snapshotAgeDays}{" "}
+                    {context.dataQuality.snapshotAgeDays === 1 ? "Tag" : "Tagen"}
+                  </span>
+                ) : null}
+                <StatusBadge variant="calibrated" detail="finanz_cockpit" />
+              </span>
             </div>
             <div
               className="flex h-2.5 w-full overflow-hidden rounded-full bg-[var(--surface-elevated)]"
@@ -93,18 +101,34 @@ export function InvestmentCoachCard({
                 </li>
               ))}
             </ul>
-            <p className="text-sm">
-              <span className="text-[var(--text-secondary)]">
-                Notgroschen-Abdeckung:{" "}
-              </span>
-              <span className="font-medium tabular-nums">
-                {coverage !== null
-                  ? formatCoverageTenthsDE(coverage)
-                  : "nicht festgelegt"}
-              </span>
-            </p>
           </section>
         )}
+
+        {usable ? (
+          <section
+            aria-label="Notgroschen-Abdeckung"
+            className="flex flex-col gap-1.5 rounded-xl border border-dashed border-[var(--border-sub)] p-4"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm">
+                <span className="text-[var(--text-secondary)]">
+                  Notgroschen-Abdeckung:{" "}
+                </span>
+                <span className="font-medium tabular-nums">
+                  {coverage !== null
+                    ? formatCoverageTenthsDE(coverage)
+                    : "nicht festgelegt"}
+                </span>
+              </p>
+              <StatusBadge variant="modeled" />
+            </div>
+            {context.dataQuality.isDummyHousehold ? (
+              <p className="text-xs text-[var(--amber)]">
+                Beispiel-Haushaltsdaten – eingeschränkte Aussagekraft.
+              </p>
+            ) : null}
+          </section>
+        ) : null}
 
         <div>
           <Button
