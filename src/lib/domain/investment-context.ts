@@ -331,7 +331,7 @@ export function buildInvestmentContext(
           : "general";
       return {
         ref: `ZIEL-${index + 1}`,
-        purpose: pot.purpose ?? "unspecified",
+        purpose: pot.purpose === "emergency_fund" ? "unspecified" : (pot.purpose ?? "unspecified"),
         kind,
         currentCents: pot.currentCents,
         targetCents: pot.targetCents,
