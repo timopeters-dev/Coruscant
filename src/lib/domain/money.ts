@@ -283,3 +283,45 @@ export function bpsToPercentInputString(rateBps: number): string {
   const frac = String(normalized % 100).padStart(2, "0");
   return `${whole},${frac}`;
 }
+
+/**
+ * Verteilt `total` ganzzahlig proportional zu `weights` (Largest-Remainder, BigInt).
+ * - Summe des Ergebnisses ist exakt `total`, sobald die Gewichtssumme > 0 ist.
+ * - Gewichtssumme 0 → alle Anteile 0.
+ * - Gleicher Rest → der kleinere Index gewinnt (deterministisch).
+ */
+export function allocateProportionally(
+  total: number,
+  weights: readonly number[],
+): number[] {
+  assertNonNegativeInteger(total, "total");
+  weights.forEach((w, i) => assertNonNegativeInteger(w, `weights[${i}]`));
+
+  const weightSum = weights.reduce((acc, w) => acc + BigInt(w), 0n);
+  if (weightSum === 0n) {
+    return weights.map(() => 0);
+  }
+
+  const totalBig = BigInt(total);
+  const shares = weights.map((w) => (BigInt(w) * totalBig) / weightSum);
+  const remainders = weights.map((w, index) => ({
+    index,
+    remainder: (BigInt(w) * totalBig) % weightSum,
+  }));
+
+  let leftover = totalBig - shares.reduce((acc, s) => acc + s, 0n);
+  remainders.sort((a, b) =>
+    a.remainder === b.remainder
+      ? a.index - b.index
+      : a.remainder > b.remainder
+        ? -1
+        : 1,
+  );
+  for (const { index } of remainders) {
+    if (leftover <= 0n) break;
+    shares[index] = shares[index]! + 1n;
+    leftover -= 1n;
+  }
+
+  return shares.map((s) => Number(s));
+}

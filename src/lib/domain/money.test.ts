@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  allocateProportionally,
   assertNonNegativeInteger,
   assertSafeInteger,
   bpsToPercentInputString,
@@ -178,5 +179,19 @@ describe("input string round-trips", () => {
     }
     expect(bpsToPercentInputString(350)).toBe("3,50");
     expect(() => bpsToPercentInputString(-1)).toThrow(RangeError);
+  });
+});
+
+describe("allocateProportionally", () => {
+  it("verteilt exakt nach Largest-Remainder", () => {
+    expect(allocateProportionally(100, [1, 1, 1])).toEqual([34, 33, 33]);
+    expect(allocateProportionally(0, [3, 4])).toEqual([0, 0]);
+    expect(allocateProportionally(10, [0, 0])).toEqual([0, 0]);
+  });
+
+  it("wirft bei negativen oder Float-Werten", () => {
+    expect(() => allocateProportionally(-1, [1])).toThrow(RangeError);
+    expect(() => allocateProportionally(1, [-1])).toThrow(RangeError);
+    expect(() => allocateProportionally(1.5, [1])).toThrow(RangeError);
   });
 });
