@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import {
-  getLatestExternalSnapshot,
-  insertExternalSnapshot,
-} from "@/db/queries/cockpit";
+import { getLatestExternalSnapshot } from "@/db/queries/cockpit";
+import { storeSnapshotAndSyncPots } from "@/db/queries/allocation";
 import { badRequestResponse, internalErrorResponse } from "@/lib/api/http";
 import { evaluateSnapshotFreshness } from "@/lib/domain/external-sync";
 import {
@@ -102,11 +100,29 @@ export async function POST(request?: Request): Promise<Response> {
     const result = await fetchFinanzCockpitSummary();
 
     if (result.ok) {
-      const snapshot = insertExternalSnapshot(result.data);
+      const { snapshot, outcomes } = storeSnapshotAndSyncPots(result.data);
+      const potSync = {
+        updated: outcomes.filter((o) => o.status === "updated").length,
+        unchanged: outcomes.filter((o) => o.status === "unchanged").length,
+        missing: outcomes
+          .filter((o) => o.status === "link_missing")
+          .map((o) => o.potId),
+        conflicts: outcomes
+          .filter((o) => o.status === "link_conflict")
+          .map((o) => o.potId),
+        clamped: outcomes
+          .filter(
+            (o) =>
+              (o.status === "updated" || o.status === "unchanged") &&
+              o.clampedNegative,
+          )
+          .map((o) => o.potId),
+      };
       return NextResponse.json(
         {
           status: "synced",
           snapshot,
+          potSync,
           message: "finanz_cockpit erfolgreich synchronisiert.",
         },
         { status: 200 },

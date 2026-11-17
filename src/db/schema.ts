@@ -3,6 +3,7 @@ import {
   type AnySQLiteColumn,
   check,
   integer,
+  uniqueIndex,
   sqliteTable,
   text,
 } from "drizzle-orm/sqlite-core";
@@ -179,9 +180,28 @@ export const pots = sqliteTable(
       (): AnySQLiteColumn => properties.id,
       { onDelete: "set null" },
     ),
+    externalLinkKind: text("external_link_kind", {
+      enum: ["account", "position"],
+    }),
+    externalLinkRef: text("external_link_ref"),
+    externalLinkScope: text("external_link_scope", {
+      enum: ["personal", "household"],
+    }),
+    /** Age of the calibrated stand in finanz_cockpit (balanceAsOf, fallback fetchedAt). */
+    externalSyncedAt: text("external_synced_at"),
+    /** When the link was last set/changed (local time); starts the pending-transfer window. */
+    externalLinkedAt: text("external_linked_at"),
     updatedAt: text("updated_at").notNull(),
   },
   (table) => [
+    check(
+      "pots_external_link_pair",
+      sql`(${table.externalLinkKind} IS NULL AND ${table.externalLinkRef} IS NULL) OR (${table.externalLinkKind} IS NOT NULL AND ${table.externalLinkRef} IS NOT NULL)`,
+    ),
+    uniqueIndex("pots_external_link_unique").on(
+      table.externalLinkKind,
+      table.externalLinkRef,
+    ),
     check("pots_current_non_negative", sql`${table.currentCents} >= 0`),
     check(
       "pots_target_non_negative",
@@ -298,6 +318,8 @@ export const externalSnapshots = sqliteTable(
       "total_personal_net_worth_cents",
     ).notNull(),
     householdJson: text("household_json"),
+    accountsJson: text("accounts_json"),
+    positionsJson: text("positions_json"),
     fetchedAt: text("fetched_at").notNull(),
   },
   (table) => [

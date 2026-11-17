@@ -1,7 +1,11 @@
-import { Sparkles, CheckCircle2, Calculator } from "lucide-react";
+import { AlertTriangle, Sparkles, CheckCircle2, Calculator } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type StatusBadgeVariant = "calibrated" | "modeled" | "ai_suggestion";
+export type StatusBadgeVariant =
+  | "calibrated"
+  | "modeled"
+  | "ai_suggestion"
+  | "calibration_warning";
 
 interface StatusBadgeProps {
   variant: StatusBadgeVariant;
@@ -39,6 +43,13 @@ const VARIANT_CONFIG: Record<
       "border-solid border-[var(--amber)]/40 bg-[var(--amber)]/10 text-[var(--amber)]",
     dotClass: "bg-[var(--amber)]",
     Icon: Sparkles,
+  },
+  calibration_warning: {
+    defaultLabel: "Eich-Hinweis",
+    containerClass:
+      "border-solid border-[var(--amber)]/40 bg-[var(--amber)]/10 text-[var(--amber)]",
+    dotClass: "bg-[var(--amber)]",
+    Icon: AlertTriangle,
   },
 };
 

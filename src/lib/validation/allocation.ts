@@ -67,6 +67,15 @@ export const potRuleTypeSchema = z.enum([
   "percentage_of_remainder",
 ]);
 
+export const externalLinkSchema = z
+  .object({
+    kind: z.enum(["account", "position"]),
+    ref: z.string().trim().min(1, "Verknüpfungsziel ist erforderlich.").max(200),
+  })
+  .strict();
+
+export type ExternalLinkInput = z.infer<typeof externalLinkSchema>;
+
 const potBaseObject = z.object({
   name: z.string().trim().min(1, "Name ist erforderlich.").max(120),
   currentCents: nonNegativeSafeInt.default(0),
@@ -82,6 +91,7 @@ const potBaseObject = z.object({
     .optional(),
   linkedContractId: nullableOptionalTrimmedId(120),
   linkedPropertyId: nullableOptionalTrimmedId(120),
+  externalLink: externalLinkSchema.nullable().optional(),
 });
 
 type PotBaseValues = z.infer<typeof potBaseObject>;
@@ -95,6 +105,7 @@ export interface NormalizedPotInput {
   remainderPercentage: number | null;
   linkedContractId: string | null;
   linkedPropertyId: string | null;
+  externalLink: ExternalLinkInput | null;
 }
 
 export function normalizePotPayload(input: PotBaseValues): NormalizedPotInput {
@@ -103,6 +114,7 @@ export function normalizePotPayload(input: PotBaseValues): NormalizedPotInput {
     currentCents: input.currentCents,
     linkedContractId: input.linkedContractId ?? null,
     linkedPropertyId: input.linkedPropertyId ?? null,
+    externalLink: input.externalLink ?? null,
   };
 
   if (input.ruleType === "fill_to_target") {
@@ -188,6 +200,7 @@ export const potUpdateSchema = z
       .optional(),
     linkedContractId: nullableOptionalTrimmedId(120),
     linkedPropertyId: nullableOptionalTrimmedId(120),
+    externalLink: externalLinkSchema.nullable().optional(),
   })
   .partial()
   .refine(

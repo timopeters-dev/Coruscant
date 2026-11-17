@@ -1,8 +1,9 @@
 import crypto from "node:crypto";
-import { asc, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, ne } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   appMeta,
+  type ExternalSnapshotRow,
   cashflowItems,
   financialContracts,
   potAllocations,
@@ -10,8 +11,21 @@ import {
   properties,
 } from "@/db/schema";
 import {
+  getLatestExternalSnapshot,
+  insertExternalSnapshot,
+  parseSnapshotAccounts,
+  parseSnapshotPositions,
+} from "@/db/queries/external-snapshots";
+import {
+  computePotSyncPlan,
+  findAccountPositionOverlap,
+  type PotSyncOutcome,
+  resolveExternalLinkValue,
+} from "@/lib/domain/pot-sync";
+import {
   type AllocationSettings,
   allocationSettingsSchema,
+  type FinanzCockpitSummary,
   variableExpenseBasisSchema,
 } from "@/lib/validation/external";
 import {
@@ -83,6 +97,27 @@ export class PotNotFoundError extends Error {
     super(`Pot not found: ${potId}`);
     this.name = "PotNotFoundError";
     this.potId = potId;
+  }
+}
+
+export class PotLinkedBalanceReadOnlyError extends Error {
+  constructor() {
+    super("Der Stand eines gekoppelten Topfs wird per Sync übernommen.");
+    this.name = "PotLinkedBalanceReadOnlyError";
+  }
+}
+
+export class PotExternalLinkConflictError extends Error {
+  constructor() {
+    super("Dieses Konto bzw. diese Position ist bereits mit einem Topf gekoppelt.");
+    this.name = "PotExternalLinkConflictError";
+  }
+}
+
+export class PotExternalLinkTargetNotFoundError extends Error {
+  constructor() {
+    super("Das Kopplungsziel ist im letzten finanz_cockpit-Snapshot nicht enthalten.");
+    this.name = "PotExternalLinkTargetNotFoundError";
   }
 }
 
@@ -285,8 +320,122 @@ export function getPotById(id: string): PotRow | null {
   return row ?? null;
 }
 
+interface ResolvedLinkState {
+  kind: "account" | "position" | null;
+  ref: string | null;
+  scope: "personal" | "household" | null;
+  syncedAt: string | null;
+  linkedAt: string | null;
+  currentCents: number;
+}
+
+/**
+ * Applies the latest snapshot value to a (new or changed) link. A new link
+ * must point to a target of the latest snapshot and must not overlap with an
+ * existing link (account vs. one of its positions).
+ */
+function resolveLinkState(
+  tx: DbTx,
+  link: { kind: "account" | "position"; ref: string } | null | undefined,
+  fallbackCents: number,
+  previous: {
+    kind: "account" | "position" | null;
+    ref: string | null;
+    scope: "personal" | "household" | null;
+    syncedAt: string | null;
+    linkedAt: string | null;
+  } | null,
+  excludePotId: string | null,
+): ResolvedLinkState {
+  if (!link) {
+    return {
+      kind: null,
+      ref: null,
+      scope: null,
+      syncedAt: null,
+      linkedAt: null,
+      currentCents: fallbackCents,
+    };
+  }
+
+  if (previous && previous.kind === link.kind && previous.ref === link.ref) {
+    return {
+      kind: link.kind,
+      ref: link.ref,
+      scope: previous.scope,
+      syncedAt: previous.syncedAt,
+      linkedAt: previous.linkedAt,
+      currentCents: fallbackCents,
+    };
+  }
+
+  const snapshot = getLatestExternalSnapshot();
+  const accounts = snapshot ? parseSnapshotAccounts(snapshot) : [];
+  const positions = (snapshot ? parseSnapshotPositions(snapshot) : []).map(
+    (p) => ({
+      id: p.id,
+      accountId: p.accountId,
+      marketValueCents: p.marketValueCents,
+    }),
+  );
+  const resolved = snapshot
+    ? resolveExternalLinkValue(link.kind, link.ref, accounts, positions)
+    : null;
+
+  if (!snapshot || !resolved) {
+    throw new PotExternalLinkTargetNotFoundError();
+  }
+
+  const otherLinks = tx
+    .select({ kind: pots.externalLinkKind, ref: pots.externalLinkRef })
+    .from(pots)
+    .where(
+      excludePotId === null
+        ? isNotNull(pots.externalLinkKind)
+        : and(isNotNull(pots.externalLinkKind), ne(pots.id, excludePotId)),
+    )
+    .all()
+    .flatMap((row) =>
+      row.kind !== null && row.ref !== null
+        ? [{ kind: row.kind, ref: row.ref }]
+        : [],
+    );
+  if (findAccountPositionOverlap([...otherLinks, link], positions)) {
+    throw new PotExternalLinkConflictError();
+  }
+
+  return {
+    kind: link.kind,
+    ref: link.ref,
+    scope: resolved.scope,
+    syncedAt: resolved.asOf ?? snapshot.fetchedAt,
+    linkedAt: new Date().toISOString(),
+    currentCents: resolved.valueCents,
+  };
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    typeof (error as { code?: unknown }).code === "string" &&
+    (error as { code: string }).code.startsWith("SQLITE_CONSTRAINT_UNIQUE")
+  );
+}
+
 export function createPot(input: PotCreateInput): PotRow {
   const db = getDb();
+  try {
+    return createPotInTransaction(db, input);
+  } catch (error) {
+    if (input.externalLink && isUniqueConstraintError(error)) {
+      throw new PotExternalLinkConflictError();
+    }
+    throw error;
+  }
+}
+
+function createPotInTransaction(db: DbInstance, input: PotCreateInput): PotRow {
   return db.transaction((tx) => {
     assertLinksExist(tx, input.linkedPropertyId, input.linkedContractId);
     if (input.ruleType === "percentage_of_remainder") {
@@ -302,6 +451,14 @@ export function createPot(input: PotCreateInput): PotRow {
       0,
     );
 
+    const linkState = resolveLinkState(
+      tx,
+      input.externalLink,
+      input.currentCents,
+      null,
+      null,
+    );
+
     const now = new Date().toISOString();
     const [created] = tx
       .insert(pots)
@@ -309,13 +466,18 @@ export function createPot(input: PotCreateInput): PotRow {
         id: crypto.randomUUID(),
         name: input.name,
         priority: maxPriority + 1,
-        currentCents: input.currentCents,
+        currentCents: linkState.currentCents,
         targetCents: input.targetCents,
         ruleType: input.ruleType,
         fixedMonthlyCents: input.fixedMonthlyCents,
         remainderPercentage: input.remainderPercentage,
         linkedContractId: input.linkedContractId,
         linkedPropertyId: input.linkedPropertyId,
+        externalLinkKind: linkState.kind,
+        externalLinkRef: linkState.ref,
+        externalLinkScope: linkState.scope,
+        externalSyncedAt: linkState.syncedAt,
+        externalLinkedAt: linkState.linkedAt,
         updatedAt: now,
       })
       .returning()
@@ -330,10 +492,36 @@ export function createPot(input: PotCreateInput): PotRow {
 
 export function updatePot(id: string, patch: PotUpdateInput): PotRow | null {
   const db = getDb();
+  try {
+    return updatePotInTransaction(db, id, patch);
+  } catch (error) {
+    if (patch.externalLink && isUniqueConstraintError(error)) {
+      throw new PotExternalLinkConflictError();
+    }
+    throw error;
+  }
+}
+
+function updatePotInTransaction(
+  db: DbInstance,
+  id: string,
+  patch: PotUpdateInput,
+): PotRow | null {
   return db.transaction((tx) => {
     const existing = tx.select().from(pots).where(eq(pots.id, id)).get();
     if (!existing) {
       return null;
+    }
+
+    const existingLink =
+      existing.externalLinkKind !== null && existing.externalLinkRef !== null
+        ? { kind: existing.externalLinkKind, ref: existing.externalLinkRef }
+        : null;
+    const effectiveLink =
+      patch.externalLink !== undefined ? patch.externalLink : existingLink;
+
+    if (effectiveLink !== null && patch.currentCents !== undefined) {
+      throw new PotLinkedBalanceReadOnlyError();
     }
 
     const merged = potCreateSchema.parse({
@@ -364,7 +552,23 @@ export function updatePot(id: string, patch: PotUpdateInput): PotRow | null {
         patch.linkedPropertyId !== undefined
           ? patch.linkedPropertyId
           : existing.linkedPropertyId,
+      externalLink: effectiveLink,
     });
+
+    const linkState = resolveLinkState(
+      tx,
+      merged.externalLink,
+      merged.currentCents,
+      existingLink
+        ? {
+            ...existingLink,
+            scope: existing.externalLinkScope,
+            syncedAt: existing.externalSyncedAt,
+            linkedAt: existing.externalLinkedAt,
+          }
+        : null,
+      id,
+    );
 
     assertLinksExist(tx, merged.linkedPropertyId, merged.linkedContractId);
     if (merged.ruleType === "percentage_of_remainder") {
@@ -380,13 +584,18 @@ export function updatePot(id: string, patch: PotUpdateInput): PotRow | null {
       .update(pots)
       .set({
         name: merged.name,
-        currentCents: merged.currentCents,
+        currentCents: linkState.currentCents,
         targetCents: merged.targetCents,
         ruleType: merged.ruleType,
         fixedMonthlyCents: merged.fixedMonthlyCents,
         remainderPercentage: merged.remainderPercentage,
         linkedContractId: merged.linkedContractId,
         linkedPropertyId: merged.linkedPropertyId,
+        externalLinkKind: linkState.kind,
+        externalLinkRef: linkState.ref,
+        externalLinkScope: linkState.scope,
+        externalSyncedAt: linkState.syncedAt,
+        externalLinkedAt: linkState.linkedAt,
         updatedAt: now,
       })
       .where(eq(pots.id, id))
@@ -491,6 +700,8 @@ export interface ExecuteWaterfallAllocationResult {
   updatedPots: PotRow[];
   totalAllocatedCents: number;
   unallocatedCents: number;
+  /** Linked pots: journal entry only, the transfer must be executed manually. */
+  transferPlanPotIds: string[];
 }
 
 export function executeWaterfallAllocation(
@@ -535,6 +746,7 @@ export function executeWaterfallAllocation(
 
     const now = new Date().toISOString();
     const createdAllocations: PotAllocationRow[] = [];
+    const transferPlanPotIds: string[] = [];
 
     for (const entry of input.allocations) {
       if (entry.amountCents === 0) {
@@ -553,10 +765,14 @@ export function executeWaterfallAllocation(
         );
       }
 
-      tx.update(pots)
-        .set({ currentCents: nextCents, updatedAt: now })
-        .where(eq(pots.id, existing.id))
-        .run();
+      if (existing.externalLinkKind === null) {
+        tx.update(pots)
+          .set({ currentCents: nextCents, updatedAt: now })
+          .where(eq(pots.id, existing.id))
+          .run();
+      } else {
+        transferPlanPotIds.push(existing.id);
+      }
 
       const [allocation] = tx
         .insert(potAllocations)
@@ -587,8 +803,140 @@ export function executeWaterfallAllocation(
       updatedPots,
       totalAllocatedCents,
       unallocatedCents: input.inputAmountCents - totalAllocatedCents,
+      transferPlanPotIds,
     };
   });
+}
+
+// --- External Pot Sync ---
+
+/**
+ * Applies a freshly stored finanz_cockpit snapshot to all externally linked
+ * pots in one transaction. Virtual pots are never touched; pots whose target
+ * is missing keep their last calibrated stand.
+ */
+function applyPotSyncInTx(
+  tx: DbTx,
+  snapshot: ExternalSnapshotRow,
+): PotSyncOutcome[] {
+  const accounts = parseSnapshotAccounts(snapshot);
+  const positions = parseSnapshotPositions(snapshot);
+
+  const linkedPots = tx
+    .select()
+    .from(pots)
+    .where(isNotNull(pots.externalLinkKind))
+    .orderBy(asc(pots.priority), asc(pots.id))
+    .all();
+
+  const outcomes = computePotSyncPlan({
+    pots: linkedPots,
+    accounts,
+    positions,
+  });
+
+  const now = new Date().toISOString();
+  for (const outcome of outcomes) {
+    if (outcome.status === "link_missing" || outcome.status === "link_conflict") {
+      continue;
+    }
+    const where = and(
+      eq(pots.id, outcome.potId),
+      isNotNull(pots.externalLinkKind),
+    );
+    if (outcome.status === "updated") {
+      tx.update(pots)
+        .set({
+          currentCents: outcome.nextCents,
+          externalLinkScope: outcome.scope,
+          externalSyncedAt: outcome.asOf ?? snapshot.fetchedAt,
+          updatedAt: now,
+        })
+        .where(where)
+        .run();
+    } else {
+      tx.update(pots)
+        .set({
+          externalLinkScope: outcome.scope,
+          externalSyncedAt: outcome.asOf ?? snapshot.fetchedAt,
+        })
+        .where(where)
+        .run();
+    }
+  }
+
+  return outcomes;
+}
+
+export function applyPotSyncFromSnapshot(
+  snapshot: ExternalSnapshotRow,
+): PotSyncOutcome[] {
+  return getDb().transaction((tx) => applyPotSyncInTx(tx, snapshot));
+}
+
+/**
+ * Stores the snapshot and syncs all linked pots atomically: if the pot sync
+ * fails, no snapshot is persisted (so the next sync is not skipped as fresh).
+ */
+export function storeSnapshotAndSyncPots(summary: FinanzCockpitSummary): {
+  snapshot: ExternalSnapshotRow;
+  outcomes: PotSyncOutcome[];
+} {
+  return getDb().transaction((tx) => {
+    const snapshot = insertExternalSnapshot(summary, tx);
+    const outcomes = applyPotSyncInTx(tx, snapshot);
+    return { snapshot, outcomes };
+  });
+}
+
+/**
+ * Sum of transfers that were planned (journal entries) after the last sync of
+ * a linked pot and are therefore not yet reflected in its calibrated stand.
+ */
+export function getPendingTransferCentsByPotId(): Map<string, number> {
+  const db = getDb();
+  const linked = db
+    .select({
+      id: pots.id,
+      syncedAt: pots.externalSyncedAt,
+      linkedAt: pots.externalLinkedAt,
+    })
+    .from(pots)
+    .where(isNotNull(pots.externalLinkKind))
+    .all();
+
+  const result = new Map<string, number>();
+  for (const pot of linked) {
+    if (pot.syncedAt === null) {
+      continue;
+    }
+    // Entries before (re-)linking were plain bookings or concerned an old target.
+    const windowStart =
+      pot.linkedAt !== null && pot.linkedAt > pot.syncedAt
+        ? pot.linkedAt
+        : pot.syncedAt;
+    const rows = db
+      .select({ amountCents: potAllocations.amountCents })
+      .from(potAllocations)
+      .where(
+        and(
+          eq(potAllocations.potId, pot.id),
+          gt(potAllocations.allocatedAt, windowStart),
+        ),
+      )
+      .all();
+    let sum = 0;
+    for (const row of rows) {
+      sum += row.amountCents;
+    }
+    if (!Number.isSafeInteger(sum)) {
+      throw new RangeError(`Pending transfers overflow for pot ${pot.id}`);
+    }
+    if (sum > 0) {
+      result.set(pot.id, sum);
+    }
+  }
+  return result;
 }
 
 // --- Allocation Settings (app_meta) ---

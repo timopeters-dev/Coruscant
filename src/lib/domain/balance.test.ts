@@ -322,3 +322,97 @@ describe("calculateBalanceBarBreakdown", () => {
     ).toThrow(RangeError);
   });
 });
+
+describe("calculateHouseholdBalance with externally linked pots", () => {
+  const base = {
+    asOfDate: "2026-11-17",
+    properties: [],
+    contracts: [],
+  };
+
+  it("excludes personal-linked pots from householdLiquidCents and reports them separately", () => {
+    const summary = calculateHouseholdBalance({
+      ...base,
+      externalSnapshot: {
+        liquidCashCents: 500_000,
+        etfStocksCents: 0,
+        cryptoCents: 0,
+        totalPersonalNetWorthCents: 500_000,
+        fetchedAt: "2026-11-17T10:00:00.000Z",
+      },
+      pots: [
+        { id: "p", name: "Personal verknüpft", priority: 1, currentCents: 300_000, targetCents: null, ruleType: "fixed_monthly", externalLinkScope: "personal" },
+        { id: "h", name: "Haushalt verknüpft", priority: 2, currentCents: 200_000, targetCents: null, ruleType: "fixed_monthly", externalLinkScope: "household" },
+        { id: "v", name: "Virtuell", priority: 3, currentCents: 100_000, targetCents: null, ruleType: "fixed_monthly", externalLinkScope: null },
+        { id: "u", name: "Undefiniert", priority: 4, currentCents: 50_000, targetCents: null, ruleType: "fixed_monthly" },
+      ],
+    });
+
+    expect(summary.householdLiquidCents).toBe(350_000);
+    expect(summary.personalLinkedPotsCents).toBe(300_000);
+    expect(summary.personalExternalAssetsCents).toBe(500_000);
+    // 300_000 is only counted once (inside the external 500_000).
+    expect(summary.freeAssetsCents).toBe(850_000);
+  });
+
+  it("reports 0 personalLinkedPotsCents without personal-linked pots", () => {
+    const summary = calculateHouseholdBalance({ ...base, pots: [] });
+    expect(summary.personalLinkedPotsCents).toBe(0);
+    expect(summary.householdLiquidCents).toBe(0);
+  });
+
+  it("still validates currentCents of skipped pots", () => {
+    expect(() =>
+      calculateHouseholdBalance({
+        ...base,
+        pots: [
+          { id: "p", name: "Float", priority: 1, currentCents: 10.5, targetCents: null, ruleType: "fixed_monthly", externalLinkScope: "personal" },
+        ],
+      }),
+    ).toThrow(RangeError);
+  });
+});
+
+describe("calculateHouseholdBalance with conflicting linked pots", () => {
+  const base = { asOfDate: "2026-11-17", properties: [], contracts: [] };
+  const mk = (id: string, currentCents: number, extra: Record<string, unknown> = {}) => ({
+    id,
+    name: id,
+    priority: 1,
+    currentCents,
+    targetCents: null,
+    ruleType: "fixed_monthly" as const,
+    ...extra,
+  });
+
+  it("excludes conflicting pots from householdLiquidCents and reports them separately", () => {
+    const summary = calculateHouseholdBalance({
+      ...base,
+      pots: [
+        mk("account", 500_000, { externalLinkScope: "household" }),
+        mk("position", 400_000, { externalLinkScope: "household", excludeFromLiquidity: true }),
+        mk("virtual", 100_000),
+      ],
+    });
+    expect(summary.householdLiquidCents).toBe(600_000);
+    expect(summary.conflictingLinkedPotsCents).toBe(400_000);
+    expect(summary.personalLinkedPotsCents).toBe(0);
+  });
+
+  it("counts a personal-scope conflicting pot only once (as personal-linked)", () => {
+    const summary = calculateHouseholdBalance({
+      ...base,
+      pots: [mk("p", 300, { externalLinkScope: "personal", excludeFromLiquidity: true })],
+    });
+    expect(summary.personalLinkedPotsCents).toBe(300);
+    expect(summary.conflictingLinkedPotsCents).toBe(0);
+    expect(summary.householdLiquidCents).toBe(0);
+  });
+
+  it("reports 0 without conflicts and still validates currentCents of excluded pots", () => {
+    expect(calculateHouseholdBalance({ ...base, pots: [mk("a", 5)] }).conflictingLinkedPotsCents).toBe(0);
+    expect(() =>
+      calculateHouseholdBalance({ ...base, pots: [mk("a", 1.5, { excludeFromLiquidity: true })] }),
+    ).toThrow(RangeError);
+  });
+});

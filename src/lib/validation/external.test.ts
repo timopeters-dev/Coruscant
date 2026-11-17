@@ -157,3 +157,84 @@ describe("finanzCockpitSummarySchema", () => {
     ).toBe(false);
   });
 });
+
+describe("finanzCockpitSummarySchema accounts & positions", () => {
+  const basePayload = {
+    source: "finanz_cockpit" as const,
+    liquidCashCents: 0,
+    etfStocksCents: 0,
+    cryptoCents: 0,
+    totalPersonalNetWorthCents: 0,
+    fetchedAt: "2026-11-17T12:00:00.000Z",
+  };
+  const account = {
+    id: "acc-1",
+    name: "Musterbank Tagesgeld",
+    type: "savings" as const,
+    scope: "household" as const,
+    balanceCents: 100_000,
+    holdingsValueCents: 0,
+  };
+  const position = {
+    id: "pos-1",
+    accountId: "acc-1",
+    symbol: "MSTR",
+    isin: "XX0000000001",
+    name: "Muster-ETF",
+    assetClass: "etf" as const,
+    marketValueCents: 5_000,
+    costBasisCents: null,
+    lastPriceAt: null,
+  };
+
+  it("accepts payloads without accounts/positions (backward compatible) and valid ones", () => {
+    expect(finanzCockpitSummarySchema.safeParse(basePayload).success).toBe(true);
+    expect(
+      finanzCockpitSummarySchema.safeParse({
+        ...basePayload,
+        accounts: [account, { ...account, id: "acc-2", balanceCents: -500 }],
+        positions: [position],
+      }).success,
+    ).toBe(true);
+    expect(
+      finanzCockpitSummarySchema.safeParse({ ...basePayload, accounts: [], positions: [] }).success,
+    ).toBe(true);
+  });
+
+  it("accepts balanceAsOf as ISO datetime, null or omitted and rejects other strings", () => {
+    const ok = (extra: Record<string, unknown>) =>
+      finanzCockpitSummarySchema.safeParse({ ...basePayload, accounts: [{ ...account, ...extra }] }).success;
+    expect(ok({ balanceAsOf: "2026-11-17T06:00:00.000Z" })).toBe(true);
+    expect(ok({ balanceAsOf: null })).toBe(true);
+    expect(ok({})).toBe(true);
+    expect(ok({ balanceAsOf: "gestern" })).toBe(false);
+  });
+
+  it("normalizes balanceAsOf and lastPriceAt to millisecond ISO strings", () => {
+    const parsed = finanzCockpitSummarySchema.parse({
+      ...basePayload,
+      accounts: [{ ...account, balanceAsOf: "2026-11-17T06:00:00Z" }],
+      positions: [{ ...position, lastPriceAt: "2026-11-17T06:00:00.5Z" }],
+    });
+    expect(parsed.accounts?.[0]?.balanceAsOf).toBe("2026-11-17T06:00:00.000Z");
+    expect(parsed.positions?.[0]?.lastPriceAt).toBe("2026-11-17T06:00:00.500Z");
+    expect(
+      finanzCockpitSummarySchema.parse({ ...basePayload, accounts: [{ ...account, balanceAsOf: null }] }).accounts?.[0]?.balanceAsOf,
+    ).toBeNull();
+  });
+
+  it.each([
+    ["float balance", { accounts: [{ ...account, balanceCents: 1.5 }] }],
+    ["negative holdings", { accounts: [{ ...account, holdingsValueCents: -1 }] }],
+    ["unknown scope", { accounts: [{ ...account, scope: "other" }] }],
+    ["duplicate account ids", { accounts: [account, account] }],
+    ["negative market value", { accounts: [account], positions: [{ ...position, marketValueCents: -1 }] }],
+    ["unknown assetClass", { accounts: [account], positions: [{ ...position, assetClass: "bond" }] }],
+    ["duplicate position ids", { accounts: [account], positions: [position, position] }],
+    ["position without account", { accounts: [account], positions: [{ ...position, accountId: "zzz" }] }],
+    ["position without any accounts", { positions: [position] }],
+    ["invalid lastPriceAt", { accounts: [account], positions: [{ ...position, lastPriceAt: "gestern" }] }],
+  ])("rejects %s", (_label, extra) => {
+    expect(finanzCockpitSummarySchema.safeParse({ ...basePayload, ...extra }).success).toBe(false);
+  });
+});

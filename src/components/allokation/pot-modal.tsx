@@ -10,8 +10,10 @@ import type { PotRow } from "@/db/queries/allocation";
 import type { FinancialContractRow, PropertyRow } from "@/db/queries/contracts";
 import {
   centsToEuroInputString,
+  formatCentsDE,
   parseEuroInputToCents,
 } from "@/lib/domain/money";
+import type { PotLinkOption } from "@/lib/domain/pot-sync";
 import type { PotRuleType } from "@/lib/domain/waterfall";
 
 interface PotModalProps {
@@ -19,6 +21,7 @@ interface PotModalProps {
   onOpenChange: (open: boolean) => void;
   initialPot?: PotRow | null;
   existingPots: PotRow[];
+  linkOptions: PotLinkOption[];
   properties: PropertyRow[];
   contracts: FinancialContractRow[];
   onSaved: () => void;
@@ -32,6 +35,7 @@ interface FieldErrors {
   remainderPercentage?: string;
   linkedPropertyId?: string;
   linkedContractId?: string;
+  externalLink?: string;
   general?: string;
 }
 
@@ -40,6 +44,7 @@ export function PotModal({
   onOpenChange,
   initialPot,
   existingPots,
+  linkOptions,
   properties,
   contracts,
   onSaved,
@@ -55,6 +60,7 @@ export function PotModal({
       onOpenChange={onOpenChange}
       initialPot={initialPot}
       existingPots={existingPots}
+      linkOptions={linkOptions}
       properties={properties}
       contracts={contracts}
       onSaved={onSaved}
@@ -67,6 +73,7 @@ function PotModalInner({
   onOpenChange,
   initialPot,
   existingPots,
+  linkOptions,
   properties,
   contracts,
   onSaved,
@@ -103,6 +110,11 @@ function PotModalInner({
   const [linkedContractId, setLinkedContractId] = React.useState(
     initialPot?.linkedContractId ?? "",
   );
+  const [externalLinkValue, setExternalLinkValue] = React.useState(
+    initialPot?.externalLinkKind && initialPot.externalLinkRef
+      ? `${initialPot.externalLinkKind}:${initialPot.externalLinkRef}`
+      : "",
+  );
   const [errors, setErrors] = React.useState<FieldErrors>({});
   const [submitting, setSubmitting] = React.useState(false);
 
@@ -123,6 +135,80 @@ function PotModalInner({
 
   const availablePercentage = Math.max(0, 100 - usedPercentageByOthers);
 
+  const takenByPotName = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const pot of existingPots) {
+      if (
+        pot.externalLinkKind !== null &&
+        pot.externalLinkRef !== null &&
+        pot.id !== initialPot?.id
+      ) {
+        map.set(`${pot.externalLinkKind}:${pot.externalLinkRef}`, pot.name);
+      }
+    }
+    return map;
+  }, [existingPots, initialPot]);
+
+  const accountOptions = linkOptions.filter((o) => o.kind === "account");
+  const positionOptions = linkOptions.filter((o) => o.kind === "position");
+  const initialLinkValue =
+    initialPot?.externalLinkKind && initialPot.externalLinkRef
+      ? `${initialPot.externalLinkKind}:${initialPot.externalLinkRef}`
+      : "";
+  const initialLinkMissing =
+    initialLinkValue !== "" &&
+    !linkOptions.some((o) => `${o.kind}:${o.ref}` === initialLinkValue);
+  const isLinked = externalLinkValue !== "";
+  const selectedLinkScope =
+    linkOptions.find((o) => `${o.kind}:${o.ref}` === externalLinkValue)
+      ?.scope ?? initialPot?.externalLinkScope ?? null;
+  const linkSelectDisabled = linkOptions.length === 0 && !initialLinkMissing;
+
+  // An account and one of its positions must not be linked at the same time
+  // (the position value is already part of the account value).
+  function getOverlapPotName(option: PotLinkOption): string | undefined {
+    if (option.kind === "account") {
+      for (const other of linkOptions) {
+        if (other.kind === "position" && other.accountId === option.ref) {
+          const name = takenByPotName.get(`position:${other.ref}`);
+          if (name !== undefined) {
+            return name;
+          }
+        }
+      }
+      return undefined;
+    }
+    return option.accountId !== null
+      ? takenByPotName.get(`account:${option.accountId}`)
+      : undefined;
+  }
+
+  function renderLinkOption(option: PotLinkOption) {
+    const value = `${option.kind}:${option.ref}`;
+    const takenBy = takenByPotName.get(value);
+    const overlapBy = getOverlapPotName(option);
+    return (
+      <option
+        key={value}
+        value={value}
+        disabled={takenBy !== undefined || overlapBy !== undefined}
+      >
+        {option.label} · {option.detail} · {formatCentsDE(option.valueCents)}
+        {takenBy !== undefined ? ` · belegt von ${takenBy}` : ""}
+        {takenBy === undefined && overlapBy !== undefined
+          ? ` · überschneidet sich mit ${overlapBy}`
+          : ""}
+      </option>
+    );
+  }
+
+  const selectedLinkOption = linkOptions.find(
+    (o) => `${o.kind}:${o.ref}` === externalLinkValue,
+  );
+  const linkedDisplayCents = selectedLinkOption
+    ? selectedLinkOption.valueCents
+    : (initialPot?.currentCents ?? 0);
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     const nextErrors: FieldErrors = {};
@@ -132,7 +218,7 @@ function PotModalInner({
     }
 
     const currentCents = parseEuroInputToCents(currentEuro);
-    if (currentCents === null || currentCents < 0) {
+    if (!isLinked && (currentCents === null || currentCents < 0)) {
       nextErrors.currentEuro =
         "Bitte einen gültigen nicht-negativen Stand eingeben.";
     }
@@ -200,7 +286,14 @@ function PotModalInner({
         body: JSON.stringify({
           name: name.trim(),
           ruleType,
-          currentCents,
+          // Linked pots take their stand from the sync (read-only).
+          ...(isLinked ? {} : { currentCents }),
+          externalLink: isLinked
+            ? {
+                kind: externalLinkValue.slice(0, externalLinkValue.indexOf(":")),
+                ref: externalLinkValue.slice(externalLinkValue.indexOf(":") + 1),
+              }
+            : null,
           targetCents,
           fixedMonthlyCents,
           remainderPercentage: parsedPct,
@@ -223,6 +316,7 @@ function PotModalInner({
           remainderPercentage: payload.fieldErrors?.remainderPercentage,
           linkedPropertyId: payload.fieldErrors?.linkedPropertyId,
           linkedContractId: payload.fieldErrors?.linkedContractId,
+          externalLink: payload.fieldErrors?.externalLink,
           general: payload.error ?? "Speichern fehlgeschlagen.",
         });
         return;
@@ -284,12 +378,22 @@ function PotModalInner({
             <Input
               id="pot-current"
               inputMode="decimal"
-              value={currentEuro}
+              value={
+                isLinked
+                  ? centsToEuroInputString(linkedDisplayCents)
+                  : currentEuro
+              }
               onChange={(e) => setCurrentEuro(e.target.value)}
               placeholder="0,00"
               className="tabular-nums"
+              readOnly={isLinked}
               hasError={Boolean(errors.currentEuro)}
             />
+            {isLinked ? (
+              <p className="text-xs text-[var(--text-secondary)]">
+                Wird beim Sync aus finanz_cockpit übernommen.
+              </p>
+            ) : null}
             {errors.currentEuro ? (
               <p className="text-xs text-[var(--rose)]">{errors.currentEuro}</p>
             ) : null}
@@ -408,6 +512,50 @@ function PotModalInner({
               </p>
             ) : null}
           </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="pot-external-link">
+            Mit finanz_cockpit koppeln (optional)
+          </Label>
+          <Select
+            id="pot-external-link"
+            value={externalLinkValue}
+            onChange={(e) => setExternalLinkValue(e.target.value)}
+            disabled={linkSelectDisabled}
+            hasError={Boolean(errors.externalLink)}
+          >
+            <option value="">Nicht gekoppelt (virtueller Topf)</option>
+            {initialLinkMissing ? (
+              <option value={initialLinkValue}>
+                (nicht gefunden) {initialPot?.externalLinkRef}
+              </option>
+            ) : null}
+            {accountOptions.length > 0 ? (
+              <optgroup label="Konten">
+                {accountOptions.map(renderLinkOption)}
+              </optgroup>
+            ) : null}
+            {positionOptions.length > 0 ? (
+              <optgroup label="Depot-Positionen">
+                {positionOptions.map(renderLinkOption)}
+              </optgroup>
+            ) : null}
+          </Select>
+          {linkSelectDisabled ? (
+            <p className="text-xs text-[var(--text-secondary)]">
+              Erst finanz_cockpit synchronisieren.
+            </p>
+          ) : null}
+          {isLinked && selectedLinkScope === "personal" ? (
+            <p className="text-xs text-[var(--text-secondary)]">
+              Zählt nicht zusätzlich zur Haushalts-Liquidität (bereits im
+              persönlichen Vermögen enthalten).
+            </p>
+          ) : null}
+          {errors.externalLink ? (
+            <p className="text-xs text-[var(--rose)]">{errors.externalLink}</p>
+          ) : null}
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t border-[var(--border)] pt-4">

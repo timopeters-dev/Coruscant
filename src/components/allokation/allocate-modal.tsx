@@ -12,6 +12,7 @@ import {
   formatCentsDE,
   parseEuroInputToCents,
 } from "@/lib/domain/money";
+import { applyPendingTransfers } from "@/lib/domain/pot-sync";
 import {
   calculateWaterfallSuggestion,
   validateManualWaterfallAllocation,
@@ -23,14 +24,17 @@ interface AllocateModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   pots: PotRow[];
+  /** Planned but not yet synced transfers of linked pots (cents). */
+  pendingTransferCentsByPotId: Record<string, number>;
   monthlySurplusCents: number;
-  onAllocated: () => void;
+  onAllocated: (result: { transferPlanCount: number }) => void;
 }
 
 export function AllocateModal({
   open,
   onOpenChange,
   pots,
+  pendingTransferCentsByPotId,
   monthlySurplusCents,
   onAllocated,
 }: AllocateModalProps) {
@@ -38,12 +42,24 @@ export function AllocateModal({
     return null;
   }
 
+  // Suggestions and validation use stand + open transfers (calculation only).
+  const effectivePots = applyPendingTransfers(
+    pots,
+    new Map(Object.entries(pendingTransferCentsByPotId)),
+  );
+
   return (
     <AllocateModalInner
-      key={pots.map((p) => `${p.id}:${p.updatedAt}`).join("|")}
+      key={pots
+        .map(
+          (p) =>
+            `${p.id}:${p.updatedAt}:${pendingTransferCentsByPotId[p.id] ?? 0}`,
+        )
+        .join("|")}
       open={open}
       onOpenChange={onOpenChange}
-      pots={pots}
+      pots={effectivePots}
+      pendingTransferCentsByPotId={pendingTransferCentsByPotId}
       monthlySurplusCents={monthlySurplusCents}
       onAllocated={onAllocated}
     />
@@ -76,6 +92,7 @@ function AllocateModalInner({
   open,
   onOpenChange,
   pots,
+  pendingTransferCentsByPotId,
   monthlySurplusCents,
   onAllocated,
 }: AllocateModalProps) {
@@ -242,13 +259,18 @@ function AllocateModalInner({
         }),
       });
 
-      const payload = (await response.json()) as { error?: string };
+      const payload = (await response.json()) as {
+        error?: string;
+        transferPlanPotIds?: string[];
+      };
       if (!response.ok) {
         setSubmitError(payload.error ?? "Verbuchung fehlgeschlagen.");
         return;
       }
 
-      onAllocated();
+      onAllocated({
+        transferPlanCount: payload.transferPlanPotIds?.length ?? 0,
+      });
       onOpenChange(false);
     } catch {
       setSubmitError("Netzwerkfehler bei der Verbuchung.");
@@ -359,12 +381,35 @@ function AllocateModalInner({
                         <span className="truncate text-sm font-medium text-[var(--text-primary)]">
                           {pot.name}
                         </span>
+                        {pot.externalLinkKind !== null ? (
+                          <span className="shrink-0 rounded-md border border-solid border-[var(--emerald)]/35 bg-[var(--emerald)]/10 px-1.5 py-0.5 text-[11px] font-medium text-[var(--emerald)]">
+                            Überweisung
+                          </span>
+                        ) : (
+                          <span className="shrink-0 rounded-md border border-dashed border-[var(--border-sub)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--text-secondary)]">
+                            Buchung
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-[var(--text-secondary)]">
                         Aktuell:{" "}
                         <span className="tabular-nums">
-                          {formatCentsDE(pot.currentCents)}
+                          {formatCentsDE(
+                            pot.currentCents -
+                              (pendingTransferCentsByPotId[pot.id] ?? 0),
+                          )}
                         </span>
+                        {(pendingTransferCentsByPotId[pot.id] ?? 0) > 0 ? (
+                          <>
+                            {" "}
+                            · davon unterwegs:{" "}
+                            <span className="tabular-nums">
+                              {formatCentsDE(
+                                pendingTransferCentsByPotId[pot.id] ?? 0,
+                              )}
+                            </span>
+                          </>
+                        ) : null}
                         {pot.targetCents !== null ? (
                           <>
                             {" "}

@@ -111,6 +111,7 @@ describe("potCreateSchema", () => {
       remainderPercentage: null,
       linkedPropertyId: null,
       linkedContractId: "contract-1",
+      externalLink: null,
     });
 
     const fixed = potCreateSchema.parse({
@@ -132,6 +133,29 @@ describe("potCreateSchema", () => {
     expect(pct.remainderPercentage).toBe(60);
     expect(pct.fixedMonthlyCents).toBeNull();
     expect(pct.targetCents).toBe(300_000);
+  });
+
+  it("validates the optional externalLink (kind/ref)", () => {
+    const base = {
+      name: "Muster-Tagesgeld",
+      ruleType: "fill_to_target" as const,
+      targetCents: 100_000,
+    };
+    expect(
+      potCreateSchema.parse({
+        ...base,
+        externalLink: { kind: "account", ref: "  acc-1 " },
+      }).externalLink,
+    ).toEqual({ kind: "account", ref: "acc-1" });
+    expect(potCreateSchema.parse({ ...base, externalLink: null }).externalLink).toBeNull();
+    expect(potCreateSchema.parse(base).externalLink).toBeNull();
+
+    expect(
+      potCreateSchema.safeParse({ ...base, externalLink: { kind: "account", ref: "  " } }).success,
+    ).toBe(false);
+    expect(
+      potCreateSchema.safeParse({ ...base, externalLink: { kind: "savings_pot", ref: "x" } }).success,
+    ).toBe(false);
   });
 
   it("rejects missing rule-specific fields and out-of-range percentages", () => {

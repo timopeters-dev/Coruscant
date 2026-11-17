@@ -364,3 +364,32 @@ describe("validateManualWaterfallAllocation", () => {
     ).toThrow(RangeError);
   });
 });
+
+describe("calculateWaterfallSuggestion with calibrated (synced) and virtual pots", () => {
+  it("bases the headroom of a synced pot on its calibrated stand and never overpays the target", () => {
+    const pots: DomainPot[] = [
+      { id: "synced", name: "Muster-Tagesgeld", priority: 1, currentCents: 800_000, targetCents: 1_000_000, ruleType: "fill_to_target" },
+      { id: "virtual", name: "Virtueller Topf", priority: 2, currentCents: 0, targetCents: null, ruleType: "percentage_of_remainder", remainderPercentage: 100 },
+    ];
+
+    const plan = calculateWaterfallSuggestion(pots, 500_000, { mode: "one_time" });
+    expect(plan.suggestions[0]?.allocatedCents).toBe(200_000);
+    expect(plan.suggestions[0]?.projectedCents).toBe(1_000_000);
+    expect(plan.suggestions[1]?.allocatedCents).toBe(300_000);
+    expect(plan.totalAllocatedCents + plan.unallocatedCents).toBe(500_000);
+
+    expect(calculateWaterfallSuggestion(pots, 500_000, { mode: "one_time" })).toEqual(plan);
+  });
+
+  it("gives 0 to a synced pot already above target and distributes the rest", () => {
+    const pots: DomainPot[] = [
+      { id: "over", name: "Muster-Depot", priority: 1, currentCents: 1_200_000, targetCents: 1_000_000, ruleType: "fill_to_target" },
+      { id: "virtual", name: "Virtueller Topf", priority: 2, currentCents: 0, targetCents: null, ruleType: "percentage_of_remainder", remainderPercentage: 100 },
+    ];
+
+    const plan = calculateWaterfallSuggestion(pots, 100_000, { mode: "one_time" });
+    expect(plan.suggestions[0]?.allocatedCents).toBe(0);
+    expect(plan.suggestions[1]?.allocatedCents).toBe(100_000);
+    expect(plan.unallocatedCents).toBe(0);
+  });
+});

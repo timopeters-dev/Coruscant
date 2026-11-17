@@ -21,17 +21,32 @@ export interface DomainExternalSnapshot {
   fetchedAt: string;
 }
 
+export interface BalancePot extends DomainPot {
+  /**
+   * Scope of the linked finanz_cockpit account/position. Pots linked to a
+   * `personal` target are already part of `personalExternalAssetsCents`.
+   */
+  externalLinkScope?: "personal" | "household" | null;
+  /**
+   * Set for pots whose link overlaps another linked pot (account vs. its
+   * position): their money is already counted elsewhere.
+   */
+  excludeFromLiquidity?: boolean;
+}
+
 export interface BalanceInput {
   asOfDate: string;
   properties: readonly DomainProperty[];
   contracts: readonly DomainContract[];
-  pots: readonly DomainPot[];
+  pots: readonly BalancePot[];
   externalSnapshot?: DomainExternalSnapshot | null;
 }
 
 export interface BalanceSummary {
   asOfDate: string;
   householdLiquidCents: number;
+  personalLinkedPotsCents: number;
+  conflictingLinkedPotsCents: number;
   personalExternalAssetsCents: number;
   personalContractsAssetsCents: number;
   personalLiabilitiesCents: number;
@@ -54,11 +69,20 @@ export function calculateHouseholdBalance(input: BalanceInput): BalanceSummary {
   parseIsoDate(input.asOfDate, "asOfDate");
 
   let householdLiquidCents = 0;
+  let personalLinkedPotsCents = 0;
+  let conflictingLinkedPotsCents = 0;
   for (const pot of input.pots) {
-    householdLiquidCents += assertNonNegativeInteger(
+    const potCents = assertNonNegativeInteger(
       pot.currentCents,
       `pot(${pot.id}).currentCents`,
     );
+    if (pot.externalLinkScope === "personal") {
+      personalLinkedPotsCents += potCents;
+    } else if (pot.excludeFromLiquidity === true) {
+      conflictingLinkedPotsCents += potCents;
+    } else {
+      householdLiquidCents += potCents;
+    }
   }
 
   let personalExternalAssetsCents = 0;
@@ -137,6 +161,8 @@ export function calculateHouseholdBalance(input: BalanceInput): BalanceSummary {
   return {
     asOfDate: input.asOfDate,
     householdLiquidCents,
+    personalLinkedPotsCents,
+    conflictingLinkedPotsCents,
     personalExternalAssetsCents,
     personalContractsAssetsCents,
     personalLiabilitiesCents,

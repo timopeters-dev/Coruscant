@@ -5,6 +5,9 @@ import {
   getPotById,
   LinkedContractNotFoundError,
   LinkedPropertyNotFoundError,
+  PotExternalLinkConflictError,
+  PotExternalLinkTargetNotFoundError,
+  PotLinkedBalanceReadOnlyError,
   RemainderPercentageExceededError,
   updatePot,
 } from "@/db/queries/allocation";
@@ -63,6 +66,27 @@ export async function PATCH(
   } catch (error) {
     if (error instanceof ZodError) {
       return validationErrorResponse(error);
+    }
+    if (error instanceof PotExternalLinkTargetNotFoundError) {
+      return badRequestResponse(error.message, {
+        externalLink: "Ziel nicht im letzten Snapshot gefunden.",
+      });
+    }
+    if (error instanceof PotExternalLinkConflictError) {
+      return NextResponse.json(
+        {
+          error: "Dieses Konto bzw. diese Position ist bereits gekoppelt.",
+          fieldErrors: {
+            externalLink: "Bereits mit einem anderen Topf gekoppelt.",
+          },
+        },
+        { status: 409 },
+      );
+    }
+    if (error instanceof PotLinkedBalanceReadOnlyError) {
+      return badRequestResponse(error.message, {
+        currentCents: "Wird beim Sync aus finanz_cockpit übernommen.",
+      });
     }
     if (error instanceof LinkedPropertyNotFoundError) {
       return badRequestResponse("Verknüpfte Immobilie existiert nicht.", {

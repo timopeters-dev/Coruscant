@@ -3,6 +3,8 @@ import {
   createPot,
   LinkedContractNotFoundError,
   LinkedPropertyNotFoundError,
+  PotExternalLinkConflictError,
+  PotExternalLinkTargetNotFoundError,
   listPots,
   listRecentPotAllocations,
   RemainderPercentageExceededError,
@@ -42,6 +44,22 @@ export async function POST(request: Request): Promise<NextResponse> {
     const pot = createPot(parsed.data);
     return NextResponse.json({ pot }, { status: 201 });
   } catch (error) {
+    if (error instanceof PotExternalLinkTargetNotFoundError) {
+      return badRequestResponse(error.message, {
+        externalLink: "Ziel nicht im letzten Snapshot gefunden.",
+      });
+    }
+    if (error instanceof PotExternalLinkConflictError) {
+      return NextResponse.json(
+        {
+          error: "Dieses Konto bzw. diese Position ist bereits gekoppelt.",
+          fieldErrors: {
+            externalLink: "Bereits mit einem anderen Topf gekoppelt.",
+          },
+        },
+        { status: 409 },
+      );
+    }
     if (error instanceof LinkedPropertyNotFoundError) {
       return badRequestResponse("Verknüpfte Immobilie existiert nicht.", {
         linkedPropertyId: "Unbekannte Immobilie.",

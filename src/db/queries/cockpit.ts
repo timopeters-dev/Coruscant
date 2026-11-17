@@ -1,7 +1,11 @@
-import crypto from "node:crypto";
-import { desc } from "drizzle-orm";
-import { getDb } from "@/db";
-import { type ExternalSnapshotRow, externalSnapshots } from "@/db/schema";
+import type { ExternalSnapshotRow } from "@/db/schema";
+import {
+  getLatestExternalSnapshot,
+  insertExternalSnapshot,
+  parseSnapshotAccounts,
+  parseSnapshotHousehold,
+  parseSnapshotPositions,
+} from "@/db/queries/external-snapshots";
 import { listPots } from "@/db/queries/allocation";
 import { listContracts, listProperties } from "@/db/queries/contracts";
 import {
@@ -16,15 +20,11 @@ import {
   selectTopPotProgress,
   selectUpcomingActiveMilestones,
 } from "@/lib/domain/cockpit";
+import { computePotSyncPlan } from "@/lib/domain/pot-sync";
 import { projectContractBalance } from "@/lib/domain/contracts";
 import { getTodayIsoDate } from "@/lib/domain/date";
 import { evaluateSnapshotFreshness } from "@/lib/domain/external-sync";
 import { getFinanzCockpitBridgeConfig } from "@/lib/integrations/finanz-cockpit-client";
-import {
-  type FinanzCockpitSummary,
-  type HouseholdSummary,
-  householdSummarySchema,
-} from "@/lib/validation/external";
 
 export interface CockpitPageData {
   asOfDate: string;
@@ -43,58 +43,13 @@ export interface CockpitPageData {
   nextSyncAtMs: number | null;
 }
 
-export function getLatestExternalSnapshot(): ExternalSnapshotRow | null {
-  const db = getDb();
-  const row = db
-    .select()
-    .from(externalSnapshots)
-    .orderBy(desc(externalSnapshots.fetchedAt), desc(externalSnapshots.id))
-    .limit(1)
-    .get();
-  return row ?? null;
-}
-
-export function insertExternalSnapshot(
-  summary: FinanzCockpitSummary,
-): ExternalSnapshotRow {
-  const db = getDb();
-  const [created] = db
-    .insert(externalSnapshots)
-    .values({
-      id: crypto.randomUUID(),
-      source: summary.source,
-      liquidCashCents: summary.liquidCashCents,
-      etfStocksCents: summary.etfStocksCents,
-      cryptoCents: summary.cryptoCents,
-      totalPersonalNetWorthCents: summary.totalPersonalNetWorthCents,
-      householdJson: summary.household
-        ? JSON.stringify(summary.household)
-        : null,
-      fetchedAt: summary.fetchedAt,
-    })
-    .returning()
-    .all();
-
-  if (!created) {
-    throw new Error("Failed to insert external snapshot");
-  }
-  return created;
-}
-
-export function parseSnapshotHousehold(
-  snapshot: Pick<ExternalSnapshotRow, "householdJson"> | null | undefined,
-): HouseholdSummary | null {
-  if (!snapshot?.householdJson) {
-    return null;
-  }
-  try {
-    const parsedJson: unknown = JSON.parse(snapshot.householdJson);
-    const result = householdSummarySchema.safeParse(parsedJson);
-    return result.success ? result.data : null;
-  } catch {
-    return null;
-  }
-}
+export {
+  getLatestExternalSnapshot,
+  insertExternalSnapshot,
+  parseSnapshotAccounts,
+  parseSnapshotHousehold,
+  parseSnapshotPositions,
+};
 
 export function loadCockpitData(
   asOfDate: string = getTodayIsoDate(),
@@ -111,11 +66,25 @@ export function loadCockpitData(
     now,
   });
 
+  // Pots whose link overlaps another linked pot must not be counted twice.
+  const conflictingPotIds = new Set(
+    computePotSyncPlan({
+      pots,
+      accounts: parseSnapshotAccounts(latestSnapshot),
+      positions: parseSnapshotPositions(latestSnapshot),
+    })
+      .filter((outcome) => outcome.status === "link_conflict")
+      .map((outcome) => outcome.potId),
+  );
+
   const balance = calculateHouseholdBalance({
     asOfDate,
     properties,
     contracts,
-    pots,
+    pots: pots.map((pot) => ({
+      ...pot,
+      excludeFromLiquidity: conflictingPotIds.has(pot.id),
+    })),
     externalSnapshot: latestSnapshot,
   });
 

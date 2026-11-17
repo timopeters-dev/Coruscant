@@ -202,4 +202,49 @@ describe("loadCockpitData integration", () => {
       }
     }
   });
+
+  it("does not count a position pot twice when its account is linked as a whole (link_conflict)", () => {
+    insertExternalSnapshot({
+      source: "finanz_cockpit",
+      liquidCashCents: 0,
+      etfStocksCents: 0,
+      cryptoCents: 0,
+      totalPersonalNetWorthCents: 0,
+      fetchedAt: "2026-11-16T12:00:00.000Z",
+      accounts: [
+        { id: "acc-depot", name: "Muster-Depot", type: "brokerage", scope: "household", balanceCents: 100_000, holdingsValueCents: 400_000 },
+        { id: "acc-other", name: "Muster-Depot 2", type: "brokerage", scope: "household", balanceCents: 0, holdingsValueCents: 400_000 },
+      ],
+      positions: [
+        { id: "pos-1", accountId: "acc-other", symbol: "MSTR", isin: null, name: "Muster-ETF", assetClass: "etf", marketValueCents: 400_000, costBasisCents: null, lastPriceAt: null },
+      ],
+    });
+    const accountPot = createPot(potCreateSchema.parse({ name: "Depot", ruleType: "fixed_monthly", fixedMonthlyCents: 1, externalLink: { kind: "account", ref: "acc-depot" } }));
+    const positionPot = createPot(potCreateSchema.parse({ name: "ETF", ruleType: "fixed_monthly", fixedMonthlyCents: 1, externalLink: { kind: "position", ref: "pos-1" } }));
+    expect(accountPot.currentCents).toBe(500_000);
+
+    const before = loadCockpitData("2026-11-16");
+    expect(before.balance.householdLiquidCents).toBe(900_000);
+    expect(before.balance.conflictingLinkedPotsCents).toBe(0);
+
+    // Later the position moves into the linked account.
+    insertExternalSnapshot({
+      source: "finanz_cockpit",
+      liquidCashCents: 0,
+      etfStocksCents: 0,
+      cryptoCents: 0,
+      totalPersonalNetWorthCents: 0,
+      fetchedAt: "2026-11-16T13:00:00.000Z",
+      accounts: [
+        { id: "acc-depot", name: "Muster-Depot", type: "brokerage", scope: "household", balanceCents: 100_000, holdingsValueCents: 400_000 },
+      ],
+      positions: [
+        { id: "pos-1", accountId: "acc-depot", symbol: "MSTR", isin: null, name: "Muster-ETF", assetClass: "etf", marketValueCents: 400_000, costBasisCents: null, lastPriceAt: null },
+      ],
+    });
+    const after = loadCockpitData("2026-11-16");
+    expect(positionPot.currentCents).toBe(400_000);
+    expect(after.balance.householdLiquidCents).toBe(500_000);
+    expect(after.balance.conflictingLinkedPotsCents).toBe(400_000);
+  });
 });

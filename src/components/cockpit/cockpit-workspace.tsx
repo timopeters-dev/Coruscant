@@ -370,6 +370,21 @@ export function CockpitWorkspace({ data }: CockpitWorkspaceProps) {
               Frei: {formatCentsDE(balance.freeAssetsCents)} · Gebunden:{" "}
               {formatCentsDE(balance.boundAssetsCents)}
             </p>
+            {balance.conflictingLinkedPotsCents > 0 ? (
+              <div className="mt-1.5 space-y-1">
+                <StatusBadge
+                  variant="calibration_warning"
+                  label="Verknüpfung überschneidet sich"
+                  detail={`${formatCentsDE(balance.conflictingLinkedPotsCents)} nicht mitgezählt`}
+                />
+              </div>
+            ) : null}
+            {balance.personalLinkedPotsCents > 0 ? (
+              <p className="tabular-nums text-xs text-[var(--text-secondary)]">
+                davon in persönlichen Konten geführt:{" "}
+                {formatCentsDE(balance.personalLinkedPotsCents)}
+              </p>
+            ) : null}
           </CardContent>
         </Card>
 

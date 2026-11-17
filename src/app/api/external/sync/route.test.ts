@@ -3,12 +3,18 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as dbModule from "@/db";
+import { createPot, getPotById, listPots } from "@/db/queries/allocation";
+import { eq, sql } from "drizzle-orm";
+import { pots } from "@/db/schema";
+import { potCreateSchema } from "@/lib/validation/allocation";
 import {
   getLatestExternalSnapshot,
   insertExternalSnapshot,
+  parseSnapshotAccounts,
   parseSnapshotHousehold,
+  parseSnapshotPositions,
 } from "@/db/queries/cockpit";
-import * as cockpitQueries from "@/db/queries/cockpit";
+import * as allocationQueries from "@/db/queries/allocation";
 import * as bridgeClient from "@/lib/integrations/finanz-cockpit-client";
 import { POST as syncExternal } from "./route";
 
@@ -169,7 +175,7 @@ describe("POST /api/external/sync", () => {
         fetchedAt: "2026-11-16T14:00:00.000Z",
       },
     });
-    vi.spyOn(cockpitQueries, "insertExternalSnapshot").mockImplementation(() => {
+    vi.spyOn(allocationQueries, "storeSnapshotAndSyncPots").mockImplementation(() => {
       throw new Error("SQLITE_BUSY");
     });
 
@@ -369,5 +375,246 @@ describe("POST /api/external/sync", () => {
     expect(
       parseSnapshotHousehold({ householdJson: "{corrupt-json" }),
     ).toBeNull();
+  });
+
+  describe("pot sync", () => {
+    const account = (id: string, scope: "personal" | "household", balanceCents: number, holdingsValueCents = 0) => ({
+      id,
+      name: `Muster ${id}`,
+      type: "checking" as const,
+      scope,
+      balanceCents,
+      holdingsValueCents,
+    });
+
+    function mockSummary(
+      fetchedAt: string,
+      extra: Record<string, unknown> = {},
+    ) {
+      vi.spyOn(bridgeClient, "fetchFinanzCockpitSummary").mockResolvedValue({
+        ok: true,
+        data: {
+          source: "finanz_cockpit",
+          liquidCashCents: 0,
+          etfStocksCents: 0,
+          cryptoCents: 0,
+          totalPersonalNetWorthCents: 0,
+          fetchedAt,
+          ...extra,
+        } as never,
+      });
+    }
+
+    function makePot(name: string, externalLink: { kind: "account" | "position"; ref: string } | null, currentCents = 0) {
+      const created = createPot(
+        potCreateSchema.parse({
+          name,
+          ruleType: "fill_to_target",
+          targetCents: 1_000_000,
+          currentCents,
+        }),
+      );
+      if (externalLink) {
+        // Direct DB write: simulates an existing link regardless of snapshot availability.
+        dbModule
+          .getDb()
+          .update(pots)
+          .set({ externalLinkKind: externalLink.kind, externalLinkRef: externalLink.ref })
+          .where(eq(pots.id, created.id))
+          .run();
+      }
+      return created;
+    }
+
+    it("updates linked pots, never touches virtual pots, and reports potSync counts", async () => {
+      const virtual = makePot("Virtuell", null, 50_000);
+      const linkedAcc = makePot("Konto", { kind: "account", ref: "acc-1" }, 1);
+      const linkedSame = makePot("Gleich", { kind: "account", ref: "acc-2" }, 7_000);
+      const linkedGone = makePot("Weg", { kind: "account", ref: "acc-gone" }, 9_000);
+      const virtualBefore = getPotById(virtual.id);
+
+      mockSummary("2026-11-17T09:00:00.000Z", {
+        accounts: [account("acc-1", "personal", 120_000, 30_000), account("acc-2", "household", 7_000)],
+        positions: [],
+      });
+
+      const response = await syncExternal();
+      const body = await response.json();
+      expect(body.status).toBe("synced");
+      expect(body.potSync).toEqual({ updated: 1, unchanged: 1, missing: [linkedGone.id], conflicts: [], clamped: [] });
+
+      expect(getPotById(virtual.id)).toEqual(virtualBefore);
+      expect(getPotById(linkedAcc.id)).toMatchObject({
+        currentCents: 150_000,
+        externalLinkScope: "personal",
+        externalSyncedAt: "2026-11-17T09:00:00.000Z",
+      });
+      expect(getPotById(linkedSame.id)).toMatchObject({
+        currentCents: 7_000,
+        externalLinkScope: "household",
+        externalSyncedAt: "2026-11-17T09:00:00.000Z",
+      });
+      expect(getPotById(linkedGone.id)).toMatchObject({
+        currentCents: 9_000,
+        externalLinkScope: null,
+        externalSyncedAt: null,
+      });
+    });
+
+    it("keeps stand and syncedAt of a pot whose target vanished in a later snapshot", async () => {
+      const pot = makePot("Konto", { kind: "account", ref: "acc-1" });
+      mockSummary("2026-11-17T09:00:00.000Z", { accounts: [account("acc-1", "household", 5_000)], positions: [] });
+      await syncExternal();
+      expect(getPotById(pot.id)?.currentCents).toBe(5_000);
+
+      vi.restoreAllMocks();
+      mockSummary("2026-11-17T10:00:00.000Z", { accounts: [], positions: [] });
+      const body = await (await syncExternal()).json();
+      expect(body.potSync.missing).toEqual([pot.id]);
+      expect(getPotById(pot.id)).toMatchObject({
+        currentCents: 5_000,
+        externalSyncedAt: "2026-11-17T09:00:00.000Z",
+      });
+    });
+
+    it("tolerates an older payload without accounts/positions", async () => {
+      const pot = makePot("Konto", { kind: "account", ref: "acc-1" }, 3_000);
+      mockSummary("2026-11-17T09:00:00.000Z");
+      const response = await syncExternal();
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.potSync).toEqual({ updated: 0, unchanged: 0, missing: [pot.id], conflicts: [], clamped: [] });
+      expect(getPotById(pot.id)?.currentCents).toBe(3_000);
+    });
+
+    it("does not touch pots when finanz_cockpit is offline or unconfigured", async () => {
+      const pot = makePot("Konto", { kind: "account", ref: "acc-1" }, 3_000);
+      const before = getPotById(pot.id);
+
+      for (const code of ["network_error", "not_configured"] as const) {
+        vi.restoreAllMocks();
+        vi.spyOn(bridgeClient, "fetchFinanzCockpitSummary").mockResolvedValue({
+          ok: false,
+          code,
+          message: "nicht erreichbar",
+        });
+        const response = await syncExternal();
+        expect([502, 503]).toContain(response.status);
+        expect((await response.json()).potSync).toBeUndefined();
+        expect(getPotById(pot.id)).toEqual(before);
+      }
+    });
+
+    it("does not sync pots when auto mode skips a fresh snapshot", async () => {
+      process.env.FINANZ_COCKPIT_SYNC_INTERVAL_MINUTES = "60";
+      const pot = makePot("Konto", { kind: "account", ref: "acc-1" }, 3_000);
+      insertExternalSnapshot({
+        source: "finanz_cockpit",
+        liquidCashCents: 0,
+        etfStocksCents: 0,
+        cryptoCents: 0,
+        totalPersonalNetWorthCents: 0,
+        fetchedAt: new Date().toISOString(),
+        accounts: [account("acc-1", "household", 99_000)],
+        positions: [],
+      });
+      const fetchSpy = vi.spyOn(bridgeClient, "fetchFinanzCockpitSummary");
+
+      const body = await (await syncExternal(createSyncRequest({ mode: "auto" }))).json();
+      expect(body.status).toBe("skipped");
+      expect(body.potSync).toBeUndefined();
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(getPotById(pot.id)?.currentCents).toBe(3_000);
+    });
+
+    it("reports clamped (overdrawn) linked pots in the potSync response", async () => {
+      const pot = makePot("Dispo", { kind: "account", ref: "acc-1" }, 500);
+      mockSummary("2026-11-17T09:00:00.000Z", { accounts: [account("acc-1", "personal", -2_000)], positions: [] });
+      const body = await (await syncExternal()).json();
+      expect(body.potSync.clamped).toEqual([pot.id]);
+      expect(getPotById(pot.id)?.currentCents).toBe(0);
+
+      vi.restoreAllMocks();
+      mockSummary("2026-11-17T10:00:00.000Z", { accounts: [account("acc-1", "personal", -5)], positions: [] });
+      const again = await (await syncExternal()).json();
+      expect(again.potSync).toMatchObject({ unchanged: 1, clamped: [pot.id] });
+    });
+
+    it("is atomic: a failing pot sync stores no snapshot and leaves pots untouched", async () => {
+      const pot = makePot("Konto", { kind: "account", ref: "acc-1" }, 3_000);
+      // Corrupt stand (REAL value) makes computePotSyncPlan throw a RangeError.
+      dbModule
+        .getDb()
+        .run(sql`UPDATE pots SET current_cents = 10.5 WHERE id = ${pot.id}`);
+      mockSummary("2026-11-17T09:00:00.000Z", { accounts: [account("acc-1", "household", 5_000)], positions: [] });
+
+      const response = await syncExternal();
+      expect(response.status).toBe(500);
+      expect(getLatestExternalSnapshot()).toBeNull();
+      expect(getPotById(pot.id)?.externalSyncedAt).toBeNull();
+    });
+
+    it("survives a position moving into a linked account: 200, snapshot stored, conflict reported, others synced", async () => {
+      const position = (accountId: string) => ({
+        id: "pos-1", accountId, symbol: "MSTR", isin: null, name: "Muster-ETF", assetClass: "etf",
+        marketValueCents: 4_000, costBasisCents: null, lastPriceAt: null,
+      });
+      const accountPot = makePot("Depot", { kind: "account", ref: "acc-depot" }, 1);
+      const positionPot = makePot("ETF", { kind: "position", ref: "pos-1" }, 2);
+      const otherPot = makePot("Giro", { kind: "account", ref: "acc-giro" }, 3);
+
+      mockSummary("2026-11-17T09:00:00.000Z", {
+        accounts: [account("acc-depot", "household", 100, 4_000), account("acc-giro", "household", 700), account("acc-other", "household", 0)],
+        positions: [position("acc-other")],
+      });
+      const first = await (await syncExternal()).json();
+      expect(first.potSync.conflicts).toEqual([]);
+      expect(getPotById(positionPot.id)?.currentCents).toBe(4_000);
+
+      // Between two syncs the position moves into the linked account.
+      vi.restoreAllMocks();
+      mockSummary("2026-11-17T10:00:00.000Z", {
+        accounts: [account("acc-depot", "household", 200, 4_000), account("acc-giro", "household", 900), account("acc-other", "household", 0)],
+        positions: [position("acc-depot")],
+      });
+      const response = await syncExternal();
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.potSync.conflicts).toEqual([positionPot.id]);
+      expect(getLatestExternalSnapshot()?.fetchedAt).toBe("2026-11-17T10:00:00.000Z");
+      expect(getPotById(positionPot.id)).toMatchObject({ currentCents: 4_000, externalSyncedAt: "2026-11-17T09:00:00.000Z" });
+      expect(getPotById(accountPot.id)?.currentCents).toBe(4_200);
+      expect(getPotById(otherPot.id)?.currentCents).toBe(900);
+    });
+
+    it("stores balanceAsOf as externalSyncedAt and falls back to fetchedAt when unknown", async () => {
+      const dated = makePot("Datiert", { kind: "account", ref: "acc-1" });
+      const undated = makePot("Undatiert", { kind: "account", ref: "acc-2" });
+      mockSummary("2026-11-17T09:00:00.000Z", {
+        accounts: [
+          { ...account("acc-1", "household", 10), balanceAsOf: "2026-11-17T06:00:00.000Z" },
+          account("acc-2", "household", 20),
+        ],
+        positions: [],
+      });
+      await syncExternal();
+      expect(getPotById(dated.id)?.externalSyncedAt).toBe("2026-11-17T06:00:00.000Z");
+      expect(getPotById(undated.id)?.externalSyncedAt).toBe("2026-11-17T09:00:00.000Z");
+    });
+
+    it("persists accounts/positions JSON and parses corrupt JSON to []", async () => {
+      mockSummary("2026-11-17T09:00:00.000Z", {
+        accounts: [account("acc-1", "personal", 100)],
+        positions: [],
+      });
+      await syncExternal();
+      const latest = getLatestExternalSnapshot();
+      expect(parseSnapshotAccounts(latest)).toHaveLength(1);
+      expect(parseSnapshotPositions(latest)).toEqual([]);
+      expect(parseSnapshotAccounts({ accountsJson: "{corrupt" })).toEqual([]);
+      expect(parseSnapshotAccounts({ accountsJson: '[{"id":1}]' })).toEqual([]);
+      expect(parseSnapshotAccounts({ accountsJson: null })).toEqual([]);
+      expect(listPots()).toEqual([]);
+    });
   });
 });

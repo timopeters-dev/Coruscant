@@ -43,6 +43,7 @@ import type {
 import { cn } from "@/lib/utils";
 import { AllocateModal } from "./allocate-modal";
 import { CashflowItemModal } from "./cashflow-item-modal";
+import type { PotLinkOption } from "@/lib/domain/pot-sync";
 import { PotModal } from "./pot-modal";
 
 interface HouseholdWorkspaceData {
@@ -58,6 +59,12 @@ interface AllokationWorkspaceProps {
   derivedContractItems: DomainCashflowItem[];
   excludedContractsCount: number;
   pots: PotRow[];
+  linkOptions: PotLinkOption[];
+  pendingTransferCentsByPotId: Record<string, number>;
+  linkStatusByPotId: Record<
+    string,
+    { status: "ok" | "missing" | "conflict"; clampedNegative: boolean }
+  >;
   recentAllocations: RecentPotAllocationRow[];
   properties: PropertyRow[];
   contracts: FinancialContractRow[];
@@ -99,6 +106,9 @@ export function AllokationWorkspace({
   derivedContractItems,
   excludedContractsCount,
   pots,
+  linkOptions,
+  pendingTransferCentsByPotId,
+  linkStatusByPotId,
   recentAllocations,
   properties,
   contracts,
@@ -122,6 +132,9 @@ export function AllokationWorkspace({
   const [editingPot, setEditingPot] = React.useState<PotRow | null>(null);
 
   const [allocateModalOpen, setAllocateModalOpen] = React.useState(false);
+  const [transferPlanNotice, setTransferPlanNotice] = React.useState<
+    number | null
+  >(null);
 
   const [confirmDeleteCashflowId, setConfirmDeleteCashflowId] = React.useState<
     string | null
@@ -384,6 +397,16 @@ export function AllokationWorkspace({
       {actionError ? (
         <div className="rounded-lg border border-[var(--rose)]/35 bg-[var(--rose)]/10 px-4 py-2.5 text-xs text-[var(--rose)]">
           {actionError}
+        </div>
+      ) : null}
+
+      {transferPlanNotice !== null ? (
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-2.5 text-xs text-[var(--text-secondary)]">
+          Für{" "}
+          <span className="tabular-nums font-medium">{transferPlanNotice}</span>{" "}
+          gekoppelte {transferPlanNotice === 1 ? "Topf" : "Töpfe"} bitte die
+          Überweisung ausführen – der Stand aktualisiert sich beim nächsten
+          Sync.
         </div>
       ) : null}
 
@@ -1061,6 +1084,18 @@ export function AllokationWorkspace({
                 ? contractById.get(pot.linkedContractId)
                 : undefined;
               const isConfirming = confirmDeletePotId === pot.id;
+              const isLinked = pot.externalLinkKind !== null;
+              const linkOption = isLinked
+                ? linkOptions.find(
+                    (o) =>
+                      o.kind === pot.externalLinkKind &&
+                      o.ref === pot.externalLinkRef,
+                  )
+                : undefined;
+              const linkStatus = linkStatusByPotId[pot.id];
+              const isLinkMissing = isLinked && linkStatus?.status !== "ok" && linkStatus?.status !== "conflict";
+              const isLinkConflict = isLinked && linkStatus?.status === "conflict";
+              const isLinkStale = isLinkMissing || isLinkConflict;
 
               const hasTarget = pot.targetCents !== null && pot.targetCents > 0;
               const progressPct = hasTarget
@@ -1076,7 +1111,12 @@ export function AllokationWorkspace({
                 pot.targetCents !== null && pot.currentCents >= pot.targetCents;
 
               return (
-                <Card key={pot.id}>
+                <Card
+                  key={pot.id}
+                  className={cn(
+                    !isLinked && "border-dashed border-[var(--border-sub)]",
+                  )}
+                >
                   <CardContent className="space-y-3 py-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0 space-y-1.5">
@@ -1090,6 +1130,46 @@ export function AllokationWorkspace({
                           <Badge variant="secondary" className="tabular-nums">
                             {getPotRuleLabel(pot)}
                           </Badge>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          {!isLinked ? (
+                            <StatusBadge variant="modeled" />
+                          ) : isLinkConflict ? (
+                            <StatusBadge
+                              variant="calibration_warning"
+                              label="Verknüpfung überschneidet sich"
+                              detail="Konto und Position gleichzeitig gekoppelt"
+                            />
+                          ) : isLinkStale ? (
+                            <StatusBadge
+                              variant="calibration_warning"
+                              label="Verknüpfung nicht gefunden"
+                              detail={
+                                pot.externalSyncedAt
+                                  ? `Stand vom ${formatJournalTimestamp(pot.externalSyncedAt)}`
+                                  : "Noch kein Abgleich"
+                              }
+                            />
+                          ) : (
+                            <StatusBadge
+                              variant="calibrated"
+                              detail={linkOption?.label}
+                            />
+                          )}
+                          {isLinked && !isLinkStale && linkStatus?.clampedNegative ? (
+                            <StatusBadge
+                              variant="calibration_warning"
+                              label="Konto im Minus"
+                              detail="Stand auf 0,00 € begrenzt"
+                            />
+                          ) : null}
+                          {isLinked && !isLinkStale && pot.externalSyncedAt ? (
+                            <span className="tabular-nums text-xs text-[var(--text-secondary)]">
+                              Stand vom{" "}
+                              {formatJournalTimestamp(pot.externalSyncedAt)}
+                            </span>
+                          ) : null}
                         </div>
 
                         {linkedProperty || linkedContract ? (
@@ -1284,6 +1364,7 @@ export function AllokationWorkspace({
         onOpenChange={setPotModalOpen}
         initialPot={editingPot}
         existingPots={pots}
+        linkOptions={linkOptions}
         properties={properties}
         contracts={contracts}
         onSaved={() => router.refresh()}
@@ -1293,8 +1374,12 @@ export function AllokationWorkspace({
         open={allocateModalOpen}
         onOpenChange={setAllocateModalOpen}
         pots={pots}
+        pendingTransferCentsByPotId={pendingTransferCentsByPotId}
         monthlySurplusCents={consolidatedSummary.monthlySurplusCents}
-        onAllocated={() => router.refresh()}
+        onAllocated={({ transferPlanCount }) => {
+          setTransferPlanNotice(transferPlanCount > 0 ? transferPlanCount : null);
+          router.refresh();
+        }}
       />
     </div>
   );
