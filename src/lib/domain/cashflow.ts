@@ -27,21 +27,6 @@ export interface NormalizedCashflowItem extends DomainCashflowItem {
   monthlyAmountCents: number;
 }
 
-export interface CashflowSourceTotals {
-  inflowCents: number;
-  outflowCents: number;
-  netCents: number;
-}
-
-export interface MonthlyCashflowSummary {
-  totalInflowCents: number;
-  totalOutflowCents: number;
-  monthlySurplusCents: number;
-  isDeficit: boolean;
-  bySource: Record<CashflowSource, CashflowSourceTotals>;
-  normalizedItems: NormalizedCashflowItem[];
-}
-
 /**
  * Normalizes a recurring cashflow amount to monthly integer cents using half-up division.
  */
@@ -59,62 +44,6 @@ export function normalizeItemToMonthlyCents(
     case "yearly":
       return Number(roundHalfUpBigInt(BigInt(safeAmount), 12n));
   }
-}
-
-/**
- * Calculates normalized monthly inflows, outflows, and net surplus (Mode A).
- * Validates all items including inactive ones so invalid amounts are caught early.
- */
-export function calculateMonthlyCashflow(
-  items: readonly DomainCashflowItem[],
-): MonthlyCashflowSummary {
-  const bySource: Record<CashflowSource, CashflowSourceTotals> = {
-    manual: { inflowCents: 0, outflowCents: 0, netCents: 0 },
-    finanz_cockpit_sync: { inflowCents: 0, outflowCents: 0, netCents: 0 },
-    contract_linked: { inflowCents: 0, outflowCents: 0, netCents: 0 },
-  };
-
-  let totalInflowCents = 0;
-  let totalOutflowCents = 0;
-  const normalizedItems: NormalizedCashflowItem[] = [];
-
-  for (const item of items) {
-    const monthlyAmountCents = normalizeItemToMonthlyCents(
-      item.amountCents,
-      item.frequency,
-    );
-
-    if (!item.active) {
-      continue;
-    }
-
-    normalizedItems.push({
-      ...item,
-      monthlyAmountCents,
-    });
-
-    const sourceBucket = bySource[item.source];
-    if (item.direction === "inflow") {
-      totalInflowCents += monthlyAmountCents;
-      sourceBucket.inflowCents += monthlyAmountCents;
-      sourceBucket.netCents += monthlyAmountCents;
-    } else {
-      totalOutflowCents += monthlyAmountCents;
-      sourceBucket.outflowCents += monthlyAmountCents;
-      sourceBucket.netCents -= monthlyAmountCents;
-    }
-  }
-
-  const monthlySurplusCents = totalInflowCents - totalOutflowCents;
-
-  return {
-    totalInflowCents,
-    totalOutflowCents,
-    monthlySurplusCents,
-    isDeficit: monthlySurplusCents < 0,
-    bySource,
-    normalizedItems,
-  };
 }
 
 /**
@@ -154,7 +83,7 @@ export function deriveContractCashflowItems(
 
 export type VariableExpenseBasis = "budget" | "avg_3m" | "avg_6m";
 
-export interface ModeBHouseholdInput {
+export interface HouseholdCashflowInput {
   balanceCents: number;
   recurringInflowCents: number;
   recurringOutflowCents: number;
@@ -163,15 +92,16 @@ export interface ModeBHouseholdInput {
   variableRollingAvg6MCents: number;
 }
 
-export interface CalculateModeBCashflowInput {
-  household: ModeBHouseholdInput;
+export interface CalculateConsolidatedCashflowInput {
+  household: HouseholdCashflowInput | null;
   variableBasis: VariableExpenseBasis;
   manualItems: readonly DomainCashflowItem[];
   contractItems?: readonly DomainCashflowItem[];
   includeContractItems?: boolean;
 }
 
-export interface ModeBCashflowSummary {
+export interface ConsolidatedCashflowSummary {
+  hasHouseholdData: boolean;
   calibratedInflowCents: number;
   calibratedFixedOutflowCents: number;
   variableOutflowCents: number;
@@ -186,46 +116,53 @@ export interface ModeBCashflowSummary {
 }
 
 /**
- * Calculates the Mode B (joint household account) monthly cashflow summary
- * using calibrated bank recurring inflows/outflows, the selected variable
- * expense basis, manual plan items, and optionally derived contract outflows.
+ * Calculates the consolidated 3-account household monthly cashflow summary
+ * combining calibrated joint-account figures (if available), optional manual
+ * plan items, and optionally derived household contract outflows.
  */
-export function calculateModeBCashflow(
-  input: CalculateModeBCashflowInput,
-): ModeBCashflowSummary {
-  assertSafeInteger(input.household.balanceCents, "household.balanceCents");
-  const calibratedInflowCents = assertNonNegativeInteger(
-    input.household.recurringInflowCents,
-    "household.recurringInflowCents",
-  );
-  const calibratedFixedOutflowCents = assertNonNegativeInteger(
-    input.household.recurringOutflowCents,
-    "household.recurringOutflowCents",
-  );
-  const variableBudgetsCents = assertNonNegativeInteger(
-    input.household.variableBudgetsCents,
-    "household.variableBudgetsCents",
-  );
-  const variableRollingAvg3MCents = assertNonNegativeInteger(
-    input.household.variableRollingAvg3MCents,
-    "household.variableRollingAvg3MCents",
-  );
-  const variableRollingAvg6MCents = assertNonNegativeInteger(
-    input.household.variableRollingAvg6MCents,
-    "household.variableRollingAvg6MCents",
-  );
+export function calculateConsolidatedCashflow(
+  input: CalculateConsolidatedCashflowInput,
+): ConsolidatedCashflowSummary {
+  let hasHouseholdData = false;
+  let calibratedInflowCents = 0;
+  let calibratedFixedOutflowCents = 0;
+  let variableOutflowCents = 0;
 
-  let variableOutflowCents: number;
-  switch (input.variableBasis) {
-    case "budget":
-      variableOutflowCents = variableBudgetsCents;
-      break;
-    case "avg_3m":
-      variableOutflowCents = variableRollingAvg3MCents;
-      break;
-    case "avg_6m":
-      variableOutflowCents = variableRollingAvg6MCents;
-      break;
+  if (input.household !== null) {
+    hasHouseholdData = true;
+    assertSafeInteger(input.household.balanceCents, "household.balanceCents");
+    calibratedInflowCents = assertNonNegativeInteger(
+      input.household.recurringInflowCents,
+      "household.recurringInflowCents",
+    );
+    calibratedFixedOutflowCents = assertNonNegativeInteger(
+      input.household.recurringOutflowCents,
+      "household.recurringOutflowCents",
+    );
+    const variableBudgetsCents = assertNonNegativeInteger(
+      input.household.variableBudgetsCents,
+      "household.variableBudgetsCents",
+    );
+    const variableRollingAvg3MCents = assertNonNegativeInteger(
+      input.household.variableRollingAvg3MCents,
+      "household.variableRollingAvg3MCents",
+    );
+    const variableRollingAvg6MCents = assertNonNegativeInteger(
+      input.household.variableRollingAvg6MCents,
+      "household.variableRollingAvg6MCents",
+    );
+
+    switch (input.variableBasis) {
+      case "budget":
+        variableOutflowCents = variableBudgetsCents;
+        break;
+      case "avg_3m":
+        variableOutflowCents = variableRollingAvg3MCents;
+        break;
+      case "avg_6m":
+        variableOutflowCents = variableRollingAvg6MCents;
+        break;
+    }
   }
 
   let manualInflowCents = 0;
@@ -252,13 +189,13 @@ export function calculateModeBCashflow(
   }
 
   let contractOutflowCents = 0;
-  if (input.includeContractItems && input.contractItems) {
+  if (input.contractItems) {
     for (const item of input.contractItems) {
       const monthlyCents = normalizeItemToMonthlyCents(
         item.amountCents,
         item.frequency,
       );
-      if (!item.active) {
+      if (!input.includeContractItems || !item.active) {
         continue;
       }
       if (item.direction === "outflow") {
@@ -287,6 +224,7 @@ export function calculateModeBCashflow(
   );
 
   return {
+    hasHouseholdData,
     calibratedInflowCents,
     calibratedFixedOutflowCents,
     variableOutflowCents,

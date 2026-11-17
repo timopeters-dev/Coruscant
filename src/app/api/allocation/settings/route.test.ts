@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import * as dbModule from "@/db";
+import { appMeta } from "@/db/schema";
 import { GET, PATCH } from "./route";
 
 const tempDirs: string[] = [];
@@ -31,57 +32,62 @@ describe("/api/allocation/settings", () => {
     const initialRes = await GET();
     expect(initialRes.status).toBe(200);
     expect(await initialRes.json()).toEqual({
-      mode: "mode_a",
       variableBasis: "budget",
-      includeContractsInModeB: false,
+      includeContractItems: false,
     });
 
     const patchRes1 = await PATCH(
       new Request("http://localhost/api/allocation/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "mode_b", variableBasis: "avg_3m" }),
+        body: JSON.stringify({ variableBasis: "avg_3m" }),
       }),
     );
     expect(patchRes1.status).toBe(200);
     expect(await patchRes1.json()).toEqual({
-      mode: "mode_b",
       variableBasis: "avg_3m",
-      includeContractsInModeB: false,
+      includeContractItems: false,
     });
 
     const patchRes2 = await PATCH(
       new Request("http://localhost/api/allocation/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ includeContractsInModeB: true }),
+        body: JSON.stringify({ includeContractItems: true }),
       }),
     );
     expect(patchRes2.status).toBe(200);
     expect(await patchRes2.json()).toEqual({
-      mode: "mode_b",
       variableBasis: "avg_3m",
-      includeContractsInModeB: true,
+      includeContractItems: true,
     });
 
     const verifyRes = await GET();
     expect(await verifyRes.json()).toEqual({
-      mode: "mode_b",
       variableBasis: "avg_3m",
-      includeContractsInModeB: true,
+      includeContractItems: true,
     });
   });
 
-  it("returns 400 on invalid mode, invalid variableBasis, or empty patch body", async () => {
-    const invalidMode = await PATCH(
-      new Request("http://localhost/api/allocation/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "mode_c" }),
-      }),
-    );
-    expect(invalidMode.status).toBe(400);
+  it("falls back to legacy allocation_include_contracts_mode_b key when new key is absent", async () => {
+    const db = dbModule.getDb();
+    db.insert(appMeta)
+      .values({
+        key: "allocation_include_contracts_mode_b",
+        value: "true",
+        updatedAt: new Date().toISOString(),
+      })
+      .run();
 
+    const res = await GET();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      variableBasis: "budget",
+      includeContractItems: true,
+    });
+  });
+
+  it("returns 400 on invalid variableBasis, invalid includeContractItems, or empty patch body", async () => {
     const invalidBasis = await PATCH(
       new Request("http://localhost/api/allocation/settings", {
         method: "PATCH",
@@ -90,6 +96,15 @@ describe("/api/allocation/settings", () => {
       }),
     );
     expect(invalidBasis.status).toBe(400);
+
+    const invalidInclude = await PATCH(
+      new Request("http://localhost/api/allocation/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ includeContractItems: "true" }),
+      }),
+    );
+    expect(invalidInclude.status).toBe(400);
 
     const emptyPatch = await PATCH(
       new Request("http://localhost/api/allocation/settings", {

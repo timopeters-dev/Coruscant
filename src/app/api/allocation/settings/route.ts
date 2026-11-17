@@ -16,9 +16,8 @@ const allocationSettingsPatchSchema = allocationSettingsSchema
   .partial()
   .refine(
     (data) =>
-      data.mode !== undefined ||
       data.variableBasis !== undefined ||
-      data.includeContractsInModeB !== undefined,
+      data.includeContractItems !== undefined,
     { message: "Mindestens ein Einstellungsfeld muss übergeben werden." },
   );
 

@@ -137,17 +137,22 @@ describe("finanzCockpitSummarySchema", () => {
   it("validates allocationSettingsSchema", () => {
     expect(
       allocationSettingsSchema.safeParse({
-        mode: "mode_b",
         variableBasis: "avg_3m",
-        includeContractsInModeB: false,
+        includeContractItems: false,
       }).success,
     ).toBe(true);
 
     expect(
       allocationSettingsSchema.safeParse({
-        mode: "mode_c",
-        variableBasis: "avg_3m",
-        includeContractsInModeB: false,
+        variableBasis: "avg_12m",
+        includeContractItems: false,
+      }).success,
+    ).toBe(false);
+
+    expect(
+      allocationSettingsSchema.safeParse({
+        variableBasis: "budget",
+        includeContractItems: "true",
       }).success,
     ).toBe(false);
   });

@@ -27,10 +27,9 @@ import type {
 } from "@/db/queries/allocation";
 import type { FinancialContractRow, PropertyRow } from "@/db/queries/contracts";
 import {
-  calculateModeBCashflow,
+  calculateConsolidatedCashflow,
   type CashflowFrequency,
   type DomainCashflowItem,
-  type MonthlyCashflowSummary,
   normalizeItemToMonthlyCents,
   type VariableExpenseBasis,
 } from "@/lib/domain/cashflow";
@@ -38,7 +37,6 @@ import type { HouseholdSourceStatus } from "@/lib/integrations/household-dummy";
 import { formatCentsDE } from "@/lib/domain/money";
 import type { PotRuleType } from "@/lib/domain/waterfall";
 import type {
-  AllocationMode,
   AllocationSettings,
   HouseholdSummary,
 } from "@/lib/validation/external";
@@ -58,7 +56,6 @@ interface HouseholdWorkspaceData {
 interface AllokationWorkspaceProps {
   manualItems: CashflowItemRow[];
   derivedContractItems: DomainCashflowItem[];
-  summary: MonthlyCashflowSummary;
   excludedContractsCount: number;
   pots: PotRow[];
   recentAllocations: RecentPotAllocationRow[];
@@ -100,7 +97,6 @@ function formatJournalTimestamp(isoString: string): string {
 export function AllokationWorkspace({
   manualItems,
   derivedContractItems,
-  summary,
   excludedContractsCount,
   pots,
   recentAllocations,
@@ -111,11 +107,10 @@ export function AllokationWorkspace({
 }: AllokationWorkspaceProps) {
   const router = useRouter();
 
-  const [mode, setMode] = React.useState<AllocationMode>(initialSettings.mode);
   const [variableBasis, setVariableBasis] =
     React.useState<VariableExpenseBasis>(initialSettings.variableBasis);
-  const [includeContractsInModeB, setIncludeContractsInModeB] =
-    React.useState<boolean>(initialSettings.includeContractsInModeB);
+  const [includeContractItems, setIncludeContractItems] =
+    React.useState<boolean>(initialSettings.includeContractItems);
   const [breakdownOpen, setBreakdownOpen] = React.useState(false);
   const [isSyncingBridge, setIsSyncingBridge] = React.useState(false);
 
@@ -158,29 +153,21 @@ export function AllokationWorkspace({
     }, 0);
   }, [pots]);
 
-  const modeBSummary = React.useMemo(() => {
-    if (!householdData.household) {
-      return null;
-    }
-    return calculateModeBCashflow({
+  const consolidatedSummary = React.useMemo(() => {
+    return calculateConsolidatedCashflow({
       household: householdData.household,
       variableBasis,
       manualItems,
       contractItems: derivedContractItems,
-      includeContractItems: includeContractsInModeB,
+      includeContractItems,
     });
   }, [
     householdData.household,
     variableBasis,
     manualItems,
     derivedContractItems,
-    includeContractsInModeB,
+    includeContractItems,
   ]);
-
-  const activeSurplusCents =
-    mode === "mode_b"
-      ? (modeBSummary?.monthlySurplusCents ?? 0)
-      : summary.monthlySurplusCents;
 
   async function persistSettings(
     patch: Partial<AllocationSettings>,
@@ -207,12 +194,6 @@ export function AllokationWorkspace({
     }
   }
 
-  function handleModeChange(nextMode: AllocationMode) {
-    const prevMode = mode;
-    setMode(nextMode);
-    void persistSettings({ mode: nextMode }, () => setMode(prevMode));
-  }
-
   function handleVariableBasisChange(nextBasis: VariableExpenseBasis) {
     const prevBasis = variableBasis;
     setVariableBasis(nextBasis);
@@ -221,12 +202,12 @@ export function AllokationWorkspace({
     );
   }
 
-  function handleToggleIncludeContractsInModeB() {
-    const prevValue = includeContractsInModeB;
+  function handleToggleIncludeContractItems() {
+    const prevValue = includeContractItems;
     const nextValue = !prevValue;
-    setIncludeContractsInModeB(nextValue);
-    void persistSettings({ includeContractsInModeB: nextValue }, () =>
-      setIncludeContractsInModeB(prevValue),
+    setIncludeContractItems(nextValue);
+    void persistSettings({ includeContractItems: nextValue }, () =>
+      setIncludeContractItems(prevValue),
     );
   }
 
@@ -359,43 +340,12 @@ export function AllokationWorkspace({
             Cashflow &amp; Wasserfall
           </h1>
           <p className="text-sm text-[var(--text-secondary)]">
-            {mode === "mode_a"
-              ? "Haushalts-Positionen (Modus A), priorisierte Ziel-Töpfe und 1-Klick-Verteilung."
-              : "Gemeinschaftskonto-Bridge (Modus B), priorisierte Ziel-Töpfe und 1-Klick-Verteilung."}
+            Gemeinschaftskonto-Basis (finanz_cockpit), optionale Plan-Posten und
+            priorisierte Ziel-Töpfe.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div
-            role="group"
-            aria-label="Cashflow-Modus"
-            className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-0.5"
-          >
-            <button
-              type="button"
-              onClick={() => handleModeChange("mode_a")}
-              className={cn(
-                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                mode === "mode_a"
-                  ? "bg-[var(--surface)] text-[var(--text-primary)] shadow-xs"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
-              )}
-            >
-              Modus A · Pauschalen
-            </button>
-            <button
-              type="button"
-              onClick={() => handleModeChange("mode_b")}
-              className={cn(
-                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                mode === "mode_b"
-                  ? "bg-[var(--surface)] text-[var(--text-primary)] shadow-xs"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
-              )}
-            >
-              Modus B · Gemeinschaftskonto
-            </button>
-          </div>
           <Button
             variant="secondary"
             onClick={() => {
@@ -404,7 +354,7 @@ export function AllokationWorkspace({
             }}
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
-            Position
+            Plan-Posten
           </Button>
           <Button
             variant="secondary"
@@ -437,109 +387,109 @@ export function AllokationWorkspace({
         </div>
       ) : null}
 
-      {/* Hero-Übersicht (Modus A oder Modus B) */}
-      {mode === "mode_a" ? (
-        <Card className="border-dashed border-[var(--border-sub)]">
-          <CardHeader className="pb-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <CardTitle className="text-base">
-                Haushalts-Überschuss (Modus A)
-              </CardTitle>
-              <StatusBadge variant="modeled" detail="Modus A" />
-            </div>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-3">
-            <div className="space-y-1">
-              <p className="text-xs text-[var(--text-secondary)]">
-                Monatliche Einnahmen
-              </p>
-              <p className="tabular-nums text-xl font-semibold text-[var(--emerald)]">
-                {formatCentsDE(summary.totalInflowCents)}
-              </p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs text-[var(--text-secondary)]">
-                Monatliche Ausgaben (inkl. Verträge)
-              </p>
-              <p className="tabular-nums text-xl font-semibold text-[var(--rose)]">
-                {formatCentsDE(summary.totalOutflowCents)}
-              </p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs text-[var(--text-secondary)]">
-                Frei verteilbarer Überschuss / Monat
-              </p>
-              <p
-                className={cn(
-                  "tabular-nums text-xl font-semibold",
-                  summary.isDeficit
-                    ? "text-[var(--rose)]"
-                    : "text-[var(--emerald)]",
-                )}
-              >
-                {formatCentsDE(summary.monthlySurplusCents, {
-                  showPlusSign: !summary.isDeficit,
-                })}
-              </p>
-              {summary.isDeficit ? (
-                <p className="text-xs text-[var(--rose)]">
-                  Unterdeckung im Haushalts-Cashflow
+      {/* Hero-Übersicht (einheitliches 3-Konten-Modell) */}
+      {householdData.household === null ? (
+        <div className="space-y-4">
+          <Card className="border-dashed border-[var(--border-sub)]">
+            <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-[var(--text-primary)]">
+                    Noch kein Gemeinschaftskonto synchronisiert
+                  </p>
+                  <StatusBadge variant="modeled" detail="Kein Sync" />
+                </div>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Markiere in <code className="font-mono">finanz_cockpit</code>{" "}
+                  ein Konto als Gemeinschaftskonto (
+                  <code className="font-mono">scope = household</code>) und
+                  starte einen Sync. Optionale Plan-Posten, Verträge und
+                  Ziel-Töpfe bleiben bereits vollständig nutzbar.
                 </p>
-              ) : null}
-            </div>
-          </CardContent>
-        </Card>
-      ) : householdData.household === null || !modeBSummary ? (
-        <Card className="border-dashed border-[var(--border-sub)]">
-          <CardHeader className="pb-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <CardTitle className="text-base">
-                Gemeinschaftskonto-Überschuss (Modus B)
-              </CardTitle>
-              <StatusBadge variant="modeled" detail="Keine Daten" />
-            </div>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-[var(--text-secondary)]">
-              Noch kein Gemeinschaftskonto (
-              <code className="font-mono">scope = household</code>) aus{" "}
-              <code className="font-mono">finanz_cockpit</code> synchronisiert.
-              Markiere in <code className="font-mono">finanz_cockpit</code>{" "}
-              mindestens ein Konto als Gemeinschaftskonto und starte einen Sync.
-            </p>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={isSyncingBridge || !householdData.bridgeConfigured}
-              onClick={handleSyncBridge}
-            >
-              <RefreshCw
-                className={cn(
-                  "h-3.5 w-3.5",
-                  isSyncingBridge && "animate-spin",
-                )}
-                aria-hidden="true"
-              />
-              finanz_cockpit synchronisieren
-            </Button>
-          </CardContent>
-        </Card>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={isSyncingBridge || !householdData.bridgeConfigured}
+                onClick={handleSyncBridge}
+              >
+                <RefreshCw
+                  className={cn(
+                    "h-3.5 w-3.5",
+                    isSyncingBridge && "animate-spin",
+                  )}
+                  aria-hidden="true"
+                />
+                finanz_cockpit synchronisieren
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="border-dashed border-[var(--border-sub)]">
+            <CardHeader className="pb-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-base">
+                  Haushalts-Überschuss (3-Konten-Modell)
+                </CardTitle>
+                <StatusBadge variant="modeled" detail="Nur Plan-Posten" />
+              </div>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-1">
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Monatliche Einnahmen
+                </p>
+                <p className="tabular-nums text-xl font-semibold text-[var(--emerald)]">
+                  {formatCentsDE(consolidatedSummary.totalInflowCents)}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Ausgaben (Plan-Posten &amp; Verträge)
+                </p>
+                <p className="tabular-nums text-xl font-semibold text-[var(--rose)]">
+                  {formatCentsDE(consolidatedSummary.totalOutflowCents)}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Frei verteilbarer Überschuss / Monat
+                </p>
+                <p
+                  className={cn(
+                    "tabular-nums text-xl font-semibold",
+                    consolidatedSummary.isDeficit
+                      ? "text-[var(--rose)]"
+                      : "text-[var(--emerald)]",
+                  )}
+                >
+                  {formatCentsDE(consolidatedSummary.monthlySurplusCents, {
+                    showPlusSign: !consolidatedSummary.isDeficit,
+                  })}
+                </p>
+                {consolidatedSummary.isDeficit ? (
+                  <p className="text-xs text-[var(--rose)]">
+                    Unterdeckung im Haushalts-Cashflow
+                  </p>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       ) : (
-        <Card
-          className={
-            householdData.isDummy
-              ? "border-dashed border-[var(--border-sub)]"
-              : "border-[var(--border)]"
-          }
-        >
+        <Card className="border-[var(--border)]">
           <CardHeader className="pb-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2">
                 <CardTitle className="text-base">
-                  Gemeinschaftskonto-Überschuss (Modus B)
+                  Gemeinschaftskonto &amp; Haushalts-Überschuss
                 </CardTitle>
                 {householdData.isDummy ? (
-                  <StatusBadge variant="modeled" detail="Dev-Dummy" />
+                  <StatusBadge
+                    variant="modeled"
+                    label="Dev-Vorschau"
+                    detail="Dummy-Daten"
+                  />
                 ) : (
                   <StatusBadge variant="calibrated" />
                 )}
@@ -573,6 +523,12 @@ export function AllokationWorkspace({
                 ))}
               </div>
             </div>
+            {householdData.isDummy ? (
+              <p className="text-xs text-[var(--text-secondary)]">
+                Lokale Dev-Vorschau mit fiktiven Beispieldaten (kein Live-Haushalt
+                synchronisiert).
+              </p>
+            ) : null}
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1">
@@ -595,15 +551,15 @@ export function AllokationWorkspace({
                 Monatliche Einnahmen
               </p>
               <p className="tabular-nums text-xl font-semibold text-[var(--emerald)]">
-                {formatCentsDE(modeBSummary.totalInflowCents)}
+                {formatCentsDE(consolidatedSummary.totalInflowCents)}
               </p>
             </div>
             <div className="space-y-1">
               <p className="text-xs text-[var(--text-secondary)]">
-                Fixkosten + Variable
+                Ausgaben (Fixkosten, Variable &amp; Plan-Posten)
               </p>
               <p className="tabular-nums text-xl font-semibold text-[var(--rose)]">
-                {formatCentsDE(modeBSummary.totalOutflowCents)}
+                {formatCentsDE(consolidatedSummary.totalOutflowCents)}
               </p>
             </div>
             <div className="space-y-1">
@@ -613,16 +569,16 @@ export function AllokationWorkspace({
               <p
                 className={cn(
                   "tabular-nums text-xl font-semibold",
-                  modeBSummary.isDeficit
+                  consolidatedSummary.isDeficit
                     ? "text-[var(--rose)]"
                     : "text-[var(--emerald)]",
                 )}
               >
-                {formatCentsDE(modeBSummary.monthlySurplusCents, {
-                  showPlusSign: !modeBSummary.isDeficit,
+                {formatCentsDE(consolidatedSummary.monthlySurplusCents, {
+                  showPlusSign: !consolidatedSummary.isDeficit,
                 })}
               </p>
-              {modeBSummary.isDeficit ? (
+              {consolidatedSummary.isDeficit ? (
                 <p className="text-xs text-[var(--rose)]">
                   Unterdeckung im Haushalts-Cashflow
                 </p>
@@ -632,16 +588,20 @@ export function AllokationWorkspace({
         </Card>
       )}
 
-      {/* Sektion: Geeichte Gemeinschaftskonto-Basis (nur Modus B) */}
-      {mode === "mode_b" && householdData.household && modeBSummary ? (
+      {/* Sektion: Gemeinschaftskonto-Basis (falls Snapshot oder Dev-Vorschau vorhanden) */}
+      {householdData.household ? (
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-semibold tracking-tight text-[var(--text-primary)]">
-                Geeichte Gemeinschaftskonto-Basis
+                Gemeinschaftskonto-Basis
               </h2>
               {householdData.isDummy ? (
-                <StatusBadge variant="modeled" detail="Dev-Dummy" />
+                <StatusBadge
+                  variant="modeled"
+                  label="Dev-Vorschau"
+                  detail="Dummy-Daten"
+                />
               ) : (
                 <StatusBadge variant="calibrated" />
               )}
@@ -666,45 +626,27 @@ export function AllokationWorkspace({
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <Card
-              className={
-                householdData.isDummy
-                  ? "border-dashed border-[var(--border-sub)]"
-                  : undefined
-              }
-            >
+            <Card>
               <CardContent className="space-y-1 py-4">
                 <p className="text-xs text-[var(--text-secondary)]">
-                  Wiederkehrende Einnahmen
+                  Wiederkehrende Einnahmen (Gehälter)
                 </p>
                 <p className="tabular-nums text-base font-semibold text-[var(--emerald)]">
-                  +{formatCentsDE(modeBSummary.calibratedInflowCents)}
+                  +{formatCentsDE(consolidatedSummary.calibratedInflowCents)}
                 </p>
               </CardContent>
             </Card>
-            <Card
-              className={
-                householdData.isDummy
-                  ? "border-dashed border-[var(--border-sub)]"
-                  : undefined
-              }
-            >
+            <Card>
               <CardContent className="space-y-1 py-4">
                 <p className="text-xs text-[var(--text-secondary)]">
                   Erkannte Fixkosten
                 </p>
                 <p className="tabular-nums text-base font-semibold text-[var(--rose)]">
-                  −{formatCentsDE(modeBSummary.calibratedFixedOutflowCents)}
+                  −{formatCentsDE(consolidatedSummary.calibratedFixedOutflowCents)}
                 </p>
               </CardContent>
             </Card>
-            <Card
-              className={
-                householdData.isDummy
-                  ? "border-dashed border-[var(--border-sub)]"
-                  : undefined
-              }
-            >
+            <Card>
               <CardContent className="space-y-1 py-4">
                 <p className="text-xs text-[var(--text-secondary)]">
                   Variable Alltagskosten (
@@ -716,21 +658,14 @@ export function AllokationWorkspace({
                   )
                 </p>
                 <p className="tabular-nums text-base font-semibold text-[var(--rose)]">
-                  −{formatCentsDE(modeBSummary.variableOutflowCents)}
+                  −{formatCentsDE(consolidatedSummary.variableOutflowCents)}
                 </p>
               </CardContent>
             </Card>
           </div>
 
           {householdData.household.categoriesBreakdown.length > 0 ? (
-            <div
-              className={cn(
-                "rounded-xl border bg-[var(--surface)]",
-                householdData.isDummy
-                  ? "border-dashed border-[var(--border-sub)]"
-                  : "border-[var(--border)]",
-              )}
-            >
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]">
               <button
                 type="button"
                 onClick={() => setBreakdownOpen((prev) => !prev)}
@@ -840,14 +775,15 @@ export function AllokationWorkspace({
         </section>
       ) : null}
 
-      {/* Sektion 1: Manuelle Planposten / Haushalts-Positionen */}
+      {/* Sektion 1: Optionale Plan-Posten (Modelliert) */}
       <section className="space-y-4">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold tracking-tight text-[var(--text-primary)]">
-            {mode === "mode_a"
-              ? "Haushalts-Positionen (Modus A)"
-              : "Manuelle Planposten"}
-          </h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold tracking-tight text-[var(--text-primary)]">
+              Optionale Plan-Posten
+            </h2>
+            <StatusBadge variant="modeled" />
+          </div>
           <span className="text-xs text-[var(--text-secondary)]">
             <span className="tabular-nums">{manualItems.length}</span> manuell ·{" "}
             <span className="tabular-nums">{derivedContractItems.length}</span>{" "}
@@ -860,11 +796,12 @@ export function AllokationWorkspace({
             <CardContent className="flex flex-col items-center justify-between gap-3 py-8 text-center sm:flex-row sm:text-left">
               <div className="space-y-1">
                 <p className="text-sm font-medium text-[var(--text-primary)]">
-                  Noch keine manuellen Haushalts-Positionen
+                  Noch keine optionalen Plan-Posten
                 </p>
                 <p className="text-xs text-[var(--text-secondary)]">
-                  Erfasse Einkommen oder Pauschalen (monatlich, quartalsweise
-                  oder jährlich) für Modus A.
+                  Erfasse bei Bedarf zusätzliche geplante Einnahmen oder
+                  Ausgaben (z. B. künftige Kosten oder Sonderposten), die nicht
+                  im Gemeinschaftskonto enthalten sind.
                 </p>
               </div>
               <Button
@@ -876,7 +813,7 @@ export function AllokationWorkspace({
                 }}
               >
                 <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                Erste Haushalts-Position anlegen
+                Ersten Plan-Posten anlegen
               </Button>
             </CardContent>
           </Card>
@@ -1003,27 +940,25 @@ export function AllokationWorkspace({
           </div>
         )}
 
-        {/* Abgeleitete Vertragsraten (Live-Sync, schreibgeschützt) */}
+        {/* Verknüpfte Coruscant-Vertragsraten (Live-Sync, schreibgeschützt) */}
         <div className="space-y-2 rounded-xl border border-dashed border-[var(--border-sub)] bg-[var(--surface-elevated)]/60 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-                Aus aktiven Haushalts-Verträgen abgeleitet
+                Verknüpfte Coruscant-Vertragsraten
               </h3>
-              <Badge variant="default">Vertrag · Live-Sync</Badge>
+              <Badge variant="default">Live-Sync</Badge>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              {mode === "mode_b" ? (
-                <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-[var(--text-primary)]">
-                  <input
-                    type="checkbox"
-                    checked={includeContractsInModeB}
-                    onChange={handleToggleIncludeContractsInModeB}
-                    className="h-3.5 w-3.5 rounded border-[var(--border)] accent-[var(--accent)]"
-                  />
-                  Zusätzlich von Modus-B-Überschuss abziehen
-                </label>
-              ) : null}
+              <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-[var(--text-primary)]">
+                <input
+                  type="checkbox"
+                  checked={includeContractItems}
+                  onChange={handleToggleIncludeContractItems}
+                  className="h-3.5 w-3.5 rounded border-[var(--border)] accent-[var(--accent)]"
+                />
+                Zusätzlich vom Haushalts-Überschuss abziehen
+              </label>
               <Link
                 href="/vertraege"
                 className="text-xs font-medium text-[var(--accent)] hover:underline"
@@ -1032,13 +967,11 @@ export function AllokationWorkspace({
               </Link>
             </div>
           </div>
-          {mode === "mode_b" ? (
-            <p className="text-[11px] text-[var(--text-secondary)]">
-              {includeContractsInModeB
-                ? "Aktiviert: Diese Vertragsraten werden zusätzlich zu den Gemeinschaftskonto-Fixkosten abgezogen."
-                : "Standardmäßig deaktiviert, um Doppelzählungen mit bereits über das Gemeinschaftskonto erkannten Fixkosten zu vermeiden."}
-            </p>
-          ) : null}
+          <p className="text-[11px] text-[var(--text-secondary)]">
+            {includeContractItems
+              ? "Aktiviert: Diese Vertragsraten werden zusätzlich zu den Gemeinschaftskonto-Fixkosten abgezogen."
+              : "Standardmäßig deaktiviert, um Doppelzählungen mit bereits über das Gemeinschaftskonto erkannten Fixkosten zu vermeiden."}
+          </p>
 
           {derivedContractItems.length === 0 ? (
             <p className="text-xs text-[var(--text-secondary)]">
@@ -1073,7 +1006,7 @@ export function AllokationWorkspace({
               Hinweis:{" "}
               <span className="tabular-nums">{excludedContractsCount}</span>{" "}
               persönliche oder pausierte/geschlossene Verträge fließen bewusst
-              nicht in {mode === "mode_b" ? "Modus B" : "Modus A"} ein.
+              nicht in den Haushalts-Cashflow ein.
             </p>
           ) : null}
         </div>
@@ -1360,7 +1293,7 @@ export function AllokationWorkspace({
         open={allocateModalOpen}
         onOpenChange={setAllocateModalOpen}
         pots={pots}
-        monthlySurplusCents={activeSurplusCents}
+        monthlySurplusCents={consolidatedSummary.monthlySurplusCents}
         onAllocated={() => router.refresh()}
       />
     </div>

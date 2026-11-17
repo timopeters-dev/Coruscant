@@ -153,10 +153,10 @@ function CashflowItemModalInner({
       onOpenChange={onOpenChange}
       title={
         isEditing
-          ? "Haushalts-Position bearbeiten"
-          : "Neue Haushalts-Position (Modus A)"
+          ? "Optionalen Plan-Posten bearbeiten"
+          : "Neuer optionaler Plan-Posten"
       }
-      description="Modellierte Pauschale oder regelmäßige Einnahme bzw. Ausgabe."
+      description="Modellierte Zusatz-Annahme (z. B. zukünftige Ausgabe oder regelmäßige Sonder-Einnahme)."
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {errors.general ? (
@@ -241,7 +241,7 @@ function CashflowItemModalInner({
             onChange={(e) => setActive(e.target.checked)}
             className="h-4 w-4 rounded border-[var(--border)] accent-[var(--accent)]"
           />
-          <span>Position aktiv in Modus A berücksichtigen</span>
+          <span>Plan-Posten aktiv im Haushalts-Überschuss berücksichtigen</span>
         </label>
 
         <div className="flex items-center justify-end gap-2 border-t border-[var(--border)] pt-4">

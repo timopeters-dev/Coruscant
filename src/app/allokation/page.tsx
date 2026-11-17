@@ -10,10 +10,7 @@ import {
   parseSnapshotHousehold,
 } from "@/db/queries/cockpit";
 import { listContracts, listProperties } from "@/db/queries/contracts";
-import {
-  calculateMonthlyCashflow,
-  deriveContractCashflowItems,
-} from "@/lib/domain/cashflow";
+import { deriveContractCashflowItems } from "@/lib/domain/cashflow";
 import { getFinanzCockpitBridgeConfig } from "@/lib/integrations/finanz-cockpit-client";
 import { resolveHouseholdDataForWorkspace } from "@/lib/integrations/household-dummy";
 
@@ -33,17 +30,12 @@ export default function AllokationPage() {
   const resolvedHousehold = resolveHouseholdDataForWorkspace(snapshotHousehold);
 
   const derivedContractItems = deriveContractCashflowItems(contracts);
-  const summary = calculateMonthlyCashflow([
-    ...manualItems,
-    ...derivedContractItems,
-  ]);
   const excludedContractsCount = contracts.length - derivedContractItems.length;
 
   return (
     <AllokationWorkspace
       manualItems={manualItems}
       derivedContractItems={derivedContractItems}
-      summary={summary}
       excludedContractsCount={excludedContractsCount}
       pots={pots}
       recentAllocations={recentAllocations}

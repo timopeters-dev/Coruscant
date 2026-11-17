@@ -216,3 +216,39 @@ Anforderungen an Slice 11:
 
 Starte gemäß `.agent/workflows/plan-slice.md` erst mit Analyse & Tech-Lead-Interview und speichere den Plan unter `tasks/plan-slice-11.md`.
 ```
+
+---
+
+### Slice 7b: Vereinfachung `/allokation` auf das 3-Konten-Zielbild (Modus-A-Toggle entfernen)
+
+* **Ziel & Scope:**
+  * Da Coruscant erst mit aktivem 3-Konten-Modell in Produktivbetrieb geht (`ADR-009`), wird der doppelte Modus-A/B-Umschalter auf `/allokation` entfernt.
+  * `/allokation` zeigt direkt **ein einheitliches, finales Modell**:
+    1. **Live-Basis aus `finanz_cockpit`** (Gemeinschaftskonto-Gehälter, Fixkosten & variable Alltagskosten mit Live-Toggle *Plan-Budget* ↔ *Ø 3M* ↔ *Ø 6M*),
+    2. **plus optionale manuelle Plan-Posten** (`cashflow_items`) für zukünftige/geplante Änderungen (*Modelliert*).
+  * Der Dev-Dummy-Fallback bleibt sauber in der Bridge-/Integrationsschicht gekapselt, falls lokal noch keine echten `household`-Daten ankommen.
+* **Akzeptanzkriterien:**
+  * Keine verwirrende Modus-A/Modus-B-Umschaltung mehr in der UI; `/allokation` fühlt sich exakt so an wie im späteren Live-Betrieb.
+  * `pnpm typecheck`, `pnpm lint`, `pnpm test` laufen mit 0 Fehlern durch.
+
+#### Prompt für `/plan-slice` (Slice 7b)
+
+```text
+/plan-slice Wir planen Coruscant v2 – Slice 7b: Vereinfachung `/allokation` auf das einheitliche 3-Konten-Zielbild (Entfernung Modus-A/B-Umschalter).
+
+Kontext & Vorgaben:
+- Lies zuerst `AGENTS.md`, `docs/SPEC.md`, `docs/DESIGN-SYSTEM.md`, `docs/V2-ROADMAP.md`, `src/lib/domain/cashflow.ts`, `src/db/queries/allocation.ts` und `src/components/allokation/allokation-workspace.tsx`.
+- Ziel: Die App soll sich auf `dev` bereits exakt so verhalten und anfühlen wie später live im 3-Konten-Modell.
+
+Anforderungen an Slice 7b:
+1. UI-Bereinigung (`allokation-workspace.tsx`):
+   - Entferne den Modus-A/Modus-B-Schalter aus `/allokation`.
+   - Zeige oben klar die **Gemeinschaftskonto-Basis** (`finanz_cockpit`-Sync: Gehälter, Fixkosten, variabler Kosten-Toggle *Plan-Budget* ↔ *Ø 3M* ↔ *Ø 6M*) mit Status *Geeicht* (bzw. dezentem Hinweis, falls Dev-Dummy-Daten aktiv sind).
+   - Zeige darunter als aufgeräumte Sektion die **Optionalen Plan-Posten (`Modelliert`)** für manuelle Zusatz-Annahmen (z. B. zukünftige Ausgaben/Einnahmen, plus verknüpfte Coruscant-Vertragsraten ohne Doppelzählung).
+2. Domäne & API:
+   - Bereinige `cashflow.ts` / `allocation.ts`, sodass immer die konsolidierte Berechnung (Bridge-Haushaltsdaten + optionale manuelle Plan-Posten) aktiv ist.
+3. Tests:
+   - Bestehende Cashflow- & API-Tests sauber auf das einheitliche Modell aktualisieren und mit 0 Fehlern bestehen.
+
+Starte gemäß `.agent/workflows/plan-slice.md` erst mit Analyse & Tech-Lead-Interview und speichere den Plan unter `tasks/plan-slice-7b.md`.
+```

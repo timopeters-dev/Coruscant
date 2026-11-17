@@ -11,7 +11,6 @@ import {
 } from "@/db/schema";
 import {
   type AllocationSettings,
-  allocationModeSchema,
   allocationSettingsSchema,
   variableExpenseBasisSchema,
 } from "@/lib/validation/external";
@@ -595,15 +594,15 @@ export function executeWaterfallAllocation(
 // --- Allocation Settings (app_meta) ---
 
 const ALLOCATION_META_KEYS = {
-  mode: "allocation_cashflow_mode",
   variableBasis: "allocation_variable_basis",
-  includeContractsInModeB: "allocation_include_contracts_mode_b",
+  includeContractItems: "allocation_include_contract_items",
 } as const;
 
+const LEGACY_INCLUDE_CONTRACTS_KEY = "allocation_include_contracts_mode_b";
+
 export const DEFAULT_ALLOCATION_SETTINGS: AllocationSettings = {
-  mode: "mode_a",
   variableBasis: "budget",
-  includeContractsInModeB: false,
+  includeContractItems: false,
 };
 
 export function getAllocationSettings(): AllocationSettings {
@@ -613,34 +612,32 @@ export function getAllocationSettings(): AllocationSettings {
     .from(appMeta)
     .where(
       inArray(appMeta.key, [
-        ALLOCATION_META_KEYS.mode,
         ALLOCATION_META_KEYS.variableBasis,
-        ALLOCATION_META_KEYS.includeContractsInModeB,
+        ALLOCATION_META_KEYS.includeContractItems,
+        LEGACY_INCLUDE_CONTRACTS_KEY,
       ]),
     )
     .all();
 
   const map = new Map(rows.map((r) => [r.key, r.value]));
 
-  const parsedMode = allocationModeSchema.safeParse(
-    map.get(ALLOCATION_META_KEYS.mode),
-  );
   const parsedBasis = variableExpenseBasisSchema.safeParse(
     map.get(ALLOCATION_META_KEYS.variableBasis),
   );
-  const rawInclude = map.get(ALLOCATION_META_KEYS.includeContractsInModeB);
+  const rawInclude =
+    map.get(ALLOCATION_META_KEYS.includeContractItems) ??
+    map.get(LEGACY_INCLUDE_CONTRACTS_KEY);
 
   return {
-    mode: parsedMode.success ? parsedMode.data : DEFAULT_ALLOCATION_SETTINGS.mode,
     variableBasis: parsedBasis.success
       ? parsedBasis.data
       : DEFAULT_ALLOCATION_SETTINGS.variableBasis,
-    includeContractsInModeB:
+    includeContractItems:
       rawInclude === "true"
         ? true
         : rawInclude === "false"
           ? false
-          : DEFAULT_ALLOCATION_SETTINGS.includeContractsInModeB,
+          : DEFAULT_ALLOCATION_SETTINGS.includeContractItems,
   };
 }
 
@@ -649,21 +646,19 @@ export function saveAllocationSettings(
 ): AllocationSettings {
   const current = getAllocationSettings();
   const next = allocationSettingsSchema.parse({
-    mode: patch.mode ?? current.mode,
     variableBasis: patch.variableBasis ?? current.variableBasis,
-    includeContractsInModeB:
-      patch.includeContractsInModeB ?? current.includeContractsInModeB,
+    includeContractItems:
+      patch.includeContractItems ?? current.includeContractItems,
   });
 
   const db = getDb();
   const now = new Date().toISOString();
 
   const entries: Array<{ key: string; value: string }> = [
-    { key: ALLOCATION_META_KEYS.mode, value: next.mode },
     { key: ALLOCATION_META_KEYS.variableBasis, value: next.variableBasis },
     {
-      key: ALLOCATION_META_KEYS.includeContractsInModeB,
-      value: String(next.includeContractsInModeB),
+      key: ALLOCATION_META_KEYS.includeContractItems,
+      value: String(next.includeContractItems),
     },
   ];
 

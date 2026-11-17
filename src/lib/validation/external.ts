@@ -55,16 +55,12 @@ export const externalSyncRequestSchema = z.object({
 
 export type ExternalSyncRequest = z.infer<typeof externalSyncRequestSchema>;
 
-export const allocationModeSchema = z.enum(["mode_a", "mode_b"]);
-export type AllocationMode = z.infer<typeof allocationModeSchema>;
-
 export const variableExpenseBasisSchema = z.enum(["budget", "avg_3m", "avg_6m"]);
 export type VariableExpenseBasis = z.infer<typeof variableExpenseBasisSchema>;
 
 export const allocationSettingsSchema = z.object({
-  mode: allocationModeSchema,
   variableBasis: variableExpenseBasisSchema,
-  includeContractsInModeB: z.boolean(),
+  includeContractItems: z.boolean(),
 });
 
 export type AllocationSettings = z.infer<typeof allocationSettingsSchema>;

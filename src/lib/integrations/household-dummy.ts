@@ -25,7 +25,7 @@ export function getHouseholdDummyMode(
 
 /**
  * Returns deterministic, strictly fictional household dummy data (integer cents)
- * for Modus B development and preview when no live household bridge data exists.
+ * for joint household bridge development and preview when no live household bridge data exists.
  */
 export function buildDummyHouseholdSummary(): HouseholdSummary {
   return {

@@ -3,7 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import * as dbModule from "@/db";
-import { cashflowItems } from "@/db/schema";
+import { cashflowItems, externalSnapshots } from "@/db/schema";
+import { PATCH as patchAllocationSettings } from "@/app/api/allocation/settings/route";
 import { POST as createContract } from "@/app/api/contracts/route";
 import { PATCH as patchContract } from "@/app/api/contracts/[id]/route";
 import {
@@ -15,11 +16,13 @@ import { GET as listCashflowItems, POST as createCashflowItem } from "./route";
 
 const tempDirs: string[] = [];
 const originalDbUrl = process.env.DATABASE_URL;
+const originalHouseholdDummy = process.env.CORUSCANT_HOUSEHOLD_DUMMY;
 
 beforeEach(() => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coruscant-cashflow-"));
   tempDirs.push(dir);
   process.env.DATABASE_URL = path.join(dir, "test.db");
+  process.env.CORUSCANT_HOUSEHOLD_DUMMY = "false";
 });
 
 afterEach(() => {
@@ -28,6 +31,11 @@ afterEach(() => {
     delete process.env.DATABASE_URL;
   } else {
     process.env.DATABASE_URL = originalDbUrl;
+  }
+  if (originalHouseholdDummy === undefined) {
+    delete process.env.CORUSCANT_HOUSEHOLD_DUMMY;
+  } else {
+    process.env.CORUSCANT_HOUSEHOLD_DUMMY = originalHouseholdDummy;
   }
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();
@@ -127,9 +135,11 @@ describe("/api/cashflow-items CRUD & live contract derivation", () => {
         amountCents: number;
       }>;
       summary: {
+        hasHouseholdData: boolean;
         totalInflowCents: number;
         totalOutflowCents: number;
         monthlySurplusCents: number;
+        contractOutflowCents: number;
       };
     };
     expect(listBody1.items).toHaveLength(2);
@@ -137,12 +147,37 @@ describe("/api/cashflow-items CRUD & live contract derivation", () => {
     expect(listBody1.derivedContractItems[0]?.linkedContractId).toBe(
       householdContract.id,
     );
-    // 450_000 inflow - (10_000 quarterly/3 + 120_000 contract) = 320_000
+    // Without snapshot (household: null) and includeContractItems=false:
+    // 450_000 inflow - 10_000 quarterly/3 = 440_000
+    expect(listBody1.summary.hasHouseholdData).toBe(false);
     expect(listBody1.summary.totalInflowCents).toBe(450_000);
-    expect(listBody1.summary.totalOutflowCents).toBe(130_000);
-    expect(listBody1.summary.monthlySurplusCents).toBe(320_000);
+    expect(listBody1.summary.totalOutflowCents).toBe(10_000);
+    expect(listBody1.summary.contractOutflowCents).toBe(0);
+    expect(listBody1.summary.monthlySurplusCents).toBe(440_000);
 
-    // 4. Pausing household contract immediately removes it from summary
+    // 4. Enabling includeContractItems adds derived contract rate to summary
+    const enableContractsRes = await patchAllocationSettings(
+      new Request("http://localhost/api/allocation/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ includeContractItems: true }),
+      }),
+    );
+    expect(enableContractsRes.status).toBe(200);
+
+    const listResWithContracts = await listCashflowItems();
+    const listBodyWithContracts = (await listResWithContracts.json()) as {
+      summary: {
+        totalOutflowCents: number;
+        contractOutflowCents: number;
+        monthlySurplusCents: number;
+      };
+    };
+    expect(listBodyWithContracts.summary.contractOutflowCents).toBe(120_000);
+    expect(listBodyWithContracts.summary.totalOutflowCents).toBe(130_000);
+    expect(listBodyWithContracts.summary.monthlySurplusCents).toBe(320_000);
+
+    // 5. Pausing household contract immediately removes it from summary
     const pauseRes = await patchContract(
       new Request(`http://localhost/api/contracts/${householdContract.id}`, {
         method: "PATCH",
@@ -192,6 +227,99 @@ describe("/api/cashflow-items CRUD & live contract derivation", () => {
       { params: Promise.resolve({ id: outflow.id }) },
     );
     expect(delRes.status).toBe(200);
+  });
+
+  it("computes consolidated summary from stored external_snapshots.household_json and respects variableBasis & includeContractItems", async () => {
+    const db = dbModule.getDb();
+    db.insert(externalSnapshots)
+      .values({
+        id: "snap-household-1",
+        source: "finanz_cockpit",
+        liquidCashCents: 1_000_000,
+        etfStocksCents: 2_000_000,
+        cryptoCents: 0,
+        totalPersonalNetWorthCents: 3_000_000,
+        householdJson: JSON.stringify({
+          balanceCents: 400_000,
+          recurringInflowCents: 500_000,
+          recurringOutflowCents: 200_000,
+          variableBudgetsCents: 80_000,
+          variableRollingAvg3MCents: 95_000,
+          variableRollingAvg6MCents: 90_000,
+          categoriesBreakdown: [],
+        }),
+        fetchedAt: "2026-11-17T10:00:00.000Z",
+      })
+      .run();
+
+    await createContract(
+      new Request("http://localhost/api/contracts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Hauskredit Musterbank",
+          sphere: "household",
+          category: "loan",
+          status: "active",
+          currentBalanceCents: 15_000_000,
+          balanceAsOfDate: "2026-11-01",
+          monthlyRateCents: 100_000,
+          interestRateBps: 320,
+        }),
+      }),
+    );
+
+    await patchAllocationSettings(
+      new Request("http://localhost/api/allocation/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          variableBasis: "avg_3m",
+          includeContractItems: false,
+        }),
+      }),
+    );
+
+    const resNoContract = await listCashflowItems();
+    expect(resNoContract.status).toBe(200);
+    const bodyNoContract = (await resNoContract.json()) as {
+      summary: {
+        hasHouseholdData: boolean;
+        calibratedInflowCents: number;
+        calibratedFixedOutflowCents: number;
+        variableOutflowCents: number;
+        contractOutflowCents: number;
+        monthlySurplusCents: number;
+        selectedVariableBasis: string;
+      };
+    };
+    expect(bodyNoContract.summary).toMatchObject({
+      hasHouseholdData: true,
+      calibratedInflowCents: 500_000,
+      calibratedFixedOutflowCents: 200_000,
+      variableOutflowCents: 95_000,
+      contractOutflowCents: 0,
+      monthlySurplusCents: 205_000,
+      selectedVariableBasis: "avg_3m",
+    });
+
+    await patchAllocationSettings(
+      new Request("http://localhost/api/allocation/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ includeContractItems: true }),
+      }),
+    );
+
+    const resWithContract = await listCashflowItems();
+    const bodyWithContract = (await resWithContract.json()) as {
+      summary: {
+        contractOutflowCents: number;
+        monthlySurplusCents: number;
+      };
+    };
+    expect(bodyWithContract.summary.contractOutflowCents).toBe(100_000);
+    expect(bodyWithContract.summary.monthlySurplusCents).toBe(105_000);
   });
 
   it("rejects invalid amounts, unknown ids, and does not leak internal paths", async () => {
