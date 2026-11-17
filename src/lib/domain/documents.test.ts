@@ -5,7 +5,6 @@ import {
   evaluateContractCalibration,
   filterVerifiedDocuments,
   resolveDocumentTaxYear,
-  summarizeTaxDocuments,
 } from "./documents";
 
 const sampleLoan: DomainContract = {
@@ -172,111 +171,5 @@ describe("filterVerifiedDocuments", () => {
         contractId: "c-1",
       }).map((d) => d.id),
     ).toEqual(["d2", "d4"]);
-  });
-});
-
-describe("summarizeTaxDocuments", () => {
-  it("ignores pending_review and non-tax-relevant documents and summarizes by category", () => {
-    const docs = [
-      makeDoc({
-        id: "pending",
-        status: "pending_review",
-        totalAmountCents: 999_900,
-        deductibleAmountCents: 500_000,
-      }),
-      makeDoc({
-        id: "non-tax",
-        status: "verified",
-        isTaxRelevant: false,
-        totalAmountCents: 50_000,
-        deductibleAmountCents: null,
-      }),
-      makeDoc({
-        id: "handwerker",
-        taxYear: 2025,
-        taxCategory: "handwerker_35a",
-        totalAmountCents: 120_000,
-        deductibleAmountCents: 84_000,
-      }),
-      makeDoc({
-        id: "haushalt",
-        taxYear: 2025,
-        taxCategory: "haushaltsnahe_dl_35a",
-        totalAmountCents: 30_000,
-        deductibleAmountCents: 30_000,
-      }),
-      makeDoc({
-        id: "vv",
-        taxYear: 2025,
-        taxCategory: "werbungskosten_vv",
-        totalAmountCents: 40_000,
-        deductibleAmountCents: 40_000,
-      }),
-      makeDoc({
-        id: "other-year",
-        taxYear: 2024,
-        taxCategory: "handwerker_35a",
-        totalAmountCents: 10_000,
-        deductibleAmountCents: 10_000,
-      }),
-    ];
-
-    const summary = summarizeTaxDocuments(docs, 2025);
-    expect(summary.taxYear).toBe(2025);
-    expect(summary.documentCount).toBe(3);
-    expect(summary.totalAmountCents).toBe(190_000);
-    expect(summary.totalDeductibleCents).toBe(154_000);
-    expect(summary.section35aBaseCents).toBe(114_000);
-    expect(summary.estimatedSection35aCreditCents).toBe(22_800);
-    expect(summary.byCategory).toEqual([
-      {
-        category: "handwerker_35a",
-        documentCount: 1,
-        totalAmountCents: 120_000,
-        deductibleAmountCents: 84_000,
-      },
-      {
-        category: "haushaltsnahe_dl_35a",
-        documentCount: 1,
-        totalAmountCents: 30_000,
-        deductibleAmountCents: 30_000,
-      },
-      {
-        category: "werbungskosten_vv",
-        documentCount: 1,
-        totalAmountCents: 40_000,
-        deductibleAmountCents: 40_000,
-      },
-    ]);
-  });
-
-  it("rounds § 35a estimate half-up in integer cents and supports 0-cent documents", () => {
-    const docs = [
-      makeDoc({
-        id: "round-up",
-        taxCategory: "handwerker_35a",
-        totalAmountCents: 3,
-        deductibleAmountCents: 3, // 3 * 20 / 100 = 0.6 -> 1 cent
-      }),
-      makeDoc({
-        id: "zero",
-        taxCategory: "haushaltsnahe_dl_35a",
-        totalAmountCents: 0,
-        deductibleAmountCents: 0,
-      }),
-    ];
-
-    const summary = summarizeTaxDocuments(docs, 2025);
-    expect(summary.section35aBaseCents).toBe(3);
-    expect(summary.estimatedSection35aCreditCents).toBe(1);
-  });
-
-  it("throws RangeError on negative amounts", () => {
-    const docs = [
-      makeDoc({
-        totalAmountCents: -100,
-      }),
-    ];
-    expect(() => summarizeTaxDocuments(docs)).toThrow(RangeError);
   });
 });

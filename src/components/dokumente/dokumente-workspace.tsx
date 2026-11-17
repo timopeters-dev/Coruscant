@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import type { FinancialContractRow, PropertyRow } from "@/db/queries/contracts";
 import type { DocumentRow } from "@/db/queries/documents";
+import { DokumenteViewSwitch } from "./dokumente-view-switch";
 import { DocumentArchive } from "./document-archive";
 import { DocumentReviewPanel } from "./document-review-panel";
 import { PdfUploadDropzone } from "./pdf-upload-dropzone";
@@ -36,6 +37,7 @@ export function DokumenteWorkspace({
 
   return (
     <div className="space-y-8">
+      <DokumenteViewSwitch active="inbox" />
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">
           KI-Dokumenten-Inbox

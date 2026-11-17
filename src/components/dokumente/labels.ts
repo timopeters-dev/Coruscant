@@ -1,4 +1,5 @@
 import type { DocumentType, TaxCategory } from "@/lib/domain/documents";
+import { TAX_BUCKET_LABELS } from "@/lib/domain/tax-labels";
 
 export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   invoice: "Rechnung",
@@ -10,11 +11,11 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
 };
 
 export const TAX_CATEGORY_LABELS: Record<TaxCategory, string> = {
-  handwerker_35a: "Handwerkerleistung (§ 35a)",
-  haushaltsnahe_dl_35a: "Haushaltsnahe Dienstleistung (§ 35a)",
-  werbungskosten_vv: "Werbungskosten (V+V)",
-  capital_gains: "Kapitalerträge",
-  other: "Sonstiges",
+  handwerker_35a: TAX_BUCKET_LABELS.handwerker_35a,
+  haushaltsnahe_dl_35a: TAX_BUCKET_LABELS.haushaltsnahe_dl_35a,
+  werbungskosten_vv: TAX_BUCKET_LABELS.werbungskosten_vv,
+  capital_gains: TAX_BUCKET_LABELS.capital_gains,
+  other: TAX_BUCKET_LABELS.other,
 };
 
 export const DOCUMENT_TYPE_OPTIONS: readonly DocumentType[] = [

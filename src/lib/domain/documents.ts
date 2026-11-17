@@ -3,11 +3,7 @@ import {
   projectContractBalance,
 } from "./contracts";
 import { parseIsoDate } from "./date";
-import {
-  assertNonNegativeInteger,
-  assertSafeInteger,
-  roundHalfUpBigInt,
-} from "./money";
+import { assertNonNegativeInteger, assertSafeInteger } from "./money";
 
 export type DocumentStatus = "pending_review" | "verified";
 
@@ -60,23 +56,6 @@ export interface ContractCalibrationEvaluation {
   newBalanceCents: number;
   deltaToStoredCents: number;
   deltaToProjectedCents: number;
-}
-
-export interface TaxCategorySummary {
-  category: TaxCategory;
-  documentCount: number;
-  totalAmountCents: number;
-  deductibleAmountCents: number;
-}
-
-export interface TaxYearSummary {
-  taxYear: number | null;
-  documentCount: number;
-  totalAmountCents: number;
-  totalDeductibleCents: number;
-  section35aBaseCents: number;
-  estimatedSection35aCreditCents: number;
-  byCategory: TaxCategorySummary[];
 }
 
 export interface VerifiedDocumentFilters {
@@ -182,105 +161,4 @@ export function filterVerifiedDocuments<
     }
     return true;
   });
-}
-
-/**
- * Summarizes verified, tax-relevant documents for an optional tax year,
- * computing category totals and an informative 20% § 35a credit estimate.
- */
-export function summarizeTaxDocuments(
-  documents: readonly DomainDocument[],
-  taxYearFilter?: number | null,
-): TaxYearSummary {
-  const relevantDocs = filterVerifiedDocuments(documents, {
-    taxYear: taxYearFilter ?? null,
-    onlyTaxRelevant: true,
-  });
-
-  const categoryTotals = new Map<
-    TaxCategory,
-    { documentCount: number; totalAmountCents: number; deductibleAmountCents: number }
-  >();
-
-  let totalAmountCents = 0;
-  let totalDeductibleCents = 0;
-  let section35aBaseCents = 0;
-
-  for (const doc of relevantDocs) {
-    const docTotal =
-      doc.totalAmountCents != null
-        ? assertNonNegativeInteger(doc.totalAmountCents, "totalAmountCents")
-        : 0;
-    const docDeductible =
-      doc.deductibleAmountCents != null
-        ? assertNonNegativeInteger(
-            doc.deductibleAmountCents,
-            "deductibleAmountCents",
-          )
-        : 0;
-
-    const category: TaxCategory = doc.taxCategory ?? "other";
-    const existing = categoryTotals.get(category) ?? {
-      documentCount: 0,
-      totalAmountCents: 0,
-      deductibleAmountCents: 0,
-    };
-
-    existing.documentCount += 1;
-    existing.totalAmountCents = assertNonNegativeInteger(
-      existing.totalAmountCents + docTotal,
-      "categoryTotalAmountCents",
-    );
-    existing.deductibleAmountCents = assertNonNegativeInteger(
-      existing.deductibleAmountCents + docDeductible,
-      "categoryDeductibleAmountCents",
-    );
-    categoryTotals.set(category, existing);
-
-    totalAmountCents = assertNonNegativeInteger(
-      totalAmountCents + docTotal,
-      "totalAmountCents",
-    );
-    totalDeductibleCents = assertNonNegativeInteger(
-      totalDeductibleCents + docDeductible,
-      "totalDeductibleCents",
-    );
-
-    if (
-      category === "handwerker_35a" ||
-      category === "haushaltsnahe_dl_35a"
-    ) {
-      section35aBaseCents = assertNonNegativeInteger(
-        section35aBaseCents + docDeductible,
-        "section35aBaseCents",
-      );
-    }
-  }
-
-  const byCategory: TaxCategorySummary[] = [];
-  for (const category of TAX_CATEGORIES) {
-    const entry = categoryTotals.get(category);
-    if (entry) {
-      byCategory.push({
-        category,
-        documentCount: entry.documentCount,
-        totalAmountCents: entry.totalAmountCents,
-        deductibleAmountCents: entry.deductibleAmountCents,
-      });
-    }
-  }
-
-  const estimatedSection35aCreditCents = Number(
-    roundHalfUpBigInt(BigInt(section35aBaseCents) * 20n, 100n),
-  );
-
-  return {
-    taxYear: taxYearFilter ?? null,
-    documentCount: relevantDocs.length,
-    totalAmountCents,
-    totalDeductibleCents,
-    section35aBaseCents,
-    estimatedSection35aCreditCents,
-    byCategory,
-  };
 }

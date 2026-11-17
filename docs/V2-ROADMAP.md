@@ -33,7 +33,7 @@ flowchart LR
 | **Slice 8** | Topf-zu-Konto/Depot-Sync | Virtuelle Töpfe (Notgroschen, ETF-Tilgungsersatz) mit echten Konten/Depots koppeln und automatisch eichen. |
 | **Slice 9** | Szenario-Labor („Was-wäre-wenn?“) | Fundierter Vergleich *Sondertilgung vs. ETF-Ansparung* und *Gehaltssprung-Simulation* mit Schiebereglern. Vorabpauschale bewusst nicht modelliert (konservativ für ETF). |
 | **Slice 10** ✅ | KI-Investment-Coach (Einsteiger-Assistent) | Portfolio- & Risiko-Analyse auf Basis echter Depot-Positionen aus `finanz_cockpit` + eigener Lebensziele. |
-| **Slice 11** | Zentraler Steuer-Sammler | Jahresübersicht aller steuerrelevanten Belege/Posten pro §-Kategorie inkl. Export-Mappe. |
+| **Slice 11** ✅ | Zentraler Steuer-Sammler | Jahresübersicht aller steuerrelevanten Belege/Posten pro §-Kategorie inkl. Export-Mappe. Umgesetzt unter `/dokumente/steuer`: unvollständige Belege zählen mit und werden markiert (Bucket *Nicht zugeordnet*), § 35a je Kategorie gedeckelt über versionierte Regeltabelle (Richtwert *Modelliert*, Rechtsstand-Hinweis), Kapitalerträge nur informativ, ZIP-Mappe via `fflate` (PDFs `level: 0`, fehlende Dateien ausgewiesen, 250-MB-Limit), CSV mit Formel-Injection-Schutz. Keine Schema-Änderung, keine DB-Mutation. |
 
 ---
 

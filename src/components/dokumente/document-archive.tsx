@@ -1,11 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import * as React from "react";
-import { ExternalLink, FileCheck2, Pencil, Trash2 } from "lucide-react";
+import { ArrowRight, ExternalLink, FileCheck2, Pencil, Trash2 } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,10 +17,10 @@ import {
   type DocumentType,
   filterVerifiedDocuments,
   resolveDocumentTaxYear,
-  summarizeTaxDocuments,
   TAX_CATEGORIES,
   type TaxCategory,
 } from "@/lib/domain/documents";
+import { listTaxYears } from "@/lib/domain/tax-summary";
 import {
   centsToEuroInputString,
   formatCentsDE,
@@ -93,10 +94,13 @@ export function DocumentArchive({
     });
   }, [verifiedDocuments, parsedTaxYear, entityFilter, onlyTaxRelevant]);
 
-  const taxSummary = React.useMemo(
-    () => summarizeTaxDocuments(filteredDocs, parsedTaxYear),
-    [filteredDocs, parsedTaxYear],
-  );
+  const taxOverviewYear = React.useMemo(() => {
+    const years = listTaxYears(verifiedDocuments);
+    if (years.length === 0) return null;
+    return parsedTaxYear !== null && years.includes(parsedTaxYear)
+      ? parsedTaxYear
+      : years[0];
+  }, [verifiedDocuments, parsedTaxYear]);
 
   async function handleDelete(id: string) {
     setIsDeleting(true);
@@ -172,52 +176,18 @@ export function DocumentArchive({
         </span>
       </div>
 
-      {/* Compact Tax Summary Card */}
-      {taxSummary.documentCount > 0 ? (
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <CardTitle className="text-sm font-semibold">
-                Steuer-Zusammenfassung{" "}
-                {taxSummary.taxYear ? `(${taxSummary.taxYear})` : "(Alle Jahre)"}
-              </CardTitle>
-              <span className="tabular-nums text-sm font-semibold text-[var(--emerald)]">
-                Absetzbar: {formatCentsDE(taxSummary.totalDeductibleCents)}
-              </span>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2.5">
-            <div className="flex flex-wrap gap-2">
-              {taxSummary.byCategory.map((cat) => (
-                <div
-                  key={cat.category}
-                  className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]/40 px-3 py-1.5 text-xs"
-                >
-                  <span className="text-[var(--text-secondary)]">
-                    {TAX_CATEGORY_LABELS[cat.category]}
-                  </span>
-                  <span className="tabular-nums font-semibold text-[var(--text-primary)]">
-                    {formatCentsDE(cat.deductibleAmountCents)}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {taxSummary.section35aBaseCents > 0 ? (
-              <p className="text-xs text-[var(--text-secondary)]">
-                Unverbindlicher § 35a-Richtwert (20 % auf{" "}
-                <span className="tabular-nums">
-                  {formatCentsDE(taxSummary.section35aBaseCents)}
-                </span>{" "}
-                Lohnanteil):{" "}
-                <span className="tabular-nums font-medium text-[var(--text-primary)]">
-                  {formatCentsDE(taxSummary.estimatedSection35aCreditCents)}
-                </span>{" "}
-                (ohne gesetzliche Höchstgrenzen).
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
+      {/* Link zur Steuer-Übersicht (eine Wahrheit statt zwei Aggregationen) */}
+      {taxOverviewYear !== null ? (
+        <Link
+          href={`/dokumente/steuer?jahr=${taxOverviewYear}`}
+          className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-elevated)]"
+        >
+          <span>
+            Steuer-Übersicht{" "}
+            <span className="tabular-nums">{taxOverviewYear}</span> öffnen
+          </span>
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
       ) : null}
 
       {/* Archive list */}

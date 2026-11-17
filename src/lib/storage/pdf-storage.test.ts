@@ -9,6 +9,7 @@ import {
   PdfTooLargeError,
   computeSha256Hex,
   deletePdfFileIfExists,
+  getPdfFileSize,
   readPdfFile,
   resolveSafeStoragePath,
   sanitizeOriginalFilename,
@@ -101,5 +102,14 @@ describe("pdf-storage", () => {
       "Muster_Beleg.pdf",
     );
     expect(sanitizeOriginalFilename("   \u0000  ")).toBe("dokument.pdf");
+  });
+
+  it("getPdfFileSize: Bytegröße, fehlend und Traversal liefern null", () => {
+    const saved = savePdfFile(SAMPLE_PDF, 2026, tempDir);
+    expect(getPdfFileSize(saved.storagePath, tempDir)).toBe(SAMPLE_PDF.byteLength);
+    deletePdfFileIfExists(saved.storagePath, tempDir);
+    expect(getPdfFileSize(saved.storagePath, tempDir)).toBeNull();
+    expect(getPdfFileSize("../../etc/passwd", tempDir)).toBeNull();
+    expect(getPdfFileSize("/etc/passwd", tempDir)).toBeNull();
   });
 });

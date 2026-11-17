@@ -155,3 +155,34 @@ export function deletePdfFileIfExists(
     throw error;
   }
 }
+
+/**
+ * Größe der gespeicherten PDF in Bytes. Fehlende Dateien und unsichere
+ * Pfade liefern `null` (gelten als fehlend).
+ */
+export function getPdfFileSize(
+  storagePath: string,
+  baseDir?: string,
+): number | null {
+  let targetPath: string;
+  try {
+    targetPath = resolveSafeStoragePath(storagePath, baseDir);
+  } catch (error) {
+    if (error instanceof PathTraversalError) return null;
+    throw error;
+  }
+  try {
+    const stat = fs.statSync(targetPath);
+    return stat.isFile() ? stat.size : null;
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "ENOENT"
+    ) {
+      return null;
+    }
+    throw error;
+  }
+}
