@@ -15,15 +15,15 @@
   - Niemals selbst auf `main` pushen oder mergen ohne explizite Freigabe.
 
 ## 2. Architektur-Grenzen
-- **Domänen-Isolation (`src/lib/domain/`):** Alle Berechnungen (Wasserfall-Verteilung, Vertrags-Fortschreibung, Cashflow-Adapter, Bilanz-Summen) gehören hierhin. **Keine** Next.js-, React-, HTTP- oder DB-Imports (`src/db/`).
-- **Datenbank (`src/db/`):** Alle SQLite-Zugriffe laufen ausschließlich über Drizzle ORM in `src/db/`.
+- **Domänen-Isolation (`src/lib/domain/`):** Alle Berechnungen (Wasserfall-Verteilung, Vertrags-Fortschreibung, Cashflow, Bilanz-Summen) gehören hierhin. Isolation (kein Next/React/DB/fs) und „DB-Libs nur in `src/db/`“ erzwingt `pnpm lint`.
+- **Datenbank (`src/db/`):** Alle SQLite-Zugriffe laufen über Drizzle ORM in `src/db/`.
 - **Validierung & KI (`zod`):** API-Inputs und strukturierte KI-Outputs (z. B. Dokumenten-Extraktion) werden strikt über `zod`-Schemas validiert.
 - **Generik statt Hardcoding:** Keine Sonderfälle für einzelne Kredite, Personen oder Verträge im Code – alles wird über generische DB-Datensätze und Regeln modelliert.
 
 ## 3. Arithmetik, Design & KI-Konfiguration
 - **Geldbeträge:** Strikte Integer-Cent-Arithmetik (`amountCents`) – niemals `float` für Währungsberechnungen verwenden.
 - **Zinssätze:** Strikte Integer-Basispunkte (`interestRateBps`, z. B. `350` = `3,50 %`).
-- **KI-Konfiguration:** Modell niemals hartcodieren; über `process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL` laden und hinter einem abstrakten KI-Adapter kapseln. KI mutiert Bestandsdaten niemals stillschweigend (immer 1-Klick-Bestätigung durch den Nutzer).
+- **KI-Konfiguration:** Modell nur über `GEMINI_MODEL` (Hartcodieren verhindert `pnpm lint`) hinter einem abstrakten KI-Adapter. KI mutiert Bestandsdaten niemals stillschweigend (immer 1-Klick-Bestätigung durch den Nutzer).
 - **Design-System (`docs/DESIGN-SYSTEM.md`):** „Quiet Galactic Precision“ – `tabular-nums` für alle Beträge/Daten, klare visuelle Trennung von *Geeicht/Ist* (solide) vs. *Modelliert/Schätzung* (`border-dashed`) vs. *KI-Vorschlag* (Amber).
 
 ## 4. Tests, Datenschutz & Sicherheit
