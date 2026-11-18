@@ -25,6 +25,7 @@ export const properties = sqliteTable(
     purchaseDate: text("purchase_date"),
     purchasePriceCents: integer("purchase_price_cents"),
     estimatedValueCents: integer("estimated_value_cents").notNull().default(0),
+    estimatedValueAsOf: text("estimated_value_as_of"),
     maintenanceReservePotId: text("maintenance_reserve_pot_id").references(
       (): AnySQLiteColumn => pots.id,
       { onDelete: "set null" },
@@ -48,6 +49,7 @@ export const properties = sqliteTable(
     energyClass: text("energy_class", {
       enum: ["A+", "A", "B", "C", "D", "E", "F", "G", "H"],
     }),
+    renovations: text("renovations"),
     features: text("features"),
     imagePath: text("image_path"),
     updatedAt: text("updated_at").notNull(),

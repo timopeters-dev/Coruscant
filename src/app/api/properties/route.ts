@@ -3,6 +3,7 @@ import {
   createProperty,
   listProperties,
   MaintenancePotValidationError,
+  PropertyValidationError,
 } from "@/db/queries/contracts";
 import {
   badRequestResponse,
@@ -38,7 +39,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     const property = createProperty(parsed.data);
     return NextResponse.json({ property }, { status: 201 });
   } catch (error) {
-    if (error instanceof MaintenancePotValidationError) {
+    if (
+      error instanceof MaintenancePotValidationError ||
+      error instanceof PropertyValidationError
+    ) {
       return badRequestResponse(error.message, error.fieldErrors);
     }
     return internalErrorResponse();

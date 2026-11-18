@@ -20,10 +20,16 @@ import type { DocumentRow } from "@/db/queries/documents";
 import type { ContractProjectionResult } from "@/lib/domain/contracts";
 import { formatBpsDE, formatCentsDE } from "@/lib/domain/money";
 import type { PropertySummary } from "@/lib/domain/properties";
+import { parseRenovations } from "@/lib/domain/property-renovations";
 import type { RentalMetrics } from "@/lib/domain/rental";
 import type { PurchaseDraft } from "@/lib/validation/property-draft";
-import { getContractTypeLabel, PROPERTY_USAGE_LABELS } from "./labels";
+import {
+  getContractTypeLabel,
+  PROPERTY_USAGE_LABELS,
+  RENOVATION_KIND_LABELS,
+} from "./labels";
 import { LinkedDocumentsSection } from "./linked-documents-section";
+import { PropertyValuationCard } from "./property-valuation-card";
 
 const MAX_CLIENT_IMAGE_BYTES = 5 * 1024 * 1024;
 
@@ -119,6 +125,10 @@ function PropertyDetailDrawerInner({
     property.estimatedValueCents === property.purchasePriceCents;
 
   const formattedAddress = formatPropertyAddress(property);
+  const parsedRenovations = React.useMemo(
+    () => parseRenovations(property.renovations),
+    [property.renovations],
+  );
   const hasMetadata =
     Boolean(formattedAddress) ||
     property.livingAreaSqm != null ||
@@ -126,6 +136,7 @@ function PropertyDetailDrawerInner({
     property.plotAreaSqm != null ||
     property.constructionYear != null ||
     property.energyClass != null ||
+    parsedRenovations.length > 0 ||
     Boolean(property.features);
 
   const isBusy =
@@ -380,6 +391,11 @@ function PropertyDetailDrawerInner({
             <p className="mt-1 tabular-nums text-xl font-semibold text-[var(--sky)]">
               {formatCentsDE(summary.estimatedValueCents)}
             </p>
+            <p className="mt-1 tabular-nums text-xs text-[var(--text-secondary)]">
+              {property.estimatedValueAsOf
+                ? `Stand ${property.estimatedValueAsOf}`
+                : "Stand unbekannt"}
+            </p>
           </div>
 
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]/40 p-4">
@@ -438,6 +454,12 @@ function PropertyDetailDrawerInner({
             </span>
           </div>
         </div>
+
+        <PropertyValuationCard
+          key={property.id}
+          property={property}
+          onMutated={onMutated}
+        />
 
         {/* Stammdaten-Block */}
         {hasMetadata ? (
@@ -504,6 +526,20 @@ function PropertyDetailDrawerInner({
                   Energieklasse
                 </span>
                 <Badge variant="secondary">{property.energyClass}</Badge>
+              </div>
+            ) : null}
+
+            {parsedRenovations.length > 0 ? (
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-[var(--text-secondary)]">Sanierungen</span>
+                <span className="text-right tabular-nums font-medium text-[var(--text-primary)]">
+                  {parsedRenovations
+                    .map(
+                      (item) =>
+                        `${item.year} ${RENOVATION_KIND_LABELS[item.kind]}`,
+                    )
+                    .join(" · ")}
+                </span>
               </div>
             ) : null}
 

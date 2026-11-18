@@ -5,6 +5,11 @@ import type {
   RepaymentType,
 } from "@/lib/domain/contracts";
 import type { PropertyUsage } from "@/lib/domain/properties";
+import type { RenovationKind } from "@/lib/domain/property-renovations";
+import type {
+  ValuationConfidence,
+  ValuationRejectReason,
+} from "@/lib/domain/property-valuation";
 import {
   PROPERTY_ENERGY_CLASSES,
   type PropertyEnergyClass,
@@ -47,3 +52,36 @@ export function getContractTypeLabel(
   }
   return "Kredit";
 }
+
+export const RENOVATION_KIND_LABELS: Record<RenovationKind, string> = {
+  roof: "Dach",
+  windows: "Fenster",
+  heating: "Heizung",
+  facade: "Fassade",
+  insulation: "Dämmung",
+  bathroom: "Bad",
+  kitchen: "Küche",
+  electrical: "Elektrik",
+  plumbing: "Sanitär / Leitungen",
+  full: "Kernsanierung",
+};
+
+export const VALUATION_CONFIDENCE_LABELS: Record<ValuationConfidence, string> = {
+  low: "Niedrig",
+  medium: "Mittel",
+  high: "Hoch",
+};
+
+export const VALUATION_REJECT_REASON_LABELS: Record<
+  ValuationRejectReason,
+  string
+> = {
+  ungrounded: "Keine belegbaren Quellen gefunden. Kein Vorschlag.",
+  non_positive: "Ungültige Schätzwerte erhalten.",
+  bounds_order: "Widersprüchliche Wertspanne erhalten.",
+  price_per_sqm_out_of_range:
+    "Quadratmeterpreis außerhalb des plausiblen Bereichs.",
+  spread_too_wide: "Spanne zu unsicher.",
+  as_of_in_future: "Stand-Datum der Marktdaten liegt in der Zukunft.",
+  as_of_too_old: "Marktdaten sind älter als 24 Monate.",
+};

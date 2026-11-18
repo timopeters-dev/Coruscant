@@ -14,8 +14,18 @@ import {
 } from "@/lib/domain/money";
 import type { PropertyUsage } from "@/lib/domain/properties";
 import { PROPERTY_PURCHASE_LIMITS } from "@/lib/domain/property-purchase-defaults";
+import {
+  MAX_RENOVATIONS,
+  parseRenovations,
+  RENOVATION_KINDS,
+  type Renovation,
+  type RenovationKind,
+} from "@/lib/domain/property-renovations";
 import type { PurchaseDraft } from "@/lib/validation/property-draft";
-import { PROPERTY_ENERGY_CLASS_OPTIONS } from "./labels";
+import {
+  PROPERTY_ENERGY_CLASS_OPTIONS,
+  RENOVATION_KIND_LABELS,
+} from "./labels";
 
 interface PropertyModalProps {
   open: boolean;
@@ -45,6 +55,7 @@ interface FieldErrors {
   plotAreaSqm?: string;
   constructionYear?: string;
   energyClass?: string;
+  renovations?: string;
   features?: string;
   general?: string;
 }
@@ -206,6 +217,21 @@ function PropertyModalInner({
   const [energyClass, setEnergyClass] = React.useState(
     initialProperty?.energyClass ?? "",
   );
+  const initialRenovations = React.useMemo(
+    () =>
+      parseRenovations(initialProperty?.renovations ?? null).map((item) => ({
+        year: String(item.year),
+        kind: item.kind,
+      })),
+    [initialProperty?.renovations],
+  );
+  const [renovations, setRenovations] =
+    React.useState<Array<{ year: string; kind: RenovationKind }>>(
+      initialRenovations,
+    );
+  const [renovationsOpen, setRenovationsOpen] = React.useState(
+    initialRenovations.length > 0,
+  );
   const [features, setFeatures] = React.useState(
     initialProperty?.features ?? "",
   );
@@ -281,6 +307,23 @@ function PropertyModalInner({
 
     if (features.trim().length > 500) {
       nextErrors.features = "Maximal 500 Zeichen erlaubt.";
+    }
+
+    const parsedRenovations: Renovation[] = [];
+    for (let i = 0; i < renovations.length; i++) {
+      const item = renovations[i]!;
+      const yearNum = Number(item.year.trim());
+      if (
+        !item.year.trim() ||
+        !Number.isInteger(yearNum) ||
+        yearNum < 1800 ||
+        yearNum > 2100
+      ) {
+        nextErrors.renovations =
+          "Jede Sanierung benötigt ein gültiges Jahr (1800–2100).";
+        break;
+      }
+      parsedRenovations.push({ year: yearNum, kind: item.kind });
     }
 
     function parseOptionalRentalEuro(
@@ -390,6 +433,8 @@ function PropertyModalInner({
           plotAreaSqm: parsedPlotArea.value,
           constructionYear: parsedConstructionYear.value,
           energyClass: energyClass || null,
+          renovations:
+            parsedRenovations.length > 0 ? parsedRenovations : null,
           features: features.trim() || null,
         }),
       });
@@ -401,6 +446,12 @@ function PropertyModalInner({
       };
 
       if (!response.ok) {
+        const renovationFieldError =
+          data.fieldErrors?.renovations ??
+          Object.entries(data.fieldErrors ?? {}).find(([key]) =>
+            key.startsWith("renovations."),
+          )?.[1];
+
         setErrors({
           name: data.fieldErrors?.name,
           purchaseDate: data.fieldErrors?.purchaseDate,
@@ -422,6 +473,7 @@ function PropertyModalInner({
           plotAreaSqm: data.fieldErrors?.plotAreaSqm,
           constructionYear: data.fieldErrors?.constructionYear,
           energyClass: data.fieldErrors?.energyClass,
+          renovations: renovationFieldError,
           features: data.fieldErrors?.features,
           general: data.error ?? "Speichern fehlgeschlagen.",
         });
@@ -572,6 +624,10 @@ function PropertyModalInner({
                   {errors.estimatedValueEuro}
                 </p>
               ) : null}
+              <p className="text-xs text-[var(--text-secondary)] tabular-nums">
+                Stand: {initialProperty?.estimatedValueAsOf ?? "unbekannt"}. Bei
+                Änderung wird heute gesetzt.
+              </p>
             </div>
           </div>
 
@@ -903,6 +959,105 @@ function PropertyModalInner({
                 </p>
               ) : null}
             </div>
+          </div>
+
+          <div className="space-y-2 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]/40 p-3">
+            <button
+              type="button"
+              onClick={() => setRenovationsOpen((prev) => !prev)}
+              className="flex w-full items-center justify-between text-left text-xs font-medium text-[var(--text-primary)]"
+            >
+              <span>
+                Sanierungen{renovations.length > 0 ? ` (${renovations.length})` : ""}
+              </span>
+              <span className="text-[var(--text-secondary)]">
+                {renovationsOpen ? "Einklappen" : "Aufklappen"}
+              </span>
+            </button>
+
+            {renovationsOpen ? (
+              <div className="space-y-2 pt-1">
+                {renovations.map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <Input
+                      aria-label={`Sanierungsjahr ${idx + 1}`}
+                      inputMode="numeric"
+                      value={item.year}
+                      onChange={(e) =>
+                        setRenovations((prev) =>
+                          prev.map((row, rIdx) =>
+                            rIdx === idx ? { ...row, year: e.target.value } : row,
+                          ),
+                        )
+                      }
+                      placeholder="Jahr (z. B. 2021)"
+                      disabled={isSubmitting}
+                      className="w-28 tabular-nums"
+                    />
+                    <Select
+                      aria-label={`Sanierungsart ${idx + 1}`}
+                      value={item.kind}
+                      onChange={(e) =>
+                        setRenovations((prev) =>
+                          prev.map((row, rIdx) =>
+                            rIdx === idx
+                              ? { ...row, kind: e.target.value as RenovationKind }
+                              : row,
+                          ),
+                        )
+                      }
+                      disabled={isSubmitting}
+                      className="flex-1"
+                    >
+                      {RENOVATION_KINDS.map((kind) => (
+                        <option key={kind} value={kind}>
+                          {RENOVATION_KIND_LABELS[kind]}
+                        </option>
+                      ))}
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setRenovations((prev) =>
+                          prev.filter((_, rIdx) => rIdx !== idx),
+                        )
+                      }
+                      disabled={isSubmitting}
+                    >
+                      Entfernen
+                    </Button>
+                  </div>
+                ))}
+
+                <div className="flex items-center justify-between gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setRenovations((prev) => [
+                        ...prev,
+                        { year: "", kind: "roof" },
+                      ])
+                    }
+                    disabled={isSubmitting || renovations.length >= MAX_RENOVATIONS}
+                  >
+                    Sanierung hinzufügen
+                  </Button>
+                  <span className="text-[11px] text-[var(--text-secondary)]">
+                    Max. {MAX_RENOVATIONS} Einträge, kein Freitext
+                  </span>
+                </div>
+
+                {errors.renovations ? (
+                  <p className="text-xs text-[var(--rose)]">
+                    {errors.renovations}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <div className="space-y-1.5">

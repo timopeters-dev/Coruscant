@@ -334,4 +334,84 @@ describe("contractCreateSchema & contractUpdateSchema", () => {
 
     expect(contractUpdateSchema.safeParse({}).success).toBe(false);
   });
+
+  it("validates property renovations and estimatedValueAsOf", () => {
+    const valid = propertyCreateSchema.parse({
+      name: "Wohnung Musterstraße 1",
+      estimatedValueCents: 30_000_000,
+      estimatedValueAsOf: "2026-11-01",
+      constructionYear: 1998,
+      renovations: [
+        { year: 2019, kind: "roof" },
+        { year: 2021, kind: "heating" },
+      ],
+    });
+    expect(valid.estimatedValueAsOf).toBe("2026-11-01");
+    expect(valid.renovations).toHaveLength(2);
+
+    expect(
+      propertyUpdateSchema.parse({ estimatedValueAsOf: null })
+        .estimatedValueAsOf,
+    ).toBeNull();
+
+    expect(
+      propertyCreateSchema.safeParse({
+        name: "Wohnung Musterstraße 1",
+        estimatedValueCents: 30_000_000,
+        estimatedValueAsOf: "18.11.2026",
+      }).success,
+    ).toBe(false);
+
+    // > 10 entries
+    expect(
+      propertyCreateSchema.safeParse({
+        name: "Wohnung Musterstraße 1",
+        estimatedValueCents: 30_000_000,
+        renovations: Array.from({ length: 11 }, (_, idx) => ({
+          year: 2010 + idx,
+          kind: "roof",
+        })),
+      }).success,
+    ).toBe(false);
+
+    // Unknown kind
+    expect(
+      propertyCreateSchema.safeParse({
+        name: "Wohnung Musterstraße 1",
+        estimatedValueCents: 30_000_000,
+        renovations: [{ year: 2020, kind: "pool" }],
+      }).success,
+    ).toBe(false);
+
+    // Year in future
+    expect(
+      propertyCreateSchema.safeParse({
+        name: "Wohnung Musterstraße 1",
+        estimatedValueCents: 30_000_000,
+        renovations: [{ year: 2099, kind: "roof" }],
+      }).success,
+    ).toBe(false);
+
+    // Duplicate (year, kind)
+    expect(
+      propertyCreateSchema.safeParse({
+        name: "Wohnung Musterstraße 1",
+        estimatedValueCents: 30_000_000,
+        renovations: [
+          { year: 2020, kind: "roof" },
+          { year: 2020, kind: "roof" },
+        ],
+      }).success,
+    ).toBe(false);
+
+    // Year < constructionYear in same payload
+    expect(
+      propertyCreateSchema.safeParse({
+        name: "Wohnung Musterstraße 1",
+        estimatedValueCents: 30_000_000,
+        constructionYear: 2005,
+        renovations: [{ year: 2000, kind: "roof" }],
+      }).success,
+    ).toBe(false);
+  });
 });

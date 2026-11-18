@@ -64,6 +64,13 @@
       "when": 1794998614939,
       "tag": "0008_silly_bucky",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1795001009919,
+      "tag": "0009_demonic_pride",
+      "breakpoints": true
     }
   ]
 }

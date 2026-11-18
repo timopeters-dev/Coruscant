@@ -115,6 +115,42 @@ export function stripMarkdownCodeFences(rawText: string): string {
   return match?.[1] ? match[1].trim() : trimmed;
 }
 
+export function parseGeminiJsonText(rawText: string): unknown {
+  try {
+    return JSON.parse(stripMarkdownCodeFences(rawText));
+  } catch {
+    // Fallback für Antworten ohne responseMimeType (z. B. erklärender Text vor/nach JSON)
+  }
+
+  const fencedMatch = /```(?:json)?\s*([\s\S]*?)\s*```/i.exec(rawText);
+  if (fencedMatch?.[1]) {
+    return JSON.parse(fencedMatch[1].trim());
+  }
+
+  const firstBrace = rawText.indexOf("{");
+  const lastBrace = rawText.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    return JSON.parse(rawText.slice(firstBrace, lastBrace + 1));
+  }
+
+  throw new SyntaxError("Kein gültiges JSON im KI-Text gefunden.");
+}
+
+const MAX_GROUNDING_SOURCES = 8;
+const MAX_GROUNDING_TITLE_LENGTH = 120;
+const MAX_SEARCH_QUERIES = 5;
+const MAX_SEARCH_QUERY_LENGTH = 200;
+
+export interface GeminiGroundingSource {
+  uri: string;
+  title: string;
+}
+
+export interface GeminiGroundingMetadata {
+  sources: GeminiGroundingSource[];
+  webSearchQueries: string[];
+}
+
 export function extractTextFromGeminiResponse(body: unknown): string | null {
   if (!body || typeof body !== "object") {
     return null;
@@ -135,12 +171,115 @@ export function extractTextFromGeminiResponse(body: unknown): string | null {
   if (!Array.isArray(parts) || parts.length === 0) {
     return null;
   }
-  const firstPart = parts[0];
-  if (!firstPart || typeof firstPart !== "object") {
-    return null;
+
+  const texts: string[] = [];
+  for (const part of parts) {
+    if (!part || typeof part !== "object") {
+      continue;
+    }
+    const candidatePart = part as { text?: unknown; thought?: unknown };
+    if (candidatePart.thought === true) {
+      continue;
+    }
+    if (typeof candidatePart.text === "string") {
+      texts.push(candidatePart.text);
+    }
   }
-  const text = (firstPart as { text?: unknown }).text;
-  return typeof text === "string" ? text : null;
+
+  return texts.length > 0 ? texts.join("") : null;
+}
+
+export function extractGroundingFromGeminiResponse(
+  body: unknown,
+): GeminiGroundingMetadata {
+  const empty: GeminiGroundingMetadata = { sources: [], webSearchQueries: [] };
+  if (!body || typeof body !== "object") {
+    return empty;
+  }
+  const candidates = (body as { candidates?: unknown }).candidates;
+  if (!Array.isArray(candidates) || candidates.length === 0) {
+    return empty;
+  }
+  const first = candidates[0];
+  if (!first || typeof first !== "object") {
+    return empty;
+  }
+  const groundingMetadata = (first as { groundingMetadata?: unknown })
+    .groundingMetadata;
+  if (!groundingMetadata || typeof groundingMetadata !== "object") {
+    return empty;
+  }
+
+  const sources: GeminiGroundingSource[] = [];
+  const seenUris = new Set<string>();
+  const rawChunks = (groundingMetadata as { groundingChunks?: unknown })
+    .groundingChunks;
+
+  if (Array.isArray(rawChunks)) {
+    for (const chunk of rawChunks) {
+      if (sources.length >= MAX_GROUNDING_SOURCES) {
+        break;
+      }
+      if (!chunk || typeof chunk !== "object") {
+        continue;
+      }
+      const web = (chunk as { web?: unknown }).web;
+      if (!web || typeof web !== "object") {
+        continue;
+      }
+      const rawUri = (web as { uri?: unknown }).uri;
+      if (typeof rawUri !== "string") {
+        continue;
+      }
+      const trimmedUri = rawUri.trim();
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(trimmedUri);
+      } catch {
+        continue;
+      }
+      if (parsedUrl.protocol !== "https:") {
+        continue;
+      }
+      if (seenUris.has(trimmedUri)) {
+        continue;
+      }
+      seenUris.add(trimmedUri);
+
+      const rawTitle = (web as { title?: unknown }).title;
+      const trimmedTitle =
+        typeof rawTitle === "string" ? rawTitle.trim() : "";
+      const title = (trimmedTitle || parsedUrl.host).slice(
+        0,
+        MAX_GROUNDING_TITLE_LENGTH,
+      );
+
+      sources.push({ uri: trimmedUri, title });
+    }
+  }
+
+  const webSearchQueries: string[] = [];
+  const seenQueries = new Set<string>();
+  const rawQueries = (groundingMetadata as { webSearchQueries?: unknown })
+    .webSearchQueries;
+  if (Array.isArray(rawQueries)) {
+    for (const q of rawQueries) {
+      if (webSearchQueries.length >= MAX_SEARCH_QUERIES) {
+        break;
+      }
+      if (typeof q !== "string") {
+        continue;
+      }
+      const trimmed = q.trim().slice(0, MAX_SEARCH_QUERY_LENGTH);
+      if (trimmed.length === 0 || seenQueries.has(trimmed)) {
+        continue;
+      }
+      seenQueries.add(trimmed);
+      webSearchQueries.push(trimmed);
+    }
+  }
+
+  return { sources, webSearchQueries };
 }
 
 type RequestAttemptResult =
@@ -272,7 +411,12 @@ export interface GeminiJsonClientOptions {
 }
 
 export type GeminiJsonResult =
-  | { ok: true; json: unknown; model: string }
+  | {
+      ok: true;
+      json: unknown;
+      model: string;
+      grounding: GeminiGroundingMetadata;
+    }
   | {
       ok: false;
       code: GeminiTransportErrorCode;
@@ -399,7 +543,7 @@ export function createGeminiJsonClient(
 
       let parsedJson: unknown;
       try {
-        parsedJson = JSON.parse(stripMarkdownCodeFences(textCandidate));
+        parsedJson = parseGeminiJsonText(textCandidate);
       } catch {
         return {
           ok: false,
@@ -408,7 +552,12 @@ export function createGeminiJsonClient(
         };
       }
 
-      return { ok: true, json: parsedJson, model: resolvedModel };
+      return {
+        ok: true,
+        json: parsedJson,
+        model: resolvedModel,
+        grounding: extractGroundingFromGeminiResponse(rawBody),
+      };
     },
   };
 }

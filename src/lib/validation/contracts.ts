@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { parseIsoDate } from "@/lib/domain/date";
+import { getTodayIsoDate, parseIsoDate } from "@/lib/domain/date";
+import {
+  MAX_RENOVATIONS,
+  RENOVATION_KINDS,
+  type Renovation,
+} from "@/lib/domain/property-renovations";
 import { PROPERTY_PURCHASE_LIMITS } from "@/lib/domain/property-purchase-defaults";
 import { validateRentalProfile } from "@/lib/domain/rental";
 
@@ -83,6 +88,62 @@ const nullableOptionalEnergyClass = z.preprocess(
   propertyEnergyClassSchema.nullable().optional(),
 );
 
+const propertyRenovationItemSchema = z
+  .object({
+    year: z
+      .number()
+      .int()
+      .min(1800, "Sanierungsjahr muss zwischen 1800 und 2100 liegen.")
+      .max(2100, "Sanierungsjahr muss zwischen 1800 und 2100 liegen."),
+    kind: z.enum(RENOVATION_KINDS),
+  })
+  .strict();
+
+export const propertyRenovationsSchema = z
+  .array(propertyRenovationItemSchema)
+  .max(MAX_RENOVATIONS, `Höchstens ${MAX_RENOVATIONS} Sanierungen erlaubt.`)
+  .nullable()
+  .optional();
+
+function addRenovationValidationIssues(
+  renovations: Renovation[] | null | undefined,
+  constructionYear: number | null | undefined,
+  ctx: z.RefinementCtx,
+): void {
+  if (!renovations || renovations.length === 0) {
+    return;
+  }
+  const currentYear = Number(getTodayIsoDate().slice(0, 4));
+  const seen = new Set<string>();
+  for (let i = 0; i < renovations.length; i++) {
+    const item = renovations[i];
+    if (!item) continue;
+    if (item.year > currentYear) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["renovations", i, "year"],
+        message: `Sanierungsjahr darf nicht in der Zukunft liegen (max. ${currentYear}).`,
+      });
+    }
+    if (constructionYear != null && item.year < constructionYear) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["renovations", i, "year"],
+        message: `Sanierungsjahr darf nicht vor dem Baujahr (${constructionYear}) liegen.`,
+      });
+    }
+    const key = `${item.year}:${item.kind}`;
+    if (seen.has(key)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["renovations", i],
+        message: "Doppelte Sanierung (Jahr und Art).",
+      });
+    }
+    seen.add(key);
+  }
+}
+
 const propertyMetadataFields = {
   street: nullableOptionalTrimmedString(120),
   houseNumber: nullableOptionalTrimmedString(20),
@@ -93,6 +154,7 @@ const propertyMetadataFields = {
   plotAreaSqm: nullableOptionalPositiveAreaSqm,
   constructionYear: nullableOptionalConstructionYear,
   energyClass: nullableOptionalEnergyClass,
+  renovations: propertyRenovationsSchema,
   features: nullableOptionalTrimmedString(500),
 };
 
@@ -134,6 +196,7 @@ export const propertyCreateSchema = z
     purchaseDate: nullableOptionalIsoDate,
     purchasePriceCents: nonNegativeSafeInt.nullable().optional(),
     estimatedValueCents: nonNegativeSafeInt,
+    estimatedValueAsOf: nullableOptionalIsoDate,
     maintenanceReservePotId: nullableOptionalTrimmedString(120),
     ...rentalProfileFields,
     ...propertyMetadataFields,
@@ -149,6 +212,7 @@ export const propertyCreateSchema = z
         });
       }
     }
+    addRenovationValidationIssues(data.renovations, data.constructionYear, ctx);
   });
 
 export const propertyUpdateSchema = z
@@ -158,6 +222,7 @@ export const propertyUpdateSchema = z
     purchaseDate: nullableOptionalIsoDate,
     purchasePriceCents: nonNegativeSafeInt.nullable().optional(),
     estimatedValueCents: nonNegativeSafeInt,
+    estimatedValueAsOf: nullableOptionalIsoDate,
     maintenanceReservePotId: nullableOptionalTrimmedString(120),
     ...rentalProfileFields,
     ...propertyMetadataFields,
@@ -166,7 +231,10 @@ export const propertyUpdateSchema = z
   .refine(
     (data) => Object.values(data).some((value) => value !== undefined),
     { message: "Mindestens ein Feld muss aktualisiert werden." },
-  );
+  )
+  .superRefine((data, ctx) => {
+    addRenovationValidationIssues(data.renovations, data.constructionYear, ctx);
+  });
 
 export type PropertyCreateInput = z.infer<typeof propertyCreateSchema>;
 export type PropertyUpdateInput = z.infer<typeof propertyUpdateSchema>;

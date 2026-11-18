@@ -2,6 +2,12 @@ import crypto from "node:crypto";
 import { asc, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { financialContracts, pots, properties } from "@/db/schema";
+import { getTodayIsoDate } from "@/lib/domain/date";
+import {
+  parseRenovations,
+  serializeRenovations,
+} from "@/lib/domain/property-renovations";
+import type { PropertyValuationContextInput } from "@/lib/domain/property-valuation-context";
 import { validateRentalProfile } from "@/lib/domain/rental";
 import {
   type ContractCreateInput,
@@ -36,6 +42,15 @@ export class MaintenancePotValidationError extends Error {
     super(message);
     this.name = "MaintenancePotValidationError";
     this.fieldErrors = { maintenanceReservePotId: message };
+  }
+}
+
+export class PropertyValidationError extends Error {
+  readonly fieldErrors: Record<string, string>;
+  constructor(message: string, fieldErrors: Record<string, string>) {
+    super(message);
+    this.name = "PropertyValidationError";
+    this.fieldErrors = fieldErrors;
   }
 }
 
@@ -81,10 +96,98 @@ export function getPropertyById(id: string): PropertyRow | null {
   return row ?? null;
 }
 
-export function createProperty(input: PropertyCreateInput): PropertyRow {
+export interface PropertyValuationSourceData {
+  contextInput: PropertyValuationContextInput;
+  currentValueCents: number;
+}
+
+export function loadPropertyValuationSource(
+  id: string,
+  asOfDate: string = getTodayIsoDate(),
+): PropertyValuationSourceData | null {
+  const db = getDb();
+  const row = db
+    .select({
+      usage: properties.usage,
+      postalCode: properties.postalCode,
+      city: properties.city,
+      livingAreaSqm: properties.livingAreaSqm,
+      plotAreaSqm: properties.plotAreaSqm,
+      constructionYear: properties.constructionYear,
+      energyClass: properties.energyClass,
+      renovations: properties.renovations,
+      monthlyColdRentCents: properties.monthlyColdRentCents,
+      street: properties.street,
+      houseNumber: properties.houseNumber,
+      estimatedValueCents: properties.estimatedValueCents,
+    })
+    .from(properties)
+    .where(eq(properties.id, id))
+    .get();
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    contextInput: {
+      asOfDate,
+      usage: row.usage,
+      postalCode: row.postalCode,
+      city: row.city,
+      livingAreaSqm: row.livingAreaSqm,
+      plotAreaSqm: row.plotAreaSqm,
+      constructionYear: row.constructionYear,
+      energyClass: row.energyClass,
+      renovations: parseRenovations(row.renovations),
+      monthlyColdRentCents: row.monthlyColdRentCents,
+      forbiddenTerms: {
+        street: row.street,
+        houseNumber: row.houseNumber,
+      },
+    },
+    currentValueCents: row.estimatedValueCents,
+  };
+}
+
+export function loadPropertyValuationInput(
+  id: string,
+  asOfDate: string = getTodayIsoDate(),
+): PropertyValuationContextInput | null {
+  return loadPropertyValuationSource(id, asOfDate)?.contextInput ?? null;
+}
+
+function assertEstimatedValueAsOfNotInFuture(
+  asOf: string | null,
+  today: string,
+): void {
+  if (asOf != null && asOf > today) {
+    throw new PropertyValidationError(
+      "Bewertungsdatum darf nicht in der Zukunft liegen.",
+      { estimatedValueAsOf: "Bewertungsdatum darf nicht in der Zukunft liegen." },
+    );
+  }
+}
+
+export function createProperty(
+  input: PropertyCreateInput,
+  asOfDate?: string,
+): PropertyRow {
+  const today = asOfDate ?? getTodayIsoDate();
+  assertEstimatedValueAsOfNotInFuture(input.estimatedValueAsOf ?? null, today);
+
   if (input.maintenanceReservePotId != null) {
     assertMaintenancePotAssignable(input.maintenanceReservePotId);
   }
+
+  const estimatedValueAsOf =
+    input.estimatedValueAsOf !== undefined
+      ? input.estimatedValueAsOf
+      : input.estimatedValueCents > 0
+        ? today
+        : null;
+  const renovations =
+    input.renovations != null ? serializeRenovations(input.renovations) : null;
 
   const db = getDb();
   const now = new Date().toISOString();
@@ -97,6 +200,7 @@ export function createProperty(input: PropertyCreateInput): PropertyRow {
       purchaseDate: input.purchaseDate ?? null,
       purchasePriceCents: input.purchasePriceCents ?? null,
       estimatedValueCents: input.estimatedValueCents,
+      estimatedValueAsOf,
       maintenanceReservePotId: input.maintenanceReservePotId ?? null,
       monthlyColdRentCents: input.monthlyColdRentCents ?? null,
       monthlyNonRecoverableCostsCents:
@@ -113,6 +217,7 @@ export function createProperty(input: PropertyCreateInput): PropertyRow {
       plotAreaSqm: input.plotAreaSqm ?? null,
       constructionYear: input.constructionYear ?? null,
       energyClass: input.energyClass ?? null,
+      renovations,
       features: input.features ?? null,
       imagePath: null,
       updatedAt: now,
@@ -129,11 +234,55 @@ export function createProperty(input: PropertyCreateInput): PropertyRow {
 export function updateProperty(
   id: string,
   input: PropertyUpdateInput,
+  asOfDate?: string,
 ): PropertyRow | null {
   const existing = getPropertyById(id);
   if (!existing) {
     return null;
   }
+
+  const today = asOfDate ?? getTodayIsoDate();
+  let mergedEstimatedValueAsOf: string | null;
+  if (input.estimatedValueAsOf !== undefined) {
+    assertEstimatedValueAsOfNotInFuture(input.estimatedValueAsOf, today);
+    mergedEstimatedValueAsOf = input.estimatedValueAsOf;
+  } else if (
+    input.estimatedValueCents !== undefined &&
+    input.estimatedValueCents !== existing.estimatedValueCents
+  ) {
+    mergedEstimatedValueAsOf = today;
+  } else {
+    mergedEstimatedValueAsOf = existing.estimatedValueAsOf;
+  }
+
+  const mergedConstructionYear =
+    input.constructionYear !== undefined
+      ? input.constructionYear
+      : existing.constructionYear;
+
+  const mergedRenovationsList =
+    input.renovations !== undefined
+      ? (input.renovations ?? [])
+      : parseRenovations(existing.renovations);
+
+  if (
+    mergedConstructionYear != null &&
+    mergedRenovationsList.some((item) => item.year < mergedConstructionYear)
+  ) {
+    throw new PropertyValidationError(
+      `Sanierungsjahr darf nicht vor dem Baujahr (${mergedConstructionYear}) liegen.`,
+      {
+        renovations: `Sanierungsjahr darf nicht vor dem Baujahr (${mergedConstructionYear}) liegen.`,
+      },
+    );
+  }
+
+  const mergedRenovationsRaw =
+    input.renovations !== undefined
+      ? input.renovations != null
+        ? serializeRenovations(input.renovations)
+        : null
+      : existing.renovations;
 
   const mergedUsage = input.usage ?? existing.usage;
   const mergedColdRent =
@@ -188,6 +337,7 @@ export function updateProperty(
           : existing.purchasePriceCents,
       estimatedValueCents:
         input.estimatedValueCents ?? existing.estimatedValueCents,
+      estimatedValueAsOf: mergedEstimatedValueAsOf,
       maintenanceReservePotId: mergedMaintenancePotId,
       monthlyColdRentCents: mergedColdRent,
       monthlyNonRecoverableCostsCents: mergedNonRecoverable,
@@ -213,14 +363,12 @@ export function updateProperty(
         input.plotAreaSqm !== undefined
           ? input.plotAreaSqm
           : existing.plotAreaSqm,
-      constructionYear:
-        input.constructionYear !== undefined
-          ? input.constructionYear
-          : existing.constructionYear,
+      constructionYear: mergedConstructionYear,
       energyClass:
         input.energyClass !== undefined
           ? input.energyClass
           : existing.energyClass,
+      renovations: mergedRenovationsRaw,
       features:
         input.features !== undefined ? input.features : existing.features,
       updatedAt: now,

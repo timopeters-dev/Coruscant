@@ -3,6 +3,7 @@ import {
   deleteProperty,
   getPropertyById,
   MaintenancePotValidationError,
+  PropertyValidationError,
   RentalProfileValidationError,
   updateProperty,
 } from "@/db/queries/contracts";
@@ -62,7 +63,8 @@ export async function PATCH(
   } catch (error) {
     if (
       error instanceof RentalProfileValidationError ||
-      error instanceof MaintenancePotValidationError
+      error instanceof MaintenancePotValidationError ||
+      error instanceof PropertyValidationError
     ) {
       return badRequestResponse(error.message, error.fieldErrors);
     }

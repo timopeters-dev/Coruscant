@@ -655,4 +655,114 @@ describe("/api/properties CRUD & integrity", () => {
     );
     expect(conflictPotRes.status).toBe(400);
   });
+
+  it("handles estimatedValueAsOf rules and merged renovations validation on create and patch", async () => {
+    const {
+      createProperty: createPropertyQuery,
+      updateProperty: updatePropertyQuery,
+    } = await import("@/db/queries/contracts");
+    const { propertyCreateSchema, propertyUpdateSchema } = await import(
+      "@/lib/validation/contracts"
+    );
+
+    // Create with value > 0 sets estimatedValueAsOf to injected today
+    const created = createPropertyQuery(
+      propertyCreateSchema.parse({
+        name: "Wohnung Musterstraße 1",
+        estimatedValueCents: 30_000_000,
+        constructionYear: 2000,
+      }),
+      "2026-10-01",
+    );
+    expect(created.estimatedValueAsOf).toBe("2026-10-01");
+
+    // PATCH with same estimatedValueCents leaves estimatedValueAsOf unchanged
+    const sameValue = updatePropertyQuery(
+      created.id,
+      propertyUpdateSchema.parse({
+        name: "Wohnung Musterstraße 1 (neu)",
+        estimatedValueCents: 30_000_000,
+      }),
+      "2026-11-18",
+    );
+    expect(sameValue?.estimatedValueAsOf).toBe("2026-10-01");
+
+    // PATCH without estimatedValueCents leaves estimatedValueAsOf unchanged
+    const withoutValue = updatePropertyQuery(
+      created.id,
+      propertyUpdateSchema.parse({ city: "Musterstadt" }),
+      "2026-11-18",
+    );
+    expect(withoutValue?.estimatedValueAsOf).toBe("2026-10-01");
+
+    // PATCH with changed estimatedValueCents sets estimatedValueAsOf to injected today
+    const changedValue = updatePropertyQuery(
+      created.id,
+      propertyUpdateSchema.parse({ estimatedValueCents: 31_000_000 }),
+      "2026-11-18",
+    );
+    expect(changedValue?.estimatedValueAsOf).toBe("2026-11-18");
+
+    // PATCH via HTTP with explicit { estimatedValueCents, estimatedValueAsOf } saves both
+    const explicitPatchRes = await patchPropertyById(
+      new Request(`http://localhost/api/properties/${created.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          estimatedValueCents: 32_000_000,
+          estimatedValueAsOf: "2026-11-15",
+          renovations: [{ year: 2018, kind: "roof" }],
+        }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    expect(explicitPatchRes.status).toBe(200);
+    const explicitBody = (await explicitPatchRes.json()) as {
+      property: {
+        estimatedValueCents: number;
+        estimatedValueAsOf: string | null;
+        renovations: string | null;
+      };
+    };
+    expect(explicitBody.property.estimatedValueCents).toBe(32_000_000);
+    expect(explicitBody.property.estimatedValueAsOf).toBe("2026-11-15");
+    expect(explicitBody.property.renovations).toBe('[{"year":2018,"kind":"roof"}]');
+
+    // PATCH with future estimatedValueAsOf -> 400
+    const futurePatchRes = await patchPropertyById(
+      new Request(`http://localhost/api/properties/${created.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estimatedValueAsOf: "2099-01-01" }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    expect(futurePatchRes.status).toBe(400);
+
+    // PATCH renovations with year before existing constructionYear (2000) -> 400
+    const badRenovationRes = await patchPropertyById(
+      new Request(`http://localhost/api/properties/${created.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ renovations: [{ year: 1995, kind: "roof" }] }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    expect(badRenovationRes.status).toBe(400);
+
+    // PATCH renovations: null clears renovations
+    const clearRenovationRes = await patchPropertyById(
+      new Request(`http://localhost/api/properties/${created.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ renovations: null }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    expect(clearRenovationRes.status).toBe(200);
+    const clearedBody = (await clearRenovationRes.json()) as {
+      property: { renovations: string | null };
+    };
+    expect(clearedBody.property.renovations).toBeNull();
+  });
 });
