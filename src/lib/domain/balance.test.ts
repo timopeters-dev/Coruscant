@@ -416,3 +416,139 @@ describe("calculateHouseholdBalance with conflicting linked pots", () => {
     ).toThrow(RangeError);
   });
 });
+
+describe("calculateHouseholdBalance with rented properties", () => {
+  const baseDate = "2026-11-18";
+
+  it("produces identical BalanceSummary regardless of usage (rented vs owner_occupied)", () => {
+    const contracts = [
+      {
+        id: "loan-1",
+        name: "Objektkredit Musterbank",
+        sphere: "household" as const,
+        category: "loan" as const,
+        status: "active" as const,
+        currentBalanceCents: 18_000_000,
+        balanceAsOfDate: baseDate,
+        monthlyRateCents: 60_000,
+        interestRateBps: 350,
+      },
+    ];
+
+    const ownerProp = {
+      id: "prop-1",
+      name: "Objekt Musterstraße 1",
+      usage: "owner_occupied" as const,
+      estimatedValueCents: 25_000_000,
+    };
+    const rentedProp = {
+      id: "prop-1",
+      name: "Objekt Musterstraße 1",
+      usage: "rented" as const,
+      estimatedValueCents: 25_000_000,
+    };
+
+    const asOwner = calculateHouseholdBalance({
+      asOfDate: baseDate,
+      properties: [ownerProp],
+      contracts,
+      pots: [],
+    });
+
+    const asRented = calculateHouseholdBalance({
+      asOfDate: baseDate,
+      properties: [rentedProp],
+      contracts,
+      pots: [],
+    });
+
+    expect(asRented).toEqual(asOwner);
+  });
+
+  it("counts rented property once in propertiesValueCents and household loan once in householdLiabilitiesCents", () => {
+    const rentedProp = {
+      id: "prop-rent-1",
+      name: "Wohnung Musterstraße 1",
+      usage: "rented" as const,
+      estimatedValueCents: 25_000_000,
+    };
+    const summary = calculateHouseholdBalance({
+      asOfDate: baseDate,
+      properties: [rentedProp],
+      contracts: [
+        {
+          id: "loan-hh",
+          name: "Haushaltskredit Musterbank",
+          sphere: "household",
+          category: "loan",
+          status: "active",
+          currentBalanceCents: 15_000_000,
+          balanceAsOfDate: baseDate,
+          monthlyRateCents: 50_000,
+          interestRateBps: 350,
+        },
+      ],
+      pots: [],
+    });
+
+    expect(summary.propertiesValueCents).toBe(25_000_000);
+    expect(summary.householdLiabilitiesCents).toBe(15_000_000);
+    expect(summary.householdNetWorthCents).toBe(10_000_000);
+  });
+
+  it("places personal-sphere loan on rented property into personalLiabilitiesCents (accepted distortion)", () => {
+    const rentedProp = {
+      id: "prop-rent-1",
+      name: "Wohnung Musterstraße 1",
+      usage: "rented" as const,
+      estimatedValueCents: 25_000_000,
+    };
+    const summary = calculateHouseholdBalance({
+      asOfDate: baseDate,
+      properties: [rentedProp],
+      contracts: [
+        {
+          id: "loan-pers",
+          name: "Privatkredit Musterbank",
+          sphere: "personal",
+          category: "loan",
+          status: "active",
+          currentBalanceCents: 15_000_000,
+          balanceAsOfDate: baseDate,
+          monthlyRateCents: 50_000,
+          interestRateBps: 350,
+        },
+      ],
+      pots: [],
+    });
+
+    expect(summary.propertiesValueCents).toBe(25_000_000);
+    expect(summary.householdLiabilitiesCents).toBe(0);
+    expect(summary.personalLiabilitiesCents).toBe(15_000_000);
+    expect(summary.householdNetWorthCents).toBe(25_000_000);
+    expect(summary.netWorthCents).toBe(10_000_000);
+  });
+
+  it("sums Immobilie #0 and rented property in propertiesValueCents", () => {
+    const prop0 = {
+      id: "prop-0",
+      name: "Immobilie #0",
+      usage: "owner_occupied" as const,
+      estimatedValueCents: 35_000_000,
+    };
+    const prop1 = {
+      id: "prop-1",
+      name: "Wohnung Musterstraße 1",
+      usage: "rented" as const,
+      estimatedValueCents: 25_000_000,
+    };
+    const summary = calculateHouseholdBalance({
+      asOfDate: baseDate,
+      properties: [prop0, prop1],
+      contracts: [],
+      pots: [],
+    });
+
+    expect(summary.propertiesValueCents).toBe(60_000_000);
+  });
+});

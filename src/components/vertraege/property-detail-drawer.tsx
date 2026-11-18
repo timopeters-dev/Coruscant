@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   Building2,
   ImagePlus,
@@ -19,14 +20,28 @@ import type { DocumentRow } from "@/db/queries/documents";
 import type { ContractProjectionResult } from "@/lib/domain/contracts";
 import { formatBpsDE, formatCentsDE } from "@/lib/domain/money";
 import type { PropertySummary } from "@/lib/domain/properties";
+import type { RentalMetrics } from "@/lib/domain/rental";
+import type { PurchaseDraft } from "@/lib/validation/property-draft";
 import { getContractTypeLabel, PROPERTY_USAGE_LABELS } from "./labels";
 import { LinkedDocumentsSection } from "./linked-documents-section";
 
 const MAX_CLIENT_IMAGE_BYTES = 5 * 1024 * 1024;
 
+export interface MaintenancePotSummary {
+  id: string;
+  name: string;
+  currentCents: number;
+  targetCents: number | null;
+}
+
 interface PropertyDetailDrawerProps {
   property: PropertyRow | null;
   summary: PropertySummary | null;
+  rentalMetrics?: RentalMetrics | null;
+  maintenancePot?: MaintenancePotSummary | null;
+  loanDraft?: PurchaseDraft | null;
+  onCreateLoanFromDraft?: () => void;
+  onDiscardLoanDraft?: () => void;
   linkedContracts: FinancialContractRow[];
   unlinkedContracts: FinancialContractRow[];
   linkedDocuments: DocumentRow[];
@@ -67,6 +82,11 @@ export function PropertyDetailDrawer(props: PropertyDetailDrawerProps) {
 function PropertyDetailDrawerInner({
   property,
   summary,
+  rentalMetrics,
+  maintenancePot,
+  loanDraft,
+  onCreateLoanFromDraft,
+  onDiscardLoanDraft,
   linkedContracts,
   unlinkedContracts,
   linkedDocuments,
@@ -500,6 +520,209 @@ function PropertyDetailDrawerInner({
           </div>
         ) : null}
 
+        {rentalMetrics ? (
+          <div className="space-y-3 rounded-xl border border-dashed border-[var(--border-sub)] bg-[var(--surface-elevated)]/40 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                  Vermietung
+                </p>
+                <p className="text-[11px] text-[var(--text-secondary)]">
+                  vor Steuern
+                </p>
+              </div>
+              <StatusBadge variant="modeled" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-xs text-[var(--text-secondary)]">Kaltmiete</p>
+                <p className="tabular-nums font-medium text-[var(--text-primary)]">
+                  {formatCentsDE(rentalMetrics.monthlyColdRentCents)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Nicht umlagefähig
+                </p>
+                <p className="tabular-nums font-medium text-[var(--text-primary)]">
+                  {formatCentsDE(rentalMetrics.monthlyNonRecoverableCostsCents)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Kredit-Raten
+                </p>
+                <p className="tabular-nums font-medium text-[var(--text-primary)]">
+                  {formatCentsDE(rentalMetrics.monthlyLoanRatesCents)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Bauspar-Raten
+                </p>
+                <p className="tabular-nums font-medium text-[var(--text-primary)]">
+                  {formatCentsDE(rentalMetrics.monthlySavingsRatesCents)}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 border-t border-[var(--border)]/60 pt-3 text-sm">
+              <div>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Netto-Cashflow vor Rücklage
+                </p>
+                <p
+                  className={`tabular-nums font-semibold ${
+                    rentalMetrics.netCashflowBeforeReserveCents >= 0
+                      ? "text-[var(--emerald)]"
+                      : "text-[var(--rose)]"
+                  }`}
+                >
+                  {formatCentsDE(rentalMetrics.netCashflowBeforeReserveCents, {
+                    showPlusSign: true,
+                  })}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  nach Rücklage (
+                  {formatCentsDE(rentalMetrics.monthlyMaintenanceAllowanceCents)}
+                  )
+                </p>
+                <p
+                  className={`tabular-nums font-semibold ${
+                    rentalMetrics.netCashflowAfterReserveCents >= 0
+                      ? "text-[var(--emerald)]"
+                      : "text-[var(--rose)]"
+                  }`}
+                >
+                  {formatCentsDE(rentalMetrics.netCashflowAfterReserveCents, {
+                    showPlusSign: true,
+                  })}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 border-t border-[var(--border)]/60 pt-3 text-sm">
+              <div>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Brutto- / Nettorendite
+                </p>
+                <p className="tabular-nums font-medium text-[var(--text-primary)]">
+                  {rentalMetrics.grossYieldBps != null
+                    ? formatBpsDE(rentalMetrics.grossYieldBps)
+                    : "–"}{" "}
+                  /{" "}
+                  {rentalMetrics.netYieldBps != null
+                    ? formatBpsDE(rentalMetrics.netYieldBps)
+                    : "–"}
+                </p>
+                <p className="text-[11px] text-[var(--text-secondary)]">
+                  auf Kaufpreis, ohne Nebenkosten
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Kapitalbindung (EK im Objekt)
+                </p>
+                <p className="tabular-nums font-medium text-[var(--text-primary)]">
+                  {formatCentsDE(rentalMetrics.capitalTiedCents)}
+                </p>
+              </div>
+            </div>
+
+            {property.depreciationBasisCents != null ? (
+              <div className="flex items-center justify-between border-t border-[var(--border)]/60 pt-2.5 text-xs">
+                <span className="text-[var(--text-secondary)]">
+                  AfA-Bemessungsgrundlage (Datenfeld)
+                </span>
+                <span className="tabular-nums font-medium text-[var(--text-primary)]">
+                  {formatCentsDE(property.depreciationBasisCents)}
+                </span>
+              </div>
+            ) : null}
+
+            {rentalMetrics.warnings.length > 0 ? (
+              <div className="space-y-1 border-t border-[var(--border)]/60 pt-2.5 text-xs text-[var(--text-secondary)]">
+                {rentalMetrics.warnings.map((warning, idx) => (
+                  <p key={`${warning.kind}-${idx}`}>
+                    {warning.kind === "personal_sphere_loan"
+                      ? "Hinweis: Objektwert zählt zum Haushalts-Nettovermögen, diese Schuld nicht. Haushalts-Nettovermögen ist dadurch zu hoch ausgewiesen."
+                      : warning.kind === "negative_equity"
+                        ? "Hinweis: Restschuld übersteigt den aktuellen Schätzwert (negative Kapitalbindung)."
+                        : "Hinweis: Kein Kaufpreis hinterlegt – Rendite nicht berechenbar."}
+                  </p>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {maintenancePot ? (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3.5 text-sm">
+            <div>
+              <p className="text-xs text-[var(--text-secondary)]">
+                Instandhaltungs-Topf
+              </p>
+              <p className="font-medium text-[var(--text-primary)]">
+                {maintenancePot.name}
+              </p>
+              <p className="tabular-nums text-xs text-[var(--text-secondary)]">
+                Stand: {formatCentsDE(maintenancePot.currentCents)}
+                {maintenancePot.targetCents != null
+                  ? ` / Ziel: ${formatCentsDE(maintenancePot.targetCents)}`
+                  : ""}
+              </p>
+            </div>
+            <Link
+              href="/allokation"
+              className="shrink-0 text-xs font-medium text-[var(--accent)] hover:underline"
+            >
+              Zur Allokation →
+            </Link>
+          </div>
+        ) : null}
+
+        {loanDraft && loanDraft.loanAmountCents > 0 ? (
+          <div className="space-y-3 rounded-xl border border-dashed border-[var(--border-sub)] bg-[var(--surface-elevated)]/40 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                Objektkredit anlegen (Entwurf)
+              </p>
+              <StatusBadge variant="modeled" />
+            </div>
+            <p className="tabular-nums text-xs text-[var(--text-secondary)]">
+              Darlehen {formatCentsDE(loanDraft.loanAmountCents)} · Rate{" "}
+              {formatCentsDE(loanDraft.monthlyRateCents)}/Monat · Zins{" "}
+              {formatBpsDE(loanDraft.interestRateBps)}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {onCreateLoanFromDraft ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={onCreateLoanFromDraft}
+                  disabled={isBusy}
+                >
+                  Objektkredit anlegen
+                </Button>
+              ) : null}
+              {onDiscardLoanDraft ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={onDiscardLoanDraft}
+                  disabled={isBusy}
+                >
+                  Verwerfen
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
         <div className="space-y-2.5">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
             <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -614,6 +837,7 @@ function PropertyDetailDrawerInner({
 
         <LinkedDocumentsSection
           documents={linkedDocuments}
+          showTaxTags={property.usage === "rented"}
           emptyText="Noch keine verifizierten Belege verknüpft. Kaufverträge, Gutachten und Handwerkerrechnungen können über die Dokumenten-Inbox zugeordnet werden."
         />
 

@@ -490,4 +490,169 @@ describe("/api/properties CRUD & integrity", () => {
     );
     expect(badLinkRes.status).toBe(400);
   });
+
+  it("validates rental profile rules on POST and merged PATCH, and enforces unique maintenanceReservePotId", async () => {
+    // POST rented with rental fields -> 201
+    const rentedRes = await createProperty(
+      new Request("http://localhost/api/properties", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Wohnung Musterstraße 1",
+          usage: "rented",
+          estimatedValueCents: 25_000_000,
+          monthlyColdRentCents: 80_000,
+          monthlyNonRecoverableCostsCents: 6_000,
+          monthlyMaintenanceAllowanceCents: 5_000,
+          depreciationBasisCents: 18_000_000,
+        }),
+      }),
+    );
+    expect(rentedRes.status).toBe(201);
+    const { property: rentedProp } = (await rentedRes.json()) as {
+      property: {
+        id: string;
+        monthlyColdRentCents: number | null;
+        monthlyMaintenanceAllowanceCents: number | null;
+      };
+    };
+    expect(rentedProp.monthlyColdRentCents).toBe(80_000);
+    expect(rentedProp.monthlyMaintenanceAllowanceCents).toBe(5_000);
+
+    // POST owner_occupied with rent -> 400 with fieldErrors.monthlyColdRentCents
+    const invalidOwnerRes = await createProperty(
+      new Request("http://localhost/api/properties", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Immobilie #0",
+          usage: "owner_occupied",
+          estimatedValueCents: 30_000_000,
+          monthlyColdRentCents: 50_000,
+        }),
+      }),
+    );
+    expect(invalidOwnerRes.status).toBe(400);
+    const invalidOwnerBody = (await invalidOwnerRes.json()) as {
+      fieldErrors?: Record<string, string>;
+    };
+    expect(invalidOwnerBody.fieldErrors?.monthlyColdRentCents).toBeTruthy();
+
+    // Create valid owner_occupied
+    const ownerRes = await createProperty(
+      new Request("http://localhost/api/properties", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Immobilie #0",
+          usage: "owner_occupied",
+          estimatedValueCents: 30_000_000,
+        }),
+      }),
+    );
+    const { property: ownerProp } = (await ownerRes.json()) as {
+      property: { id: string };
+    };
+
+    // PATCH owner_occupied with only monthlyColdRentCents -> 400 (merged check)
+    const patchOwnerRent = await patchPropertyById(
+      new Request(`http://localhost/api/properties/${ownerProp.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ monthlyColdRentCents: 40_000 }),
+      }),
+      { params: Promise.resolve({ id: ownerProp.id }) },
+    );
+    expect(patchOwnerRent.status).toBe(400);
+
+    // PATCH rented -> owner_occupied without nulls -> 400
+    const patchSwitchWithoutNulls = await patchPropertyById(
+      new Request(`http://localhost/api/properties/${rentedProp.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usage: "owner_occupied" }),
+      }),
+      { params: Promise.resolve({ id: rentedProp.id }) },
+    );
+    expect(patchSwitchWithoutNulls.status).toBe(400);
+
+    // PATCH rented -> owner_occupied with explicit nulls -> 200
+    const patchSwitchWithNulls = await patchPropertyById(
+      new Request(`http://localhost/api/properties/${rentedProp.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          usage: "owner_occupied",
+          monthlyColdRentCents: null,
+          monthlyNonRecoverableCostsCents: null,
+          monthlyMaintenanceAllowanceCents: null,
+          depreciationBasisCents: null,
+        }),
+      }),
+      { params: Promise.resolve({ id: rentedProp.id }) },
+    );
+    expect(patchSwitchWithNulls.status).toBe(200);
+    const switchedBody = (await patchSwitchWithNulls.json()) as {
+      property: { monthlyColdRentCents: number | null };
+    };
+    expect(switchedBody.property.monthlyColdRentCents).toBeNull();
+
+    // Unknown maintenanceReservePotId -> 400
+    const unknownPotRes = await patchPropertyById(
+      new Request(`http://localhost/api/properties/${rentedProp.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ maintenanceReservePotId: "pot-does-not-exist" }),
+      }),
+      { params: Promise.resolve({ id: rentedProp.id }) },
+    );
+    expect(unknownPotRes.status).toBe(400);
+
+    // Create a pot and assign to rentedProp -> 200
+    const db = dbModule.getDb();
+    const { pots } = await import("@/db/schema");
+    db.insert(pots)
+      .values({
+        id: "pot-res-1",
+        name: "Instandhaltung",
+        priority: 1,
+        currentCents: 0,
+        ruleType: "fill_to_target",
+        targetCents: 500_000,
+        updatedAt: new Date().toISOString(),
+      })
+      .run();
+
+    const assignPotRes = await patchPropertyById(
+      new Request(`http://localhost/api/properties/${rentedProp.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ maintenanceReservePotId: "pot-res-1" }),
+      }),
+      { params: Promise.resolve({ id: rentedProp.id }) },
+    );
+    expect(assignPotRes.status).toBe(200);
+
+    // Re-saving same property with same pot -> 200
+    const resavePotRes = await patchPropertyById(
+      new Request(`http://localhost/api/properties/${rentedProp.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ maintenanceReservePotId: "pot-res-1" }),
+      }),
+      { params: Promise.resolve({ id: rentedProp.id }) },
+    );
+    expect(resavePotRes.status).toBe(200);
+
+    // Assigning same pot to ownerProp -> 400
+    const conflictPotRes = await patchPropertyById(
+      new Request(`http://localhost/api/properties/${ownerProp.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ maintenanceReservePotId: "pot-res-1" }),
+      }),
+      { params: Promise.resolve({ id: ownerProp.id }) },
+    );
+    expect(conflictPotRes.status).toBe(400);
+  });
 });

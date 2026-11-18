@@ -447,4 +447,62 @@ describe("Database client and startup migrations", () => {
       upgradedClient.sqlite.close();
     }
   });
+
+  it("includes monthly_maintenance_allowance_cents after migration 0008 and sets maintenance_reserve_pot_id to null on pot delete", () => {
+    const { db, sqlite } = createDbClient(":memory:");
+    try {
+      const cols = sqlite
+        .prepare("PRAGMA table_info('properties')")
+        .all() as { name: string }[];
+      expect(cols.some((c) => c.name === "monthly_maintenance_allowance_cents")).toBe(
+        true,
+      );
+
+      const now = new Date().toISOString();
+      db.insert(pots)
+        .values({
+          id: "pot-maint-1",
+          name: "Instandhaltung Musterstraße",
+          priority: 1,
+          currentCents: 100_000,
+          ruleType: "fill_to_target",
+          targetCents: 500_000,
+          updatedAt: now,
+        })
+        .run();
+
+      db.insert(properties)
+        .values({
+          id: "prop-rented-1",
+          name: "Wohnung Musterstraße 1",
+          usage: "rented",
+          estimatedValueCents: 25_000_000,
+          maintenanceReservePotId: "pot-maint-1",
+          monthlyColdRentCents: 80_000,
+          monthlyNonRecoverableCostsCents: 6_000,
+          monthlyMaintenanceAllowanceCents: 5_000,
+          updatedAt: now,
+        })
+        .run();
+
+      const inserted = db
+        .select()
+        .from(properties)
+        .where(eq(properties.id, "prop-rented-1"))
+        .get();
+      expect(inserted?.monthlyMaintenanceAllowanceCents).toBe(5_000);
+      expect(inserted?.maintenanceReservePotId).toBe("pot-maint-1");
+
+      db.delete(pots).where(eq(pots.id, "pot-maint-1")).run();
+
+      const afterDelete = db
+        .select()
+        .from(properties)
+        .where(eq(properties.id, "prop-rented-1"))
+        .get();
+      expect(afterDelete?.maintenanceReservePotId).toBeNull();
+    } finally {
+      sqlite.close();
+    }
+  });
 });

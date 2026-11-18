@@ -9,10 +9,15 @@ import {
   getLatestExternalSnapshot,
   parseSnapshotHousehold,
 } from "@/db/queries/cockpit";
-import { listContracts, type FinancialContractRow } from "@/db/queries/contracts";
+import {
+  listContracts,
+  listProperties,
+  type FinancialContractRow,
+} from "@/db/queries/contracts";
 import {
   calculateConsolidatedCashflow,
   deriveContractCashflowItems,
+  derivePropertyCashflowItems,
   type ConsolidatedCashflowSummary,
 } from "@/lib/domain/cashflow";
 import { applyPendingTransfers } from "@/lib/domain/pot-sync";
@@ -29,6 +34,7 @@ export interface PlanningBase {
 /** Gemeinsame, rein lesende Lade-Logik für /planung und den Investment-Coach. */
 export function loadPlanningBase(): PlanningBase {
   const contracts = listContracts();
+  const properties = listProperties();
   const settings = getAllocationSettings();
   const resolvedHousehold = resolveHouseholdDataForWorkspace(
     parseSnapshotHousehold(getLatestExternalSnapshot()),
@@ -39,6 +45,8 @@ export function loadPlanningBase(): PlanningBase {
     manualItems: listManualCashflowItems(),
     contractItems: deriveContractCashflowItems(contracts),
     includeContractItems: settings.includeContractItems,
+    propertyItems: derivePropertyCashflowItems(properties, contracts),
+    includePropertyItems: settings.includePropertyItems,
   });
   const pots = applyPendingTransfers(
     listPots(),

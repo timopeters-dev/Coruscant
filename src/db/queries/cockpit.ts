@@ -29,7 +29,13 @@ import {
 import { projectContractBalance } from "@/lib/domain/contracts";
 import { getTodayIsoDate } from "@/lib/domain/date";
 import { evaluateSnapshotFreshness } from "@/lib/domain/external-sync";
+import { summarizeRentalPortfolio } from "@/lib/domain/rental";
 import { getFinanzCockpitBridgeConfig } from "@/lib/integrations/finanz-cockpit-client";
+
+export interface RentalPortfolioHint {
+  propertyCount: number;
+  netCashflowBeforeReserveCents: number;
+}
 
 export interface CockpitPageData {
   asOfDate: string;
@@ -47,6 +53,7 @@ export interface CockpitPageData {
   syncIntervalMinutes: number;
   isSnapshotStale: boolean;
   nextSyncAtMs: number | null;
+  rentalPortfolioHint: RentalPortfolioHint | null;
 }
 
 export {
@@ -127,6 +134,15 @@ export function loadCockpitData(
     }
   }
 
+  const portfolio = summarizeRentalPortfolio(properties, contracts, asOfDate);
+  const rentalPortfolioHint: RentalPortfolioHint | null = portfolio.hasData
+    ? {
+        propertyCount: portfolio.propertyCount,
+        netCashflowBeforeReserveCents:
+          portfolio.totals.netCashflowBeforeReserveCents,
+      }
+    : null;
+
   return {
     asOfDate,
     balance,
@@ -143,5 +159,6 @@ export function loadCockpitData(
     syncIntervalMinutes: bridgeConfig.syncIntervalMinutes,
     isSnapshotStale: freshness.shouldSync,
     nextSyncAtMs: freshness.nextSyncAtMs,
+    rentalPortfolioHint,
   };
 }

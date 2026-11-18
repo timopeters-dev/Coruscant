@@ -34,6 +34,7 @@ describe("/api/allocation/settings", () => {
     expect(await initialRes.json()).toEqual({
       variableBasis: "budget",
       includeContractItems: false,
+      includePropertyItems: true,
     });
 
     const patchRes1 = await PATCH(
@@ -47,25 +48,28 @@ describe("/api/allocation/settings", () => {
     expect(await patchRes1.json()).toEqual({
       variableBasis: "avg_3m",
       includeContractItems: false,
+      includePropertyItems: true,
     });
 
     const patchRes2 = await PATCH(
       new Request("http://localhost/api/allocation/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ includeContractItems: true }),
+        body: JSON.stringify({ includeContractItems: true, includePropertyItems: false }),
       }),
     );
     expect(patchRes2.status).toBe(200);
     expect(await patchRes2.json()).toEqual({
       variableBasis: "avg_3m",
       includeContractItems: true,
+      includePropertyItems: false,
     });
 
     const verifyRes = await GET();
     expect(await verifyRes.json()).toEqual({
       variableBasis: "avg_3m",
       includeContractItems: true,
+      includePropertyItems: false,
     });
   });
 
@@ -84,10 +88,11 @@ describe("/api/allocation/settings", () => {
     expect(await res.json()).toEqual({
       variableBasis: "budget",
       includeContractItems: true,
+      includePropertyItems: true,
     });
   });
 
-  it("returns 400 on invalid variableBasis, invalid includeContractItems, or empty patch body", async () => {
+  it("returns 400 on invalid variableBasis, invalid includeContractItems, invalid includePropertyItems, or empty patch body", async () => {
     const invalidBasis = await PATCH(
       new Request("http://localhost/api/allocation/settings", {
         method: "PATCH",
@@ -105,6 +110,15 @@ describe("/api/allocation/settings", () => {
       }),
     );
     expect(invalidInclude.status).toBe(400);
+
+    const invalidIncludeProperty = await PATCH(
+      new Request("http://localhost/api/allocation/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ includePropertyItems: "false" }),
+      }),
+    );
+    expect(invalidIncludeProperty.status).toBe(400);
 
     const emptyPatch = await PATCH(
       new Request("http://localhost/api/allocation/settings", {

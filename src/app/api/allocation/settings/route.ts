@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import {
   getAllocationSettings,
   saveAllocationSettings,
@@ -13,11 +14,15 @@ import { allocationSettingsSchema } from "@/lib/validation/external";
 export const dynamic = "force-dynamic";
 
 const allocationSettingsPatchSchema = allocationSettingsSchema
+  .extend({
+    includePropertyItems: z.boolean(),
+  })
   .partial()
   .refine(
     (data) =>
       data.variableBasis !== undefined ||
-      data.includeContractItems !== undefined,
+      data.includeContractItems !== undefined ||
+      data.includePropertyItems !== undefined,
     { message: "Mindestens ein Einstellungsfeld muss übergeben werden." },
   );
 

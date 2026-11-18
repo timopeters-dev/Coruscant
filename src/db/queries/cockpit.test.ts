@@ -247,4 +247,126 @@ describe("loadCockpitData integration", () => {
     expect(after.balance.householdLiquidCents).toBe(500_000);
     expect(after.balance.conflictingLinkedPotsCents).toBe(400_000);
   });
+
+  it("keeps Immobilie #0 (owner_occupied) balance, barBreakdown, potDeadlines, and consolidated surplus identical and returns rentalPortfolioHint = null", async () => {
+    const { loadPlanningBase } = await import("@/db/queries/planning-base");
+    const { createManualCashflowItem, saveAllocationSettings } = await import(
+      "@/db/queries/allocation"
+    );
+
+    const prop0 = createProperty({
+      name: "Immobilie #0 (Musterstraße 1)",
+      usage: "owner_occupied",
+      estimatedValueCents: 35_000_000,
+    });
+
+    createContract(
+      contractCreateSchema.parse({
+        name: "Musterbank Baudarlehen",
+        provider: "Musterbank",
+        sphere: "household",
+        category: "loan",
+        status: "active",
+        currentBalanceCents: 15_000_000,
+        balanceAsOfDate: "2026-11-16",
+        monthlyRateCents: 100_000,
+        interestRateBps: 300,
+        repaymentType: "annuity",
+        linkedPropertyId: prop0.id,
+      }),
+    );
+
+    createContract(
+      contractCreateSchema.parse({
+        name: "Musterkasse Bausparer",
+        provider: "Musterkasse",
+        sphere: "household",
+        category: "savings_contract",
+        status: "active",
+        currentBalanceCents: 2_000_000,
+        balanceAsOfDate: "2026-11-16",
+        monthlyRateCents: 25_000,
+        interestRateBps: 150,
+        linkedPropertyId: prop0.id,
+      }),
+    );
+
+    createPot(
+      potCreateSchema.parse({
+        name: "Rücklage",
+        currentCents: 1_000_000,
+        targetCents: 2_000_000,
+        targetDate: "2027-11-16",
+        ruleType: "fill_to_target",
+      }),
+    );
+
+    insertExternalSnapshot({
+      source: "finanz_cockpit",
+      liquidCashCents: 500_000,
+      etfStocksCents: 1_500_000,
+      cryptoCents: 0,
+      totalPersonalNetWorthCents: 2_000_000,
+      fetchedAt: "2026-11-16T12:00:00.000Z",
+    });
+
+    createManualCashflowItem({
+      name: "Haushaltseinkommen",
+      direction: "inflow",
+      amountCents: 150_000,
+      frequency: "monthly",
+      active: true,
+    });
+
+    const origDummy = process.env.CORUSCANT_HOUSEHOLD_DUMMY;
+    process.env.CORUSCANT_HOUSEHOLD_DUMMY = "false";
+    try {
+      // includePropertyItems defaults to true; with 0 rented properties it must not alter anything
+      saveAllocationSettings({ includePropertyItems: true });
+      const planningWith = loadPlanningBase();
+      saveAllocationSettings({ includePropertyItems: false });
+      const planningWithout = loadPlanningBase();
+
+      expect(planningWith.consolidated).toEqual(planningWithout.consolidated);
+      expect(planningWith.consolidated.monthlySurplusCents).toBe(150_000);
+      expect(planningWith.consolidated.propertyInflowCents).toBe(0);
+      expect(planningWith.consolidated.propertyOutflowCents).toBe(0);
+
+      const cockpit = loadCockpitData("2026-11-16");
+      expect(cockpit.rentalPortfolioHint).toBeNull();
+      expect(cockpit.balance.propertiesValueCents).toBe(35_000_000);
+      expect(cockpit.balance.savingsContractsValueCents).toBe(2_000_000);
+      expect(cockpit.balance.householdLiquidCents).toBe(1_000_000);
+      expect(cockpit.balance.householdLiabilitiesCents).toBe(15_000_000);
+      expect(cockpit.balance.netWorthCents).toBe(25_000_000);
+      expect(cockpit.barBreakdown.totalVolumeCents).toBe(55_000_000);
+      expect(cockpit.potDeadlines.atRiskCount).toBe(0);
+      expect(cockpit.potDeadlines.overdueCount).toBe(0);
+      expect(cockpit.potDeadlines.tightCount).toBe(0);
+      expect(cockpit.potDeadlines.worst).toBeNull();
+    } finally {
+      if (origDummy === undefined) {
+        delete process.env.CORUSCANT_HOUSEHOLD_DUMMY;
+      } else {
+        process.env.CORUSCANT_HOUSEHOLD_DUMMY = origDummy;
+      }
+    }
+  });
+
+  it("populates rentalPortfolioHint when at least one rented property exists", () => {
+    createProperty({
+      name: "Wohnung Musterstraße 1",
+      usage: "rented",
+      estimatedValueCents: 25_000_000,
+      monthlyColdRentCents: 80_000,
+      monthlyNonRecoverableCostsCents: 6_000,
+      monthlyMaintenanceAllowanceCents: 5_000,
+    });
+
+    const cockpit = loadCockpitData("2026-11-16");
+    expect(cockpit.rentalPortfolioHint).toEqual({
+      propertyCount: 1,
+      netCashflowBeforeReserveCents: 74_000,
+    });
+  });
 });

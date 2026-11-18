@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { parseIsoDate } from "@/lib/domain/date";
+import { PROPERTY_PURCHASE_LIMITS } from "@/lib/domain/property-purchase-defaults";
+import { validateRentalProfile } from "@/lib/domain/rental";
 
 export const nonNegativeSafeInt = z
   .number()
@@ -94,14 +96,60 @@ const propertyMetadataFields = {
   features: nullableOptionalTrimmedString(500),
 };
 
-export const propertyCreateSchema = z.object({
-  name: z.string().trim().min(1, "Name ist erforderlich.").max(120),
-  usage: propertyUsageSchema.default("owner_occupied"),
-  purchaseDate: nullableOptionalIsoDate,
-  purchasePriceCents: nonNegativeSafeInt.nullable().optional(),
-  estimatedValueCents: nonNegativeSafeInt,
-  ...propertyMetadataFields,
-});
+const rentalProfileFields = {
+  monthlyColdRentCents: nonNegativeSafeInt
+    .max(
+      PROPERTY_PURCHASE_LIMITS.monthlyColdRentCents.max,
+      "Kaltmiete darf höchstens 100.000,00 € pro Monat betragen.",
+    )
+    .nullable()
+    .optional(),
+  monthlyNonRecoverableCostsCents: nonNegativeSafeInt
+    .max(
+      PROPERTY_PURCHASE_LIMITS.monthlyNonRecoverableCostsCents.max,
+      "Nicht umlagefähige Kosten dürfen höchstens 100.000,00 € pro Monat betragen.",
+    )
+    .nullable()
+    .optional(),
+  monthlyMaintenanceAllowanceCents: nonNegativeSafeInt
+    .max(
+      PROPERTY_PURCHASE_LIMITS.monthlyMaintenanceCents.max,
+      "Instandhaltungs-Rücklage darf höchstens 100.000,00 € pro Monat betragen.",
+    )
+    .nullable()
+    .optional(),
+  depreciationBasisCents: nonNegativeSafeInt
+    .max(
+      10_000_000_000,
+      "AfA-Bemessungsgrundlage darf höchstens 100.000.000,00 € betragen.",
+    )
+    .nullable()
+    .optional(),
+};
+
+export const propertyCreateSchema = z
+  .object({
+    name: z.string().trim().min(1, "Name ist erforderlich.").max(120),
+    usage: propertyUsageSchema.default("owner_occupied"),
+    purchaseDate: nullableOptionalIsoDate,
+    purchasePriceCents: nonNegativeSafeInt.nullable().optional(),
+    estimatedValueCents: nonNegativeSafeInt,
+    maintenanceReservePotId: nullableOptionalTrimmedString(120),
+    ...rentalProfileFields,
+    ...propertyMetadataFields,
+  })
+  .superRefine((data, ctx) => {
+    const errors = validateRentalProfile(data.usage, data);
+    for (const [field, message] of Object.entries(errors)) {
+      if (message) {
+        ctx.addIssue({
+          code: "custom",
+          path: [field],
+          message,
+        });
+      }
+    }
+  });
 
 export const propertyUpdateSchema = z
   .object({
@@ -110,6 +158,8 @@ export const propertyUpdateSchema = z
     purchaseDate: nullableOptionalIsoDate,
     purchasePriceCents: nonNegativeSafeInt.nullable().optional(),
     estimatedValueCents: nonNegativeSafeInt,
+    maintenanceReservePotId: nullableOptionalTrimmedString(120),
+    ...rentalProfileFields,
     ...propertyMetadataFields,
   })
   .partial()

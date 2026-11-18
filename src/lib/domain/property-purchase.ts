@@ -2,6 +2,7 @@ import { calculateMonthlyInterestCents } from "./contracts";
 import {
   assertNonNegativeInteger,
   assertSafeInteger,
+  divRoundHalfUpSigned,
   roundHalfUpBigInt,
 } from "./money";
 import type { DeadlinePotInput, PotDeadlineEvaluation } from "./pot-deadline";
@@ -199,20 +200,6 @@ function validatePropertyPurchaseInput(input: PropertyPurchaseInput): void {
       `costItems[${i}].bps`,
     );
   }
-}
-
-function divRoundHalfUpSigned(numerator: bigint, denominator: bigint): number {
-  if (denominator <= 0n) {
-    throw new RangeError("denominator must be positive");
-  }
-  if (numerator === 0n) {
-    return 0;
-  }
-  const sign = numerator < 0n ? -1 : 1;
-  const absNum = numerator < 0n ? -numerator : numerator;
-  const rounded = roundHalfUpBigInt(absNum, denominator);
-  const value = sign * Number(rounded);
-  return value === 0 ? 0 : assertSafeInteger(value, "divRoundHalfUpSigned");
 }
 
 /**

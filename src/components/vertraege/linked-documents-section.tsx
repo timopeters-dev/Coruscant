@@ -1,27 +1,40 @@
 import Link from "next/link";
 import { ExternalLink, FileText } from "lucide-react";
+import { TAX_CATEGORY_LABELS } from "@/components/dokumente/labels";
+import { Badge } from "@/components/ui/badge";
 import type { DocumentRow } from "@/db/queries/documents";
 import { formatCentsDE } from "@/lib/domain/money";
 
 interface LinkedDocumentsSectionProps {
   documents: DocumentRow[];
   emptyText: string;
+  showTaxTags?: boolean;
 }
 
 export function LinkedDocumentsSection({
   documents,
   emptyText,
+  showTaxTags = false,
 }: LinkedDocumentsSectionProps) {
+  const vvCount = showTaxTags
+    ? documents.filter((doc) => doc.taxCategory === "werbungskosten_vv").length
+    : 0;
+
   return (
     <div className="space-y-2.5">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
           <FileText className="h-3.5 w-3.5" aria-hidden="true" />
           <span>Verknüpfte Belege ({documents.length})</span>
+          {showTaxTags && documents.length > 0 ? (
+            <span className="font-normal normal-case tracking-normal text-[var(--text-secondary)]">
+              · davon {vvCount} als Werbungskosten V+V getaggt
+            </span>
+          ) : null}
         </div>
         <Link
           href="/dokumente"
-          className="text-xs font-medium text-[var(--accent)] hover:underline"
+          className="shrink-0 text-xs font-medium text-[var(--accent)] hover:underline"
         >
           Zur Inbox →
         </Link>
@@ -53,6 +66,11 @@ export function LinkedDocumentsSection({
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  {showTaxTags && doc.taxCategory ? (
+                    <Badge variant="outline" className="text-[11px]">
+                      {TAX_CATEGORY_LABELS[doc.taxCategory]}
+                    </Badge>
+                  ) : null}
                   {displayAmount != null ? (
                     <span className="tabular-nums text-xs font-semibold text-[var(--text-primary)]">
                       {formatCentsDE(displayAmount)}

@@ -8,7 +8,12 @@ import { Dialog } from "@/components/ui/dialog";
 import type { FinancialContractRow, PropertyRow } from "@/db/queries/contracts";
 import type { DocumentRow } from "@/db/queries/documents";
 import { buildContractPrefillFromExtraction } from "@/lib/domain/contract-prefill";
+import {
+  bpsToPercentInputString,
+  centsToEuroInputString,
+} from "@/lib/domain/money";
 import { parseExtractedContractJson } from "@/lib/validation/documents";
+import type { ContractLoanDraft } from "@/lib/validation/property-draft";
 import {
   applyPrefillToContractFormValues,
   ContractFormFields,
@@ -26,6 +31,7 @@ interface ContractModalProps {
   properties: PropertyRow[];
   asOfDate: string;
   initialContract?: FinancialContractRow | null;
+  draft?: ContractLoanDraft | null;
   onSaved: () => void;
 }
 
@@ -37,6 +43,7 @@ export function ContractModal({
   properties,
   asOfDate,
   initialContract,
+  draft,
   onSaved,
 }: ContractModalProps) {
   if (!open) {
@@ -45,12 +52,16 @@ export function ContractModal({
 
   return (
     <ContractModalInner
-      key={initialContract?.id ?? "new"}
+      key={
+        initialContract?.id ??
+        (draft ? `draft-${draft.linkedPropertyId}` : "new")
+      }
       open={open}
       onOpenChange={onOpenChange}
       properties={properties}
       asOfDate={asOfDate}
       initialContract={initialContract}
+      draft={draft}
       onSaved={onSaved}
     />
   );
@@ -62,13 +73,28 @@ function ContractModalInner({
   properties,
   asOfDate,
   initialContract,
+  draft,
   onSaved,
 }: ContractModalProps) {
   const isEditing = Boolean(initialContract);
 
-  const [values, setValues] = React.useState<ContractFormValues>(() =>
-    createInitialContractFormValues(initialContract, asOfDate),
-  );
+  const [values, setValues] = React.useState<ContractFormValues>(() => {
+    const base = createInitialContractFormValues(initialContract, asOfDate);
+    if (!initialContract && draft) {
+      return {
+        ...base,
+        category: draft.category,
+        repaymentType: draft.repaymentType,
+        currentBalanceEuro: centsToEuroInputString(draft.currentBalanceCents),
+        monthlyRateEuro: centsToEuroInputString(draft.monthlyRateCents),
+        interestRatePercent: bpsToPercentInputString(draft.interestRateBps),
+        linkedPropertyId: draft.linkedPropertyId,
+        balanceAsOfDate: draft.balanceAsOfDate,
+        fixedInterestUntil: draft.fixedInterestUntil ?? "",
+      };
+    }
+    return base;
+  });
   const [errors, setErrors] = React.useState<ContractFieldErrors>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 

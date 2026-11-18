@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 import {
   deleteProperty,
   getPropertyById,
+  MaintenancePotValidationError,
+  RentalProfileValidationError,
   updateProperty,
 } from "@/db/queries/contracts";
 import {
+  badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
   parseJsonBody,
@@ -56,7 +59,13 @@ export async function PATCH(
       return notFoundResponse("Immobilie nicht gefunden.");
     }
     return NextResponse.json({ property }, { status: 200 });
-  } catch {
+  } catch (error) {
+    if (
+      error instanceof RentalProfileValidationError ||
+      error instanceof MaintenancePotValidationError
+    ) {
+      return badRequestResponse(error.message, error.fieldErrors);
+    }
     return internalErrorResponse();
   }
 }

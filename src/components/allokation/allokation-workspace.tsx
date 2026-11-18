@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type {
+  AllocationSettingsState,
   CashflowItemRow,
   PotRow,
   RecentPotAllocationRow,
@@ -43,10 +44,7 @@ import {
 import { POT_DEADLINE_BADGE_META } from "./deadline-labels";
 import { applyPendingTransfers, type PotLinkOption } from "@/lib/domain/pot-sync";
 import type { PotRuleType } from "@/lib/domain/waterfall";
-import type {
-  AllocationSettings,
-  HouseholdSummary,
-} from "@/lib/validation/external";
+import type { HouseholdSummary } from "@/lib/validation/external";
 import { cn } from "@/lib/utils";
 import { AllocateModal } from "./allocate-modal";
 import { CashflowItemModal } from "./cashflow-item-modal";
@@ -63,6 +61,7 @@ interface HouseholdWorkspaceData {
 interface AllokationWorkspaceProps {
   manualItems: CashflowItemRow[];
   derivedContractItems: DomainCashflowItem[];
+  derivedPropertyItems: DomainCashflowItem[];
   excludedContractsCount: number;
   pots: PotRow[];
   linkOptions: PotLinkOption[];
@@ -74,7 +73,7 @@ interface AllokationWorkspaceProps {
   recentAllocations: RecentPotAllocationRow[];
   properties: PropertyRow[];
   contracts: FinancialContractRow[];
-  initialSettings: AllocationSettings;
+  initialSettings: AllocationSettingsState;
   householdData: HouseholdWorkspaceData;
 }
 
@@ -110,6 +109,7 @@ function formatJournalTimestamp(isoString: string): string {
 export function AllokationWorkspace({
   manualItems,
   derivedContractItems,
+  derivedPropertyItems,
   excludedContractsCount,
   pots,
   linkOptions,
@@ -127,6 +127,8 @@ export function AllokationWorkspace({
     React.useState<VariableExpenseBasis>(initialSettings.variableBasis);
   const [includeContractItems, setIncludeContractItems] =
     React.useState<boolean>(initialSettings.includeContractItems);
+  const [includePropertyItems, setIncludePropertyItems] =
+    React.useState<boolean>(initialSettings.includePropertyItems);
   const [breakdownOpen, setBreakdownOpen] = React.useState(false);
   const [isSyncingBridge, setIsSyncingBridge] = React.useState(false);
 
@@ -179,6 +181,8 @@ export function AllokationWorkspace({
       manualItems,
       contractItems: derivedContractItems,
       includeContractItems,
+      propertyItems: derivedPropertyItems,
+      includePropertyItems,
     });
   }, [
     householdData.household,
@@ -186,6 +190,8 @@ export function AllokationWorkspace({
     manualItems,
     derivedContractItems,
     includeContractItems,
+    derivedPropertyItems,
+    includePropertyItems,
   ]);
 
   const deadlineEvalByPotId = React.useMemo(() => {
@@ -204,7 +210,7 @@ export function AllokationWorkspace({
   }, [pots, pendingTransferCentsByPotId, consolidatedSummary.monthlySurplusCents]);
 
   async function persistSettings(
-    patch: Partial<AllocationSettings>,
+    patch: Partial<AllocationSettingsState>,
     rollback: () => void,
   ) {
     setActionError(null);
@@ -242,6 +248,15 @@ export function AllokationWorkspace({
     setIncludeContractItems(nextValue);
     void persistSettings({ includeContractItems: nextValue }, () =>
       setIncludeContractItems(prevValue),
+    );
+  }
+
+  function handleToggleIncludePropertyItems() {
+    const prevValue = includePropertyItems;
+    const nextValue = !prevValue;
+    setIncludePropertyItems(nextValue);
+    void persistSettings({ includePropertyItems: nextValue }, () =>
+      setIncludePropertyItems(prevValue),
     );
   }
 
@@ -1054,6 +1069,72 @@ export function AllokationWorkspace({
             </p>
           ) : null}
         </div>
+
+        {derivedPropertyItems.length > 0 ? (
+          <div className="space-y-2.5 rounded-xl border border-dashed border-[var(--border-sub)] bg-[var(--surface-elevated)]/40 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                  Mieten &amp; Objektkosten (Modelliert)
+                </h3>
+                <Badge variant="outline">Objekt</Badge>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-[var(--text-primary)]">
+                  <input
+                    type="checkbox"
+                    checked={includePropertyItems}
+                    onChange={handleToggleIncludePropertyItems}
+                    className="h-3.5 w-3.5 rounded border-[var(--border)] accent-[var(--accent)]"
+                  />
+                  In Haushalts-Überschuss einrechnen
+                </label>
+                <Link
+                  href="/vertraege?tab=portfolio"
+                  className="text-xs font-medium text-[var(--accent)] hover:underline"
+                >
+                  Portfolio ansehen →
+                </Link>
+              </div>
+            </div>
+            <p className="text-[11px] text-[var(--text-secondary)]">
+              Abgeleitet aus vermieteten Objekten inkl. verknüpfter
+              Haushalts-Kreditraten (ohne Doppelzählung bei aktiven
+              Vertragsraten). Falls Miete oder Rate bereits im Gemeinschaftskonto
+              oder als manueller Posten erfasst sind, bitte entsprechend
+              deaktivieren.
+            </p>
+            <div className="divide-y divide-[var(--border)]">
+              {derivedPropertyItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between gap-3 py-2 text-sm"
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Building2
+                      className="h-3.5 w-3.5 shrink-0 text-[var(--text-secondary)]"
+                      aria-hidden="true"
+                    />
+                    <span className="truncate font-medium text-[var(--text-primary)]">
+                      {item.name}
+                    </span>
+                  </div>
+                  <span
+                    className={cn(
+                      "tabular-nums shrink-0 font-semibold",
+                      item.direction === "inflow"
+                        ? "text-[var(--emerald)]"
+                        : "text-[var(--rose)]",
+                    )}
+                  >
+                    {item.direction === "inflow" ? "+" : "−"}
+                    {formatCentsDE(item.amountCents)} / Mon.
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </section>
 
       {/* Sektion 2: Priorisierte Ziel-Töpfe */}

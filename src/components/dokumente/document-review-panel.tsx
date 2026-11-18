@@ -28,6 +28,7 @@ import {
 } from "@/components/vertraege/contract-form-fields";
 import type { FinancialContractRow, PropertyRow } from "@/db/queries/contracts";
 import type { DocumentRow } from "@/db/queries/documents";
+import { suggestTaxCategoryForPropertyUsage } from "@/lib/domain/rental";
 import { buildContractPrefillFromExtraction } from "@/lib/domain/contract-prefill";
 import {
   type ContractCalibrationEvaluation,
@@ -56,6 +57,20 @@ interface DocumentReviewPanelProps {
   contracts: FinancialContractRow[];
   todayIsoDate: string;
   onMutated: () => void;
+}
+
+export function resolveInitialTaxCategory(
+  doc: Pick<DocumentRow, "taxCategory" | "linkedPropertyId">,
+  properties: readonly Pick<PropertyRow, "id" | "usage">[],
+): TaxCategory {
+  if (doc.taxCategory) {
+    return doc.taxCategory;
+  }
+  const linkedProp = properties.find((p) => p.id === doc.linkedPropertyId);
+  const suggested = linkedProp
+    ? suggestTaxCategoryForPropertyUsage(linkedProp.usage)
+    : null;
+  return suggested ?? "handwerker_35a";
 }
 
 export function DocumentReviewPanel({
@@ -182,8 +197,11 @@ function DocumentReviewSplitView({
         ? doc.documentDate.slice(0, 4)
         : "",
   );
-  const [taxCategory, setTaxCategory] = React.useState<TaxCategory>(
-    doc.taxCategory ?? "handwerker_35a",
+  const [hasExplicitTaxCategory, setHasExplicitTaxCategory] = React.useState(
+    Boolean(doc.taxCategory),
+  );
+  const [taxCategory, setTaxCategory] = React.useState<TaxCategory>(() =>
+    resolveInitialTaxCategory(doc, properties),
   );
   const [deductibleAmountInput, setDeductibleAmountInput] =
     React.useState<string>(
@@ -314,7 +332,8 @@ function DocumentReviewSplitView({
           ? updatedDoc.documentDate.slice(0, 4)
           : "",
     );
-    setTaxCategory(updatedDoc.taxCategory ?? "handwerker_35a");
+    setTaxCategory(resolveInitialTaxCategory(updatedDoc, properties));
+    setHasExplicitTaxCategory(Boolean(updatedDoc.taxCategory));
     setDeductibleAmountInput(
       updatedDoc.deductibleAmountCents != null
         ? centsToEuroInputString(updatedDoc.deductibleAmountCents)
@@ -714,6 +733,15 @@ function DocumentReviewSplitView({
                       ...prev,
                       linkedPropertyId: nextProp,
                     }));
+                    if (!hasExplicitTaxCategory) {
+                      const prop = properties.find((p) => p.id === nextProp);
+                      const suggested = prop
+                        ? suggestTaxCategoryForPropertyUsage(prop.usage)
+                        : null;
+                      if (suggested) {
+                        setTaxCategory(suggested);
+                      }
+                    }
                   }}
                 >
                   <option value="">Keine Immobilie</option>
@@ -794,7 +822,21 @@ function DocumentReviewSplitView({
                 <input
                   type="checkbox"
                   checked={isTaxRelevant}
-                  onChange={(e) => setIsTaxRelevant(e.target.checked)}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setIsTaxRelevant(checked);
+                    if (checked && !hasExplicitTaxCategory) {
+                      const prop = properties.find(
+                        (p) => p.id === linkedPropertyId,
+                      );
+                      const suggested = prop
+                        ? suggestTaxCategoryForPropertyUsage(prop.usage)
+                        : null;
+                      if (suggested) {
+                        setTaxCategory(suggested);
+                      }
+                    }
+                  }}
                   className="h-4 w-4 rounded border-[var(--border)] accent-[var(--accent)]"
                 />
                 <span>Steuerrelevant</span>
@@ -820,9 +862,10 @@ function DocumentReviewSplitView({
                     <Select
                       id="doc-tax-category"
                       value={taxCategory}
-                      onChange={(e) =>
-                        setTaxCategory(e.target.value as TaxCategory)
-                      }
+                      onChange={(e) => {
+                        setHasExplicitTaxCategory(true);
+                        setTaxCategory(e.target.value as TaxCategory);
+                      }}
                     >
                       {TAX_CATEGORIES.map((cat) => (
                         <option key={cat} value={cat}>

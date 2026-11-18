@@ -1,0 +1,1 @@
+ALTER TABLE `properties` ADD `monthly_maintenance_allowance_cents` integer;

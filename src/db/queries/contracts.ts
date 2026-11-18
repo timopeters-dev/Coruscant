@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 import { asc, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { financialContracts, properties } from "@/db/schema";
+import { financialContracts, pots, properties } from "@/db/schema";
+import { validateRentalProfile } from "@/lib/domain/rental";
 import {
   type ContractCreateInput,
   contractCreateSchema,
@@ -17,6 +18,47 @@ export class LinkedPropertyNotFoundError extends Error {
   constructor(propertyId: string) {
     super(`Linked property not found: ${propertyId}`);
     this.name = "LinkedPropertyNotFoundError";
+  }
+}
+
+export class RentalProfileValidationError extends Error {
+  readonly fieldErrors: Record<string, string>;
+  constructor(fieldErrors: Record<string, string>) {
+    super("Mietprofil-Validierung fehlgeschlagen.");
+    this.name = "RentalProfileValidationError";
+    this.fieldErrors = fieldErrors;
+  }
+}
+
+export class MaintenancePotValidationError extends Error {
+  readonly fieldErrors: Record<string, string>;
+  constructor(message: string) {
+    super(message);
+    this.name = "MaintenancePotValidationError";
+    this.fieldErrors = { maintenanceReservePotId: message };
+  }
+}
+
+export function assertMaintenancePotAssignable(
+  potId: string,
+  propertyId?: string,
+): void {
+  const db = getDb();
+  const pot = db.select({ id: pots.id }).from(pots).where(eq(pots.id, potId)).get();
+  if (!pot) {
+    throw new MaintenancePotValidationError("Unbekannter Topf.");
+  }
+
+  const assigned = db
+    .select({ id: properties.id })
+    .from(properties)
+    .where(eq(properties.maintenanceReservePotId, potId))
+    .all();
+
+  if (assigned.some((row) => row.id !== propertyId)) {
+    throw new MaintenancePotValidationError(
+      "Topf ist bereits Rücklage für ein anderes Objekt.",
+    );
   }
 }
 
@@ -40,6 +82,10 @@ export function getPropertyById(id: string): PropertyRow | null {
 }
 
 export function createProperty(input: PropertyCreateInput): PropertyRow {
+  if (input.maintenanceReservePotId != null) {
+    assertMaintenancePotAssignable(input.maintenanceReservePotId);
+  }
+
   const db = getDb();
   const now = new Date().toISOString();
   const [created] = db
@@ -51,6 +97,13 @@ export function createProperty(input: PropertyCreateInput): PropertyRow {
       purchaseDate: input.purchaseDate ?? null,
       purchasePriceCents: input.purchasePriceCents ?? null,
       estimatedValueCents: input.estimatedValueCents,
+      maintenanceReservePotId: input.maintenanceReservePotId ?? null,
+      monthlyColdRentCents: input.monthlyColdRentCents ?? null,
+      monthlyNonRecoverableCostsCents:
+        input.monthlyNonRecoverableCostsCents ?? null,
+      monthlyMaintenanceAllowanceCents:
+        input.monthlyMaintenanceAllowanceCents ?? null,
+      depreciationBasisCents: input.depreciationBasisCents ?? null,
       street: input.street ?? null,
       houseNumber: input.houseNumber ?? null,
       postalCode: input.postalCode ?? null,
@@ -82,13 +135,49 @@ export function updateProperty(
     return null;
   }
 
+  const mergedUsage = input.usage ?? existing.usage;
+  const mergedColdRent =
+    input.monthlyColdRentCents !== undefined
+      ? input.monthlyColdRentCents
+      : existing.monthlyColdRentCents;
+  const mergedNonRecoverable =
+    input.monthlyNonRecoverableCostsCents !== undefined
+      ? input.monthlyNonRecoverableCostsCents
+      : existing.monthlyNonRecoverableCostsCents;
+  const mergedMaintenanceAllowance =
+    input.monthlyMaintenanceAllowanceCents !== undefined
+      ? input.monthlyMaintenanceAllowanceCents
+      : existing.monthlyMaintenanceAllowanceCents;
+  const mergedDepreciationBasis =
+    input.depreciationBasisCents !== undefined
+      ? input.depreciationBasisCents
+      : existing.depreciationBasisCents;
+  const mergedMaintenancePotId =
+    input.maintenanceReservePotId !== undefined
+      ? input.maintenanceReservePotId
+      : existing.maintenanceReservePotId;
+
+  const profileErrors = validateRentalProfile(mergedUsage, {
+    monthlyColdRentCents: mergedColdRent,
+    monthlyNonRecoverableCostsCents: mergedNonRecoverable,
+    monthlyMaintenanceAllowanceCents: mergedMaintenanceAllowance,
+    depreciationBasisCents: mergedDepreciationBasis,
+  });
+  if (Object.keys(profileErrors).length > 0) {
+    throw new RentalProfileValidationError(profileErrors);
+  }
+
+  if (mergedMaintenancePotId != null) {
+    assertMaintenancePotAssignable(mergedMaintenancePotId, id);
+  }
+
   const db = getDb();
   const now = new Date().toISOString();
   const [updated] = db
     .update(properties)
     .set({
       name: input.name ?? existing.name,
-      usage: input.usage ?? existing.usage,
+      usage: mergedUsage,
       purchaseDate:
         input.purchaseDate !== undefined
           ? input.purchaseDate
@@ -99,6 +188,11 @@ export function updateProperty(
           : existing.purchasePriceCents,
       estimatedValueCents:
         input.estimatedValueCents ?? existing.estimatedValueCents,
+      maintenanceReservePotId: mergedMaintenancePotId,
+      monthlyColdRentCents: mergedColdRent,
+      monthlyNonRecoverableCostsCents: mergedNonRecoverable,
+      monthlyMaintenanceAllowanceCents: mergedMaintenanceAllowance,
+      depreciationBasisCents: mergedDepreciationBasis,
       street: input.street !== undefined ? input.street : existing.street,
       houseNumber:
         input.houseNumber !== undefined

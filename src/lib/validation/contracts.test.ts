@@ -169,6 +169,71 @@ describe("propertyCreateSchema & propertyUpdateSchema", () => {
       }).success,
     ).toBe(false);
   });
+
+  it("rejects rental profile fields on owner_occupied at each field path and accepts them on rented", () => {
+    const rentalFields = [
+      "monthlyColdRentCents",
+      "monthlyNonRecoverableCostsCents",
+      "monthlyMaintenanceAllowanceCents",
+      "depreciationBasisCents",
+    ] as const;
+
+    for (const field of rentalFields) {
+      const result = propertyCreateSchema.safeParse({
+        name: "Immobilie #0",
+        usage: "owner_occupied",
+        estimatedValueCents: 30_000_000,
+        [field]: 50_000,
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.some((i) => i.path[0] === field)).toBe(true);
+      }
+    }
+
+    const validRented = propertyCreateSchema.parse({
+      name: "Wohnung Musterstraße 1",
+      usage: "rented",
+      estimatedValueCents: 25_000_000,
+      monthlyColdRentCents: 80_000,
+      monthlyNonRecoverableCostsCents: 6_000,
+      monthlyMaintenanceAllowanceCents: 5_000,
+      depreciationBasisCents: 18_000_000,
+      maintenanceReservePotId: "  pot-1  ",
+    });
+    expect(validRented.monthlyColdRentCents).toBe(80_000);
+    expect(validRented.maintenanceReservePotId).toBe("pot-1");
+  });
+
+  it("rejects invalid rental amounts and overlong maintenanceReservePotId, converts empty potId to null", () => {
+    for (const bad of [-1, 100.5, "500", 10_000_001, Number.NaN]) {
+      expect(
+        propertyCreateSchema.safeParse({
+          name: "Wohnung Musterstraße 1",
+          usage: "rented",
+          estimatedValueCents: 25_000_000,
+          monthlyColdRentCents: bad,
+        }).success,
+      ).toBe(false);
+    }
+
+    const emptyPot = propertyCreateSchema.parse({
+      name: "Wohnung Musterstraße 1",
+      usage: "rented",
+      estimatedValueCents: 25_000_000,
+      maintenanceReservePotId: "   ",
+    });
+    expect(emptyPot.maintenanceReservePotId).toBeNull();
+
+    expect(
+      propertyCreateSchema.safeParse({
+        name: "Wohnung Musterstraße 1",
+        usage: "rented",
+        estimatedValueCents: 25_000_000,
+        maintenanceReservePotId: "p".repeat(121),
+      }).success,
+    ).toBe(false);
+  });
 });
 
 describe("contractCreateSchema & contractUpdateSchema", () => {

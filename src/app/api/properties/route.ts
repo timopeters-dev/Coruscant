@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
-import { createProperty, listProperties } from "@/db/queries/contracts";
 import {
+  createProperty,
+  listProperties,
+  MaintenancePotValidationError,
+} from "@/db/queries/contracts";
+import {
+  badRequestResponse,
   internalErrorResponse,
   parseJsonBody,
   validationErrorResponse,
@@ -32,7 +37,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     const property = createProperty(parsed.data);
     return NextResponse.json({ property }, { status: 201 });
-  } catch {
+  } catch (error) {
+    if (error instanceof MaintenancePotValidationError) {
+      return badRequestResponse(error.message, error.fieldErrors);
+    }
     return internalErrorResponse();
   }
 }

@@ -57,6 +57,13 @@
       "when": 1794990765645,
       "tag": "0007_damp_liz_osborn",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1794998614939,
+      "tag": "0008_silly_bucky",
+      "breakpoints": true
     }
   ]
 }

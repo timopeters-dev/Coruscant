@@ -950,19 +950,25 @@ export function getPendingTransferCentsByPotId(): Map<string, number> {
 
 // --- Allocation Settings (app_meta) ---
 
+export interface AllocationSettingsState extends AllocationSettings {
+  includePropertyItems: boolean;
+}
+
 const ALLOCATION_META_KEYS = {
   variableBasis: "allocation_variable_basis",
   includeContractItems: "allocation_include_contract_items",
+  includePropertyItems: "allocation_include_property_items",
 } as const;
 
 const LEGACY_INCLUDE_CONTRACTS_KEY = "allocation_include_contracts_mode_b";
 
-export const DEFAULT_ALLOCATION_SETTINGS: AllocationSettings = {
+export const DEFAULT_ALLOCATION_SETTINGS: AllocationSettingsState = {
   variableBasis: "budget",
   includeContractItems: false,
+  includePropertyItems: true,
 };
 
-export function getAllocationSettings(): AllocationSettings {
+export function getAllocationSettings(): AllocationSettingsState {
   const db = getDb();
   const rows = db
     .select()
@@ -971,6 +977,7 @@ export function getAllocationSettings(): AllocationSettings {
       inArray(appMeta.key, [
         ALLOCATION_META_KEYS.variableBasis,
         ALLOCATION_META_KEYS.includeContractItems,
+        ALLOCATION_META_KEYS.includePropertyItems,
         LEGACY_INCLUDE_CONTRACTS_KEY,
       ]),
     )
@@ -984,6 +991,7 @@ export function getAllocationSettings(): AllocationSettings {
   const rawInclude =
     map.get(ALLOCATION_META_KEYS.includeContractItems) ??
     map.get(LEGACY_INCLUDE_CONTRACTS_KEY);
+  const rawIncludeProperty = map.get(ALLOCATION_META_KEYS.includePropertyItems);
 
   return {
     variableBasis: parsedBasis.success
@@ -995,18 +1003,30 @@ export function getAllocationSettings(): AllocationSettings {
         : rawInclude === "false"
           ? false
           : DEFAULT_ALLOCATION_SETTINGS.includeContractItems,
+    includePropertyItems:
+      rawIncludeProperty === "true"
+        ? true
+        : rawIncludeProperty === "false"
+          ? false
+          : DEFAULT_ALLOCATION_SETTINGS.includePropertyItems,
   };
 }
 
 export function saveAllocationSettings(
-  patch: Partial<AllocationSettings>,
-): AllocationSettings {
+  patch: Partial<AllocationSettingsState>,
+): AllocationSettingsState {
   const current = getAllocationSettings();
-  const next = allocationSettingsSchema.parse({
+  const parsedBase = allocationSettingsSchema.parse({
     variableBasis: patch.variableBasis ?? current.variableBasis,
     includeContractItems:
       patch.includeContractItems ?? current.includeContractItems,
   });
+  const nextIncludeProperty =
+    patch.includePropertyItems ?? current.includePropertyItems;
+  const next: AllocationSettingsState = {
+    ...parsedBase,
+    includePropertyItems: Boolean(nextIncludeProperty),
+  };
 
   const db = getDb();
   const now = new Date().toISOString();
@@ -1016,6 +1036,10 @@ export function saveAllocationSettings(
     {
       key: ALLOCATION_META_KEYS.includeContractItems,
       value: String(next.includeContractItems),
+    },
+    {
+      key: ALLOCATION_META_KEYS.includePropertyItems,
+      value: String(next.includePropertyItems),
     },
   ];
 

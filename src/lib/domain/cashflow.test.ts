@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   calculateConsolidatedCashflow,
   deriveContractCashflowItems,
+  derivePropertyCashflowItems,
   type DomainCashflowItem,
   type HouseholdCashflowInput,
   normalizeItemToMonthlyCents,
@@ -172,6 +173,8 @@ describe("calculateConsolidatedCashflow", () => {
       manualInflowCents: 25_000,
       manualOutflowCents: 4_000,
       contractOutflowCents: 0,
+      propertyInflowCents: 0,
+      propertyOutflowCents: 0,
       totalInflowCents: 485_000,
       totalOutflowCents: 294_000,
       monthlySurplusCents: 191_000,
@@ -235,6 +238,8 @@ describe("calculateConsolidatedCashflow", () => {
       manualInflowCents: 25_000,
       manualOutflowCents: 4_000,
       contractOutflowCents: 100_000,
+      propertyInflowCents: 0,
+      propertyOutflowCents: 0,
       totalInflowCents: 25_000,
       totalOutflowCents: 104_000,
       monthlySurplusCents: -79_000,
@@ -338,5 +343,284 @@ describe("calculateConsolidatedCashflow", () => {
         ],
       }),
     ).toThrow(RangeError);
+  });
+});
+
+describe("derivePropertyCashflowItems", () => {
+  it("derives deterministic rent inflow and costs outflow only for rented properties with > 0 amounts", () => {
+    const items = derivePropertyCashflowItems([
+      {
+        id: "prop-0",
+        name: "Immobilie #0",
+        usage: "owner_occupied",
+        estimatedValueCents: 30_000_000,
+        monthlyColdRentCents: 99_000, // legacy invalid value must be ignored
+        monthlyNonRecoverableCostsCents: 5_000,
+        monthlyMaintenanceAllowanceCents: null,
+        depreciationBasisCents: null,
+      },
+      {
+        id: "prop-1",
+        name: "Wohnung Musterstraße 1",
+        usage: "rented",
+        estimatedValueCents: 25_000_000,
+        monthlyColdRentCents: 80_000,
+        monthlyNonRecoverableCostsCents: 6_000,
+        monthlyMaintenanceAllowanceCents: 5_000,
+        depreciationBasisCents: null,
+      },
+      {
+        id: "prop-2",
+        name: "Leerstand Musterweg 2",
+        usage: "rented",
+        estimatedValueCents: 15_000_000,
+        monthlyColdRentCents: 0,
+        monthlyNonRecoverableCostsCents: 0,
+        monthlyMaintenanceAllowanceCents: null,
+        depreciationBasisCents: null,
+      },
+    ]);
+
+    expect(items).toEqual([
+      {
+        id: "property:prop-1:rent",
+        name: "Wohnung Musterstraße 1 · Kaltmiete",
+        direction: "inflow",
+        amountCents: 80_000,
+        frequency: "monthly",
+        source: "property_linked",
+        linkedPropertyId: "prop-1",
+        active: true,
+      },
+      {
+        id: "property:prop-1:costs",
+        name: "Wohnung Musterstraße 1 · nicht umlagefähig",
+        direction: "outflow",
+        amountCents: 6_000,
+        frequency: "monthly",
+        source: "property_linked",
+        linkedPropertyId: "prop-1",
+        active: true,
+      },
+    ]);
+  });
+});
+
+describe("calculateConsolidatedCashflow with propertyItems", () => {
+  const household: HouseholdCashflowInput = {
+    balanceCents: 100_000,
+    recurringInflowCents: 400_000,
+    recurringOutflowCents: 200_000,
+    variableBudgetsCents: 50_000,
+    variableRollingAvg3MCents: 50_000,
+    variableRollingAvg6MCents: 50_000,
+  };
+
+  it("includes property inflow/outflow when includePropertyItems is true and zeroes them when false or omitted", () => {
+    const propertyItems: DomainCashflowItem[] = [
+      {
+        id: "property:prop-1:rent",
+        name: "Wohnung Musterstraße 1 · Kaltmiete",
+        direction: "inflow",
+        amountCents: 80_000,
+        frequency: "monthly",
+        source: "property_linked",
+        linkedPropertyId: "prop-1",
+        active: true,
+      },
+      {
+        id: "property:prop-1:costs",
+        name: "Wohnung Musterstraße 1 · nicht umlagefähig",
+        direction: "outflow",
+        amountCents: 6_000,
+        frequency: "monthly",
+        source: "property_linked",
+        linkedPropertyId: "prop-1",
+        active: true,
+      },
+    ];
+
+    const baseline = calculateConsolidatedCashflow({
+      household,
+      variableBasis: "budget",
+      manualItems: [],
+    });
+    expect(baseline.propertyInflowCents).toBe(0);
+    expect(baseline.propertyOutflowCents).toBe(0);
+    expect(baseline.monthlySurplusCents).toBe(150_000);
+
+    const disabled = calculateConsolidatedCashflow({
+      household,
+      variableBasis: "budget",
+      manualItems: [],
+      propertyItems,
+      includePropertyItems: false,
+    });
+    expect(disabled.propertyInflowCents).toBe(0);
+    expect(disabled.propertyOutflowCents).toBe(0);
+    expect(disabled.monthlySurplusCents).toBe(150_000);
+
+    const enabled = calculateConsolidatedCashflow({
+      household,
+      variableBasis: "budget",
+      manualItems: [],
+      propertyItems,
+      includePropertyItems: true,
+    });
+    expect(enabled.propertyInflowCents).toBe(80_000);
+    expect(enabled.propertyOutflowCents).toBe(6_000);
+    expect(enabled.monthlySurplusCents).toBe(150_000 + 80_000 - 6_000);
+  });
+
+  it("protects against cross-source injection, duplicate IDs across lists, and inactive items", () => {
+    const result = calculateConsolidatedCashflow({
+      household: null,
+      variableBasis: "budget",
+      manualItems: [
+        {
+          id: "dup-id",
+          name: "Manuell",
+          direction: "inflow",
+          amountCents: 10_000,
+          frequency: "monthly",
+          source: "manual",
+          active: true,
+        },
+        {
+          id: "injected-prop-in-manual",
+          name: "Injected",
+          direction: "inflow",
+          amountCents: 99_000,
+          frequency: "monthly",
+          source: "property_linked",
+          active: true,
+        },
+      ],
+      contractItems: [
+        {
+          id: "contract:c1",
+          name: "Contract",
+          direction: "outflow",
+          amountCents: 20_000,
+          frequency: "monthly",
+          source: "contract_linked",
+          active: true,
+        },
+        {
+          id: "injected-prop-in-contract",
+          name: "Injected",
+          direction: "outflow",
+          amountCents: 88_000,
+          frequency: "monthly",
+          source: "property_linked",
+          active: true,
+        },
+      ],
+      includeContractItems: true,
+      propertyItems: [
+        {
+          id: "dup-id",
+          name: "Dup ID in propertyItems",
+          direction: "inflow",
+          amountCents: 50_000,
+          frequency: "monthly",
+          source: "property_linked",
+          active: true,
+        },
+        {
+          id: "injected-contract-in-prop",
+          name: "Injected",
+          direction: "inflow",
+          amountCents: 77_000,
+          frequency: "monthly",
+          source: "contract_linked",
+          active: true,
+        },
+        {
+          id: "inactive-prop",
+          name: "Inactive",
+          direction: "inflow",
+          amountCents: 30_000,
+          frequency: "monthly",
+          source: "property_linked",
+          active: false,
+        },
+        {
+          id: "property:p1:rent",
+          name: "Kaltmiete",
+          direction: "inflow",
+          amountCents: 60_000,
+          frequency: "monthly",
+          source: "property_linked",
+          active: true,
+        },
+      ],
+      includePropertyItems: true,
+    });
+
+    expect(result.manualInflowCents).toBe(10_000);
+    expect(result.contractOutflowCents).toBe(20_000);
+    expect(result.propertyInflowCents).toBe(60_000);
+    expect(result.propertyOutflowCents).toBe(0);
+    expect(result.monthlySurplusCents).toBe(50_000);
+  });
+
+  it("derives linked active household loan rates on rented properties and yields +300 EUR for 1.000 EUR rent and 700 EUR loan regardless of includeContractItems", () => {
+    const rentedProperty = {
+      id: "prop-rent-1",
+      name: "Wohnung Musterstraße 1",
+      usage: "rented" as const,
+      estimatedValueCents: 25_000_000,
+      monthlyColdRentCents: 100_000,
+      monthlyNonRecoverableCostsCents: 0,
+      monthlyMaintenanceAllowanceCents: 0,
+      depreciationBasisCents: null,
+    };
+    const linkedLoan = {
+      id: "loan-1",
+      name: "Objektkredit Musterbank",
+      sphere: "household" as const,
+      category: "loan" as const,
+      status: "active" as const,
+      currentBalanceCents: 18_000_000,
+      balanceAsOfDate: "2026-11-18",
+      monthlyRateCents: 70_000,
+      interestRateBps: 350,
+      linkedPropertyId: "prop-rent-1",
+    };
+
+    const contractItems = deriveContractCashflowItems([linkedLoan]);
+    const propertyItems = derivePropertyCashflowItems(
+      [rentedProperty],
+      [linkedLoan],
+    );
+
+    const withContractsOff = calculateConsolidatedCashflow({
+      household: null,
+      variableBasis: "budget",
+      manualItems: [],
+      contractItems,
+      includeContractItems: false,
+      propertyItems,
+      includePropertyItems: true,
+    });
+    expect(withContractsOff.contractOutflowCents).toBe(0);
+    expect(withContractsOff.propertyInflowCents).toBe(100_000);
+    expect(withContractsOff.propertyOutflowCents).toBe(70_000);
+    expect(withContractsOff.monthlySurplusCents).toBe(30_000);
+
+    const withContractsOn = calculateConsolidatedCashflow({
+      household: null,
+      variableBasis: "budget",
+      manualItems: [],
+      contractItems,
+      includeContractItems: true,
+      propertyItems,
+      includePropertyItems: true,
+    });
+    expect(withContractsOn.contractOutflowCents).toBe(70_000);
+    expect(withContractsOn.propertyInflowCents).toBe(100_000);
+    expect(withContractsOn.propertyOutflowCents).toBe(0);
+    expect(withContractsOn.monthlySurplusCents).toBe(30_000);
   });
 });

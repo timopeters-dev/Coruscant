@@ -13,7 +13,10 @@ import {
   parseSnapshotPositions,
 } from "@/db/queries/cockpit";
 import { listContracts, listProperties } from "@/db/queries/contracts";
-import { deriveContractCashflowItems } from "@/lib/domain/cashflow";
+import {
+  deriveContractCashflowItems,
+  derivePropertyCashflowItems,
+} from "@/lib/domain/cashflow";
 import { buildPotLinkOptions, computePotSyncPlan } from "@/lib/domain/pot-sync";
 import { getFinanzCockpitBridgeConfig } from "@/lib/integrations/finanz-cockpit-client";
 import { resolveHouseholdDataForWorkspace } from "@/lib/integrations/household-dummy";
@@ -65,12 +68,17 @@ export default function AllokationPage() {
   }
 
   const derivedContractItems = deriveContractCashflowItems(contracts);
+  const derivedPropertyItems = derivePropertyCashflowItems(
+    properties,
+    contracts,
+  );
   const excludedContractsCount = contracts.length - derivedContractItems.length;
 
   return (
     <AllokationWorkspace
       manualItems={manualItems}
       derivedContractItems={derivedContractItems}
+      derivedPropertyItems={derivedPropertyItems}
       excludedContractsCount={excludedContractsCount}
       pots={pots}
       linkOptions={linkOptions}

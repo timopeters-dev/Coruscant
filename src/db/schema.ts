@@ -33,6 +33,9 @@ export const properties = sqliteTable(
     monthlyNonRecoverableCostsCents: integer(
       "monthly_non_recoverable_costs_cents",
     ),
+    monthlyMaintenanceAllowanceCents: integer(
+      "monthly_maintenance_allowance_cents",
+    ),
     depreciationBasisCents: integer("depreciation_basis_cents"),
     street: text("street"),
     houseNumber: text("house_number"),
@@ -143,7 +146,7 @@ export const cashflowItems = sqliteTable(
       enum: ["monthly", "quarterly", "yearly"],
     }).notNull(),
     source: text("source", {
-      enum: ["manual", "finanz_cockpit_sync", "contract_linked"],
+      enum: ["manual", "finanz_cockpit_sync", "contract_linked", "property_linked"],
     })
       .notNull()
       .default("manual"),

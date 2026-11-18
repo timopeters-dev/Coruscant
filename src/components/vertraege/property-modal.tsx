@@ -6,19 +6,24 @@ import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { StatusBadge } from "@/components/status-badge";
 import type { PropertyRow } from "@/db/queries/contracts";
 import {
   centsToEuroInputString,
   parseEuroInputToCents,
 } from "@/lib/domain/money";
 import type { PropertyUsage } from "@/lib/domain/properties";
+import { PROPERTY_PURCHASE_LIMITS } from "@/lib/domain/property-purchase-defaults";
+import type { PurchaseDraft } from "@/lib/validation/property-draft";
 import { PROPERTY_ENERGY_CLASS_OPTIONS } from "./labels";
 
 interface PropertyModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialProperty?: PropertyRow | null;
-  onSaved: () => void;
+  draft?: PurchaseDraft | null;
+  pots?: { id: string; name: string }[];
+  onSaved: (savedProperty?: PropertyRow) => void;
 }
 
 interface FieldErrors {
@@ -26,6 +31,11 @@ interface FieldErrors {
   purchaseDate?: string;
   purchasePriceEuro?: string;
   estimatedValueEuro?: string;
+  maintenanceReservePotId?: string;
+  monthlyColdRentEuro?: string;
+  monthlyNonRecoverableCostsEuro?: string;
+  monthlyMaintenanceAllowanceEuro?: string;
+  depreciationBasisEuro?: string;
   street?: string;
   houseNumber?: string;
   postalCode?: string;
@@ -69,6 +79,8 @@ export function PropertyModal({
   open,
   onOpenChange,
   initialProperty,
+  draft,
+  pots = [],
   onSaved,
 }: PropertyModalProps) {
   if (!open) {
@@ -77,10 +89,12 @@ export function PropertyModal({
 
   return (
     <PropertyModalInner
-      key={initialProperty?.id ?? "new"}
+      key={initialProperty?.id ?? (draft ? "draft" : "new")}
       open={open}
       onOpenChange={onOpenChange}
       initialProperty={initialProperty}
+      draft={draft}
+      pots={pots}
       onSaved={onSaved}
     />
   );
@@ -90,13 +104,16 @@ function PropertyModalInner({
   open,
   onOpenChange,
   initialProperty,
+  draft,
+  pots = [],
   onSaved,
 }: PropertyModalProps) {
   const isEditing = Boolean(initialProperty);
+  const activeDraft = !isEditing ? (draft ?? null) : null;
 
   const [name, setName] = React.useState(initialProperty?.name ?? "");
   const [usage, setUsage] = React.useState<PropertyUsage>(
-    initialProperty?.usage ?? "owner_occupied",
+    initialProperty?.usage ?? (activeDraft ? "rented" : "owner_occupied"),
   );
   const [purchaseDate, setPurchaseDate] = React.useState(
     initialProperty?.purchaseDate ?? "",
@@ -104,11 +121,54 @@ function PropertyModalInner({
   const [purchasePriceEuro, setPurchasePriceEuro] = React.useState(
     initialProperty?.purchasePriceCents != null
       ? centsToEuroInputString(initialProperty.purchasePriceCents)
-      : "",
+      : activeDraft
+        ? centsToEuroInputString(activeDraft.purchasePriceCents)
+        : "",
   );
   const [estimatedValueEuro, setEstimatedValueEuro] = React.useState(
     initialProperty
       ? centsToEuroInputString(initialProperty.estimatedValueCents)
+      : activeDraft
+        ? centsToEuroInputString(activeDraft.purchasePriceCents)
+        : "",
+  );
+  const [maintenanceReservePotId, setMaintenanceReservePotId] = React.useState(
+    initialProperty?.maintenanceReservePotId ?? "",
+  );
+
+  // Vermietungs-Profil (nur bei usage === 'rented')
+  const [monthlyColdRentEuro, setMonthlyColdRentEuro] = React.useState(
+    initialProperty?.monthlyColdRentCents != null
+      ? centsToEuroInputString(initialProperty.monthlyColdRentCents)
+      : activeDraft
+        ? centsToEuroInputString(activeDraft.monthlyColdRentCents)
+        : "",
+  );
+  const [monthlyNonRecoverableCostsEuro, setMonthlyNonRecoverableCostsEuro] =
+    React.useState(
+      initialProperty?.monthlyNonRecoverableCostsCents != null
+        ? centsToEuroInputString(
+            initialProperty.monthlyNonRecoverableCostsCents,
+          )
+        : activeDraft
+          ? centsToEuroInputString(activeDraft.monthlyNonRecoverableCostsCents)
+          : "",
+    );
+  const [
+    monthlyMaintenanceAllowanceEuro,
+    setMonthlyMaintenanceAllowanceEuro,
+  ] = React.useState(
+    initialProperty?.monthlyMaintenanceAllowanceCents != null
+      ? centsToEuroInputString(
+          initialProperty.monthlyMaintenanceAllowanceCents,
+        )
+      : activeDraft
+        ? centsToEuroInputString(activeDraft.monthlyMaintenanceAllowanceCents)
+        : "",
+  );
+  const [depreciationBasisEuro, setDepreciationBasisEuro] = React.useState(
+    initialProperty?.depreciationBasisCents != null
+      ? centsToEuroInputString(initialProperty.depreciationBasisCents)
       : "",
   );
 
@@ -223,6 +283,76 @@ function PropertyModalInner({
       nextErrors.features = "Maximal 500 Zeichen erlaubt.";
     }
 
+    function parseOptionalRentalEuro(
+      raw: string,
+      maxCents: number,
+      label: string,
+    ): { value: number | null; error?: string } {
+      const trimmed = raw.trim();
+      if (!trimmed) {
+        return { value: null };
+      }
+      const cents = parseEuroInputToCents(trimmed);
+      if (cents === null || cents < 0 || cents > maxCents) {
+        return {
+          value: null,
+          error: `${label} muss zwischen 0,00 € und ${centsToEuroInputString(maxCents)} € liegen.`,
+        };
+      }
+      return { value: cents };
+    }
+
+    let monthlyColdRentCents: number | null = null;
+    let monthlyNonRecoverableCostsCents: number | null = null;
+    let monthlyMaintenanceAllowanceCents: number | null = null;
+    let depreciationBasisCents: number | null = null;
+
+    if (usage === "rented") {
+      const parsedRent = parseOptionalRentalEuro(
+        monthlyColdRentEuro,
+        PROPERTY_PURCHASE_LIMITS.monthlyColdRentCents.max,
+        "Kaltmiete",
+      );
+      if (parsedRent.error) {
+        nextErrors.monthlyColdRentEuro = parsedRent.error;
+      } else {
+        monthlyColdRentCents = parsedRent.value;
+      }
+
+      const parsedNonRec = parseOptionalRentalEuro(
+        monthlyNonRecoverableCostsEuro,
+        PROPERTY_PURCHASE_LIMITS.monthlyNonRecoverableCostsCents.max,
+        "Nicht umlagefähige Kosten",
+      );
+      if (parsedNonRec.error) {
+        nextErrors.monthlyNonRecoverableCostsEuro = parsedNonRec.error;
+      } else {
+        monthlyNonRecoverableCostsCents = parsedNonRec.value;
+      }
+
+      const parsedMaint = parseOptionalRentalEuro(
+        monthlyMaintenanceAllowanceEuro,
+        PROPERTY_PURCHASE_LIMITS.monthlyMaintenanceCents.max,
+        "Instandhaltungs-Rücklage",
+      );
+      if (parsedMaint.error) {
+        nextErrors.monthlyMaintenanceAllowanceEuro = parsedMaint.error;
+      } else {
+        monthlyMaintenanceAllowanceCents = parsedMaint.value;
+      }
+
+      const parsedDepr = parseOptionalRentalEuro(
+        depreciationBasisEuro,
+        10_000_000_000,
+        "AfA-Bemessungsgrundlage",
+      );
+      if (parsedDepr.error) {
+        nextErrors.depreciationBasisEuro = parsedDepr.error;
+      } else {
+        depreciationBasisCents = parsedDepr.value;
+      }
+    }
+
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
       return;
@@ -246,6 +376,11 @@ function PropertyModalInner({
           purchaseDate: purchaseDate.trim() || null,
           purchasePriceCents,
           estimatedValueCents: estimatedCents,
+          maintenanceReservePotId: maintenanceReservePotId || null,
+          monthlyColdRentCents,
+          monthlyNonRecoverableCostsCents,
+          monthlyMaintenanceAllowanceCents,
+          depreciationBasisCents,
           street: street.trim() || null,
           houseNumber: houseNumber.trim() || null,
           postalCode: postalCode.trim() || null,
@@ -260,6 +395,7 @@ function PropertyModalInner({
       });
 
       const data = (await response.json()) as {
+        property?: PropertyRow;
         error?: string;
         fieldErrors?: Record<string, string>;
       };
@@ -270,6 +406,13 @@ function PropertyModalInner({
           purchaseDate: data.fieldErrors?.purchaseDate,
           purchasePriceEuro: data.fieldErrors?.purchasePriceCents,
           estimatedValueEuro: data.fieldErrors?.estimatedValueCents,
+          maintenanceReservePotId: data.fieldErrors?.maintenanceReservePotId,
+          monthlyColdRentEuro: data.fieldErrors?.monthlyColdRentCents,
+          monthlyNonRecoverableCostsEuro:
+            data.fieldErrors?.monthlyNonRecoverableCostsCents,
+          monthlyMaintenanceAllowanceEuro:
+            data.fieldErrors?.monthlyMaintenanceAllowanceCents,
+          depreciationBasisEuro: data.fieldErrors?.depreciationBasisCents,
           street: data.fieldErrors?.street,
           houseNumber: data.fieldErrors?.houseNumber,
           postalCode: data.fieldErrors?.postalCode,
@@ -287,7 +430,7 @@ function PropertyModalInner({
       }
 
       onOpenChange(false);
-      onSaved();
+      onSaved(data.property);
     } catch {
       setErrors({
         general: "Netzwerkfehler beim Speichern der Immobilie.",
@@ -295,6 +438,17 @@ function PropertyModalInner({
       setIsSubmitting(false);
     }
   }
+
+  const hasExistingRentalValues = Boolean(
+    monthlyColdRentEuro.trim() ||
+      monthlyNonRecoverableCostsEuro.trim() ||
+      monthlyMaintenanceAllowanceEuro.trim() ||
+      depreciationBasisEuro.trim() ||
+      initialProperty?.monthlyColdRentCents != null ||
+      initialProperty?.monthlyNonRecoverableCostsCents != null ||
+      initialProperty?.monthlyMaintenanceAllowanceCents != null ||
+      initialProperty?.depreciationBasisCents != null,
+  );
 
   return (
     <Dialog
@@ -304,6 +458,13 @@ function PropertyModalInner({
       description="Stammdaten, lokale Adresse und Bewertung für die Immobilie."
     >
       <form onSubmit={handleSubmit} className="space-y-5">
+        {activeDraft ? (
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface-elevated)]/60 px-3 py-2 text-xs text-[var(--text-secondary)]">
+            <span>Entwurf aus dem Kaufrechner, bitte prüfen.</span>
+            <StatusBadge variant="modeled" />
+          </div>
+        ) : null}
+
         {errors.general ? (
           <div className="rounded-lg border border-[var(--rose)]/40 bg-[var(--rose)]/10 px-3 py-2 text-xs text-[var(--rose)]">
             {errors.general}
@@ -322,7 +483,11 @@ function PropertyModalInner({
               id="property-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="z. B. Immobilie #0 (Musterstraße 1)"
+              placeholder={
+                activeDraft
+                  ? "z. B. Wohnung Musterstraße 1"
+                  : "z. B. Immobilie #0 (Musterstraße 1)"
+              }
               hasError={Boolean(errors.name)}
               disabled={isSubmitting}
             />
@@ -409,7 +574,144 @@ function PropertyModalInner({
               ) : null}
             </div>
           </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="property-maintenance-pot">
+              Instandhaltungs-Topf (optional)
+            </Label>
+            <Select
+              id="property-maintenance-pot"
+              value={maintenanceReservePotId}
+              onChange={(e) => setMaintenanceReservePotId(e.target.value)}
+              disabled={isSubmitting}
+            >
+              <option value="">–</option>
+              {pots.map((pot) => (
+                <option key={pot.id} value={pot.id}>
+                  {pot.name}
+                </option>
+              ))}
+            </Select>
+            {errors.maintenanceReservePotId ? (
+              <p className="text-xs text-[var(--rose)]">
+                {errors.maintenanceReservePotId}
+              </p>
+            ) : null}
+          </div>
+
+          {usage === "owner_occupied" && hasExistingRentalValues ? (
+            <p className="rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface-elevated)]/60 px-3 py-2 text-xs text-[var(--text-secondary)]">
+              Mietdaten werden beim Speichern entfernt.
+            </p>
+          ) : null}
         </div>
+
+        {/* Gruppe 1b: Vermietung (nur bei usage === 'rented') */}
+        {usage === "rented" ? (
+          <div className="space-y-4 border-t border-[var(--border)] pt-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                Vermietung
+              </p>
+              <StatusBadge variant="modeled" />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="property-cold-rent">
+                  Kaltmiete / Monat in €
+                </Label>
+                <Input
+                  id="property-cold-rent"
+                  inputMode="decimal"
+                  value={monthlyColdRentEuro}
+                  onChange={(e) => setMonthlyColdRentEuro(e.target.value)}
+                  placeholder="z. B. 800,00"
+                  hasError={Boolean(errors.monthlyColdRentEuro)}
+                  disabled={isSubmitting}
+                  className="tabular-nums"
+                />
+                {errors.monthlyColdRentEuro ? (
+                  <p className="text-xs text-[var(--rose)]">
+                    {errors.monthlyColdRentEuro}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="property-non-recoverable">
+                  Nicht umlagefähige Kosten / Monat in €
+                </Label>
+                <Input
+                  id="property-non-recoverable"
+                  inputMode="decimal"
+                  value={monthlyNonRecoverableCostsEuro}
+                  onChange={(e) =>
+                    setMonthlyNonRecoverableCostsEuro(e.target.value)
+                  }
+                  placeholder="z. B. 60,00"
+                  hasError={Boolean(errors.monthlyNonRecoverableCostsEuro)}
+                  disabled={isSubmitting}
+                  className="tabular-nums"
+                />
+                {errors.monthlyNonRecoverableCostsEuro ? (
+                  <p className="text-xs text-[var(--rose)]">
+                    {errors.monthlyNonRecoverableCostsEuro}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="property-maintenance-allowance">
+                  Instandhaltungs-Rücklage / Monat in €
+                </Label>
+                <Input
+                  id="property-maintenance-allowance"
+                  inputMode="decimal"
+                  value={monthlyMaintenanceAllowanceEuro}
+                  onChange={(e) =>
+                    setMonthlyMaintenanceAllowanceEuro(e.target.value)
+                  }
+                  placeholder="z. B. 50,00"
+                  hasError={Boolean(errors.monthlyMaintenanceAllowanceEuro)}
+                  disabled={isSubmitting}
+                  className="tabular-nums"
+                />
+                {errors.monthlyMaintenanceAllowanceEuro ? (
+                  <p className="text-xs text-[var(--rose)]">
+                    {errors.monthlyMaintenanceAllowanceEuro}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="property-depreciation-basis">
+                  AfA-Bemessungsgrundlage in € (optional)
+                </Label>
+                <Input
+                  id="property-depreciation-basis"
+                  inputMode="decimal"
+                  value={depreciationBasisEuro}
+                  onChange={(e) => setDepreciationBasisEuro(e.target.value)}
+                  placeholder="z. B. 180000,00"
+                  hasError={Boolean(errors.depreciationBasisEuro)}
+                  disabled={isSubmitting}
+                  className="tabular-nums"
+                />
+                <p className="text-[11px] text-[var(--text-secondary)]">
+                  nur Datenfeld, keine Steuerberechnung
+                </p>
+                {errors.depreciationBasisEuro ? (
+                  <p className="text-xs text-[var(--rose)]">
+                    {errors.depreciationBasisEuro}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {/* Gruppe 2: Adresse (rein lokal, optional) */}
         <div className="space-y-4 border-t border-[var(--border)] pt-4">

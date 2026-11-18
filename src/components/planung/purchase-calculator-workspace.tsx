@@ -17,6 +17,7 @@ import {
   type PropertyPurchaseInput,
 } from "@/lib/domain/property-purchase";
 import { CURRENT_PURCHASE_COST_RULE_SET } from "@/lib/domain/property-purchase-defaults";
+import { buildPurchaseDraftSearchParams } from "@/lib/validation/property-draft";
 import { validatePropertyPurchaseForm } from "@/lib/validation/property-purchase";
 import { cn } from "@/lib/utils";
 import { SliderField } from "./euro-slider-field";
@@ -762,6 +763,18 @@ export function PurchaseCalculatorWorkspace({
                       ))}
                     </ul>
                   ) : null}
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-4">
+                    <span className="text-xs text-[var(--text-secondary)]">
+                      öffnet einen Entwurf, gespeichert wird erst nach Bestätigung
+                    </span>
+                    <Link
+                      href={`/vertraege?${buildPurchaseDraftSearchParams(computed.input, computed.result).toString()}`}
+                      className="inline-flex items-center rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-elevated)]"
+                    >
+                      Als Objekt anlegen
+                    </Link>
+                  </div>
                 </>
               )}
 

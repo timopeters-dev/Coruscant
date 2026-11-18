@@ -379,6 +379,25 @@ export function CockpitWorkspace({ data }: CockpitWorkspaceProps) {
               Frei: {formatCentsDE(balance.freeAssetsCents)} · Gebunden:{" "}
               {formatCentsDE(balance.boundAssetsCents)}
             </p>
+            {data.rentalPortfolioHint ? (
+              <p className="mt-1.5 tabular-nums text-xs text-[var(--text-secondary)]">
+                <Link
+                  href="/vertraege?tab=portfolio"
+                  className="hover:text-[var(--accent)] hover:underline"
+                >
+                  Portfolio: {data.rentalPortfolioHint.propertyCount}{" "}
+                  {data.rentalPortfolioHint.propertyCount === 1
+                    ? "Mietobjekt"
+                    : "Mietobjekte"}{" "}
+                  · Cashflow{" "}
+                  {formatCentsDE(
+                    data.rentalPortfolioHint.netCashflowBeforeReserveCents,
+                    { showPlusSign: true },
+                  )}
+                  /Monat (Modelliert) →
+                </Link>
+              </p>
+            ) : null}
             {balance.conflictingLinkedPotsCents > 0 ? (
               <div className="mt-1.5 space-y-1">
                 <StatusBadge

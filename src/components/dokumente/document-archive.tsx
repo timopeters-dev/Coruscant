@@ -21,6 +21,7 @@ import {
   type TaxCategory,
 } from "@/lib/domain/documents";
 import { listTaxYears } from "@/lib/domain/tax-summary";
+import { suggestTaxCategoryForPropertyUsage } from "@/lib/domain/rental";
 import {
   centsToEuroInputString,
   formatCentsDE,
@@ -384,9 +385,17 @@ function DocumentEditModal({
   const [taxYearInput, setTaxYearInput] = React.useState(
     doc.taxYear != null ? String(doc.taxYear) : "",
   );
-  const [taxCategory, setTaxCategory] = React.useState<TaxCategory>(
-    doc.taxCategory ?? "handwerker_35a",
+  const [hasExplicitTaxCategory, setHasExplicitTaxCategory] = React.useState(
+    Boolean(doc.taxCategory),
   );
+  const [taxCategory, setTaxCategory] = React.useState<TaxCategory>(() => {
+    if (doc.taxCategory) return doc.taxCategory;
+    const initialProp = properties.find((p) => p.id === doc.linkedPropertyId);
+    const suggested = initialProp
+      ? suggestTaxCategoryForPropertyUsage(initialProp.usage)
+      : null;
+    return suggested ?? "handwerker_35a";
+  });
   const [deductibleInput, setDeductibleInput] = React.useState(
     doc.deductibleAmountCents != null
       ? centsToEuroInputString(doc.deductibleAmountCents)
@@ -558,7 +567,19 @@ function DocumentEditModal({
             <Select
               id="edit-doc-prop"
               value={linkedPropertyId}
-              onChange={(e) => setLinkedPropertyId(e.target.value)}
+              onChange={(e) => {
+                const nextProp = e.target.value;
+                setLinkedPropertyId(nextProp);
+                if (!hasExplicitTaxCategory) {
+                  const prop = properties.find((p) => p.id === nextProp);
+                  const suggested = prop
+                    ? suggestTaxCategoryForPropertyUsage(prop.usage)
+                    : null;
+                  if (suggested) {
+                    setTaxCategory(suggested);
+                  }
+                }
+              }}
             >
               <option value="">Keine</option>
               {properties.map((p) => (
@@ -589,7 +610,19 @@ function DocumentEditModal({
           <input
             type="checkbox"
             checked={isTaxRelevant}
-            onChange={(e) => setIsTaxRelevant(e.target.checked)}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              setIsTaxRelevant(checked);
+              if (checked && !hasExplicitTaxCategory) {
+                const prop = properties.find((p) => p.id === linkedPropertyId);
+                const suggested = prop
+                  ? suggestTaxCategoryForPropertyUsage(prop.usage)
+                  : null;
+                if (suggested) {
+                  setTaxCategory(suggested);
+                }
+              }
+            }}
             className="h-4 w-4 rounded accent-[var(--accent)]"
           />
           <span>Steuerrelevant</span>
@@ -612,7 +645,10 @@ function DocumentEditModal({
               <Select
                 id="edit-doc-tax-cat"
                 value={taxCategory}
-                onChange={(e) => setTaxCategory(e.target.value as TaxCategory)}
+                onChange={(e) => {
+                  setHasExplicitTaxCategory(true);
+                  setTaxCategory(e.target.value as TaxCategory);
+                }}
               >
                 {TAX_CATEGORIES.map((c) => (
                   <option key={c} value={c}>

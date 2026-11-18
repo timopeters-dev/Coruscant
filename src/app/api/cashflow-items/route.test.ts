@@ -399,4 +399,46 @@ describe("/api/cashflow-items CRUD & live contract derivation", () => {
     );
     expect(nonManualDelete.status).toBe(400);
   });
+
+  it("includes propertyInflowCents/propertyOutflowCents in GET summary and forces manual source on POST", async () => {
+    const db = dbModule.getDb();
+    const { properties } = await import("@/db/schema");
+    db.insert(properties)
+      .values({
+        id: "prop-cf-1",
+        name: "Wohnung Musterstraße 1",
+        usage: "rented",
+        estimatedValueCents: 25_000_000,
+        monthlyColdRentCents: 80_000,
+        monthlyNonRecoverableCostsCents: 6_000,
+        updatedAt: new Date().toISOString(),
+      })
+      .run();
+
+    const getRes = await listCashflowItems();
+    expect(getRes.status).toBe(200);
+    const getBody = (await getRes.json()) as {
+      derivedPropertyItems: { id: string; source: string }[];
+      summary: { propertyInflowCents: number; propertyOutflowCents: number };
+    };
+    expect(getBody.summary.propertyInflowCents).toBe(80_000);
+    expect(getBody.summary.propertyOutflowCents).toBe(6_000);
+    expect(getBody.derivedPropertyItems).toHaveLength(2);
+
+    const postRes = await createCashflowItem(
+      new Request("http://localhost/api/cashflow-items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Manuelle Miete",
+          direction: "inflow",
+          amountCents: 50_000,
+          frequency: "monthly",
+          source: "property_linked",
+          active: true,
+        }),
+      }),
+    );
+    expect(postRes.status).toBe(400);
+  });
 });

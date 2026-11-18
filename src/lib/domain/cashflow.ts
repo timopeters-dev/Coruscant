@@ -4,13 +4,19 @@ import {
   assertSafeInteger,
   roundHalfUpBigInt,
 } from "./money";
+import type {
+  DomainLinkedContract,
+  DomainPropertyDetail,
+} from "./properties";
+import type { DomainRentalProfile } from "./rental";
 
 export type CashflowDirection = "inflow" | "outflow";
 export type CashflowFrequency = "monthly" | "quarterly" | "yearly";
 export type CashflowSource =
   | "manual"
   | "finanz_cockpit_sync"
-  | "contract_linked";
+  | "contract_linked"
+  | "property_linked";
 
 export interface DomainCashflowItem {
   id: string;
@@ -20,6 +26,7 @@ export interface DomainCashflowItem {
   frequency: CashflowFrequency;
   source: CashflowSource;
   linkedContractId?: string | null;
+  linkedPropertyId?: string | null;
   active: boolean;
 }
 
@@ -81,6 +88,88 @@ export function deriveContractCashflowItems(
   return derived;
 }
 
+/**
+ * Derives monthly inflow/outflow cashflow items from rented properties
+ * (cold rent, non-recoverable costs, and active household rates of linked
+ * contracts with deterministic `contract:<id>` IDs so `calculateConsolidatedCashflow`
+ * never double-counts them when `includeContractItems` is enabled).
+ */
+export function derivePropertyCashflowItems(
+  properties: readonly (DomainPropertyDetail & DomainRentalProfile)[],
+  contracts: readonly DomainLinkedContract[] = [],
+): DomainCashflowItem[] {
+  const derived: DomainCashflowItem[] = [];
+
+  for (const property of properties) {
+    if (property.usage !== "rented") {
+      continue;
+    }
+
+    const coldRentCents = assertNonNegativeInteger(
+      property.monthlyColdRentCents ?? 0,
+      "monthlyColdRentCents",
+    );
+    if (coldRentCents > 0) {
+      derived.push({
+        id: `property:${property.id}:rent`,
+        name: `${property.name} · Kaltmiete`,
+        direction: "inflow",
+        amountCents: coldRentCents,
+        frequency: "monthly",
+        source: "property_linked",
+        linkedPropertyId: property.id,
+        active: true,
+      });
+    }
+
+    const nonRecoverableCents = assertNonNegativeInteger(
+      property.monthlyNonRecoverableCostsCents ?? 0,
+      "monthlyNonRecoverableCostsCents",
+    );
+    if (nonRecoverableCents > 0) {
+      derived.push({
+        id: `property:${property.id}:costs`,
+        name: `${property.name} · nicht umlagefähig`,
+        direction: "outflow",
+        amountCents: nonRecoverableCents,
+        frequency: "monthly",
+        source: "property_linked",
+        linkedPropertyId: property.id,
+        active: true,
+      });
+    }
+
+    for (const contract of contracts) {
+      if (contract.linkedPropertyId !== property.id) {
+        continue;
+      }
+      const rate = assertNonNegativeInteger(
+        contract.monthlyRateCents,
+        "monthlyRateCents",
+      );
+      if (
+        contract.status === "active" &&
+        contract.sphere === "household" &&
+        rate > 0
+      ) {
+        derived.push({
+          id: `contract:${contract.id}`,
+          name: contract.name,
+          direction: "outflow",
+          amountCents: rate,
+          frequency: "monthly",
+          source: "property_linked",
+          linkedContractId: contract.id,
+          linkedPropertyId: property.id,
+          active: true,
+        });
+      }
+    }
+  }
+
+  return derived;
+}
+
 export type VariableExpenseBasis = "budget" | "avg_3m" | "avg_6m";
 
 export interface HouseholdCashflowInput {
@@ -98,6 +187,8 @@ export interface CalculateConsolidatedCashflowInput {
   manualItems: readonly DomainCashflowItem[];
   contractItems?: readonly DomainCashflowItem[];
   includeContractItems?: boolean;
+  propertyItems?: readonly DomainCashflowItem[];
+  includePropertyItems?: boolean;
 }
 
 export interface ConsolidatedCashflowSummary {
@@ -108,6 +199,8 @@ export interface ConsolidatedCashflowSummary {
   manualInflowCents: number;
   manualOutflowCents: number;
   contractOutflowCents: number;
+  propertyInflowCents: number;
+  propertyOutflowCents: number;
   totalInflowCents: number;
   totalOutflowCents: number;
   monthlySurplusCents: number;
@@ -165,6 +258,8 @@ export function calculateConsolidatedCashflow(
     }
   }
 
+  const seenIds = new Set<string>();
+
   let manualInflowCents = 0;
   let manualOutflowCents = 0;
   for (const item of input.manualItems) {
@@ -172,9 +267,10 @@ export function calculateConsolidatedCashflow(
       item.amountCents,
       item.frequency,
     );
-    if (!item.active || item.source !== "manual") {
+    if (!item.active || item.source !== "manual" || seenIds.has(item.id)) {
       continue;
     }
+    seenIds.add(item.id);
     if (item.direction === "inflow") {
       manualInflowCents = assertSafeInteger(
         manualInflowCents + monthlyCents,
@@ -195,9 +291,15 @@ export function calculateConsolidatedCashflow(
         item.amountCents,
         item.frequency,
       );
-      if (!input.includeContractItems || !item.active) {
+      if (
+        !input.includeContractItems ||
+        !item.active ||
+        item.source !== "contract_linked" ||
+        seenIds.has(item.id)
+      ) {
         continue;
       }
+      seenIds.add(item.id);
       if (item.direction === "outflow") {
         contractOutflowCents = assertSafeInteger(
           contractOutflowCents + monthlyCents,
@@ -207,15 +309,47 @@ export function calculateConsolidatedCashflow(
     }
   }
 
+  let propertyInflowCents = 0;
+  let propertyOutflowCents = 0;
+  if (input.propertyItems) {
+    for (const item of input.propertyItems) {
+      const monthlyCents = normalizeItemToMonthlyCents(
+        item.amountCents,
+        item.frequency,
+      );
+      if (
+        !input.includePropertyItems ||
+        !item.active ||
+        item.source !== "property_linked" ||
+        seenIds.has(item.id)
+      ) {
+        continue;
+      }
+      seenIds.add(item.id);
+      if (item.direction === "inflow") {
+        propertyInflowCents = assertSafeInteger(
+          propertyInflowCents + monthlyCents,
+          "propertyInflowCents",
+        );
+      } else {
+        propertyOutflowCents = assertSafeInteger(
+          propertyOutflowCents + monthlyCents,
+          "propertyOutflowCents",
+        );
+      }
+    }
+  }
+
   const totalInflowCents = assertSafeInteger(
-    calibratedInflowCents + manualInflowCents,
+    calibratedInflowCents + manualInflowCents + propertyInflowCents,
     "totalInflowCents",
   );
   const totalOutflowCents = assertSafeInteger(
     calibratedFixedOutflowCents +
       variableOutflowCents +
       manualOutflowCents +
-      contractOutflowCents,
+      contractOutflowCents +
+      propertyOutflowCents,
     "totalOutflowCents",
   );
   const monthlySurplusCents = assertSafeInteger(
@@ -231,6 +365,8 @@ export function calculateConsolidatedCashflow(
     manualInflowCents,
     manualOutflowCents,
     contractOutflowCents,
+    propertyInflowCents,
+    propertyOutflowCents,
     totalInflowCents,
     totalOutflowCents,
     monthlySurplusCents,

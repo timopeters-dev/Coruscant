@@ -52,6 +52,26 @@ export function roundHalfUpBigInt(
 }
 
 /**
+ * Signed half-up BigInt division for a signed numerator and positive denominator.
+ */
+export function divRoundHalfUpSigned(
+  numerator: bigint,
+  denominator: bigint,
+): number {
+  if (denominator <= 0n) {
+    throw new RangeError("denominator must be positive");
+  }
+  if (numerator === 0n) {
+    return 0;
+  }
+  const sign = numerator < 0n ? -1 : 1;
+  const absNum = numerator < 0n ? -numerator : numerator;
+  const rounded = roundHalfUpBigInt(absNum, denominator);
+  const value = sign * Number(rounded);
+  return value === 0 ? 0 : assertSafeInteger(value, "divRoundHalfUpSigned");
+}
+
+/**
  * Formats an integer cent amount in German locale without float arithmetic.
  * Example: 123456 -> "1.234,56 €"
  */
