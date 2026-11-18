@@ -61,7 +61,7 @@ flowchart LR
 
 Kontext & Vorgaben:
 - Lies zuerst `AGENTS.md`, `docs/SPEC.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN-SYSTEM.md`, `docs/V2-ROADMAP.md`, `src/lib/integrations/finanz-cockpit-client.ts`, `src/lib/domain/cashflow.ts` und `src/components/allokation/allokation-workspace.tsx`.
-- Prüfe auch `/projects/finanz_cockpit/src/app/api/external/summary/` sowie `/projects/finanz_cockpit/src/db/schema.ts`.
+- Prüfe auch `/projects/Finanzen_Zentrale/finanz_cockpit/src/app/api/external/summary/` sowie `/projects/Finanzen_Zentrale/finanz_cockpit/src/db/schema.ts`.
 - Strikte Integer-Cent-Arithmetik (`amountCents`), reine Domänen-Logik in `src/lib/domain/`, `zod`-Validierung auf beiden Seiten der Bridge.
 
 Anforderungen an Slice 7:

@@ -1,1 +1,1 @@
-@/projects/Coruscant/AGENTS.md
+@/projects/Finanzen_Zentrale/Coruscant/AGENTS.md
