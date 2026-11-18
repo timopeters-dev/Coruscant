@@ -67,11 +67,7 @@ export function deriveContractCashflowItems(
       "monthlyRateCents",
     );
 
-    if (
-      contract.status === "active" &&
-      contract.sphere === "household" &&
-      rate > 0
-    ) {
+    if (contract.status === "active" && rate > 0) {
       derived.push({
         id: `contract:${contract.id}`,
         name: contract.name,
@@ -147,11 +143,7 @@ export function derivePropertyCashflowItems(
         contract.monthlyRateCents,
         "monthlyRateCents",
       );
-      if (
-        contract.status === "active" &&
-        contract.sphere === "household" &&
-        rate > 0
-      ) {
+      if (contract.status === "active" && rate > 0) {
         derived.push({
           id: `contract:${contract.id}`,
           name: contract.name,

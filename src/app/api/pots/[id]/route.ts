@@ -6,6 +6,7 @@ import {
   LinkedContractNotFoundError,
   LinkedPropertyNotFoundError,
   PotExternalLinkConflictError,
+  PotExternalLinkOutOfScopeError,
   PotExternalLinkTargetNotFoundError,
   PotLinkedBalanceReadOnlyError,
   RemainderPercentageExceededError,
@@ -93,6 +94,11 @@ export async function PATCH(
     if (error instanceof PotExternalLinkTargetNotFoundError) {
       return badRequestResponse(error.message, {
         externalLink: "Ziel nicht im letzten Snapshot gefunden.",
+      });
+    }
+    if (error instanceof PotExternalLinkOutOfScopeError) {
+      return badRequestResponse(error.message, {
+        externalLink: "Nur Haushalts-Konten können gekoppelt werden.",
       });
     }
     if (error instanceof PotExternalLinkConflictError) {

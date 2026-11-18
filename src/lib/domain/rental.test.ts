@@ -35,7 +35,6 @@ function makeLoan(
   return {
     id: "loan-1",
     name: "Objektkredit Musterbank",
-    sphere: "household",
     category: "loan",
     status: "active",
     currentBalanceCents: 18_000_000,
@@ -200,7 +199,6 @@ describe("rental domain", () => {
       {
         id: "bauspar-1",
         name: "Bausparer Musterkasse",
-        sphere: "household",
         category: "savings_contract",
         status: "active",
         currentBalanceCents: 3_000_000,
@@ -265,25 +263,16 @@ describe("rental domain", () => {
     expect(underwaterMetrics.warnings).toContainEqual({ kind: "negative_equity" });
   });
 
-  it("emits personal_sphere_loan warning with contractId while still counting its rate in property view", () => {
+  it("creates no sphere warning for a loan on the property and counts its rate", () => {
     const property = makeRentedProperty();
-    const personalLoan = makeLoan({
-      id: "loan-personal-1",
-      sphere: "personal",
-      monthlyRateCents: 30_000,
-    });
-    const summaries = summarizeProperties([property], [personalLoan], AS_OF);
-    const metrics = calculateRentalMetrics(
-      property,
-      summaries[property.id]!,
-      [personalLoan],
-    );
+    const loan = makeLoan({ id: "loan-1", monthlyRateCents: 30_000 });
+    const summaries = summarizeProperties([property], [loan], AS_OF);
+    const metrics = calculateRentalMetrics(property, summaries[property.id]!, [
+      loan,
+    ]);
 
     expect(metrics.monthlyLoanRatesCents).toBe(30_000);
-    expect(metrics.warnings).toContainEqual({
-      kind: "personal_sphere_loan",
-      contractId: "loan-personal-1",
-    });
+    expect(metrics.warnings).toEqual([]);
   });
 
   it("rounds exact .5 bps half-up for positive gross yield and symmetrically for negative net yield", () => {

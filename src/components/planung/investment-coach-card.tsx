@@ -49,9 +49,13 @@ export function InvestmentCoachCard({
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {!usable ? (
-          <p className="rounded-lg border border-dashed border-[var(--border-sub)] px-3 py-2 text-sm text-[var(--text-secondary)]">
-            Keine Depot-Positionen im letzten Sync – Coach nicht verfügbar.
-          </p>
+          <div className="rounded-lg border border-dashed border-[var(--border-sub)] px-3 py-2 text-sm text-[var(--text-secondary)]">
+            <p className="font-medium">Kein Haushalts-Depot vorhanden</p>
+            <p>
+              Sobald in finanz_cockpit ein Haushalts-Depot synchronisiert ist,
+              erscheint hier die Einordnung.
+            </p>
+          </div>
         ) : (
           <section
             aria-label="Ist-Allokation"
@@ -130,16 +134,14 @@ export function InvestmentCoachCard({
           </section>
         ) : null}
 
-        <div>
-          <Button
-            onClick={() => setOpen(true)}
-            disabled={!usable}
-            variant="secondary"
-          >
-            <MessageCircleQuestion className="h-4 w-4" aria-hidden="true" />
-            Coach öffnen
-          </Button>
-        </div>
+        {usable ? (
+          <div>
+            <Button onClick={() => setOpen(true)} variant="secondary">
+              <MessageCircleQuestion className="h-4 w-4" aria-hidden="true" />
+              Coach öffnen
+            </Button>
+          </div>
+        ) : null}
       </CardContent>
 
       {usable ? (

@@ -10,6 +10,7 @@ import {
   selectContextMilestones,
   type InvestmentContextInput,
 } from "@/lib/domain/investment-context";
+import { selectHouseholdHoldings } from "@/lib/domain/household-scope";
 
 export interface LoadInvestmentContextInputOptions {
   asOfDate: string;
@@ -33,11 +34,16 @@ export function loadInvestmentContextInput(
     ? consolidated.totalOutflowCents
     : null;
 
+  const { accounts, positions } = selectHouseholdHoldings(
+    parseSnapshotAccounts(snapshot),
+    parseSnapshotPositions(snapshot),
+  );
+
   return {
     asOfDate: options.asOfDate,
     snapshotFetchedAt: snapshot?.fetchedAt ?? null,
     isDummyHousehold: base.isDummy,
-    positions: parseSnapshotPositions(snapshot).map((p) => ({
+    positions: positions.map((p) => ({
       id: p.id,
       accountId: p.accountId,
       name: p.name,
@@ -45,11 +51,10 @@ export function loadInvestmentContextInput(
       assetClass: p.assetClass,
       marketValueCents: p.marketValueCents,
     })),
-    accounts: parseSnapshotAccounts(snapshot).map((a) => ({
+    accounts: accounts.map((a) => ({
       id: a.id,
       name: a.name,
       type: a.type,
-      scope: a.scope,
       balanceCents: a.balanceCents,
     })),
     pots: base.pots.map((p) => ({

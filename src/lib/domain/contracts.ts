@@ -9,7 +9,6 @@ import {
   roundHalfUpBigInt,
 } from "./money";
 
-export type ContractSphere = "household" | "personal";
 export type ContractCategory = "loan" | "savings_contract";
 export type ContractStatus = "active" | "paused" | "closed";
 export type RepaymentType = "annuity" | "installment" | "lump_sum";
@@ -17,7 +16,6 @@ export type RepaymentType = "annuity" | "installment" | "lump_sum";
 export interface DomainContract {
   id: string;
   name: string;
-  sphere: ContractSphere;
   category: ContractCategory;
   status: ContractStatus;
   currentBalanceCents: number;
@@ -50,7 +48,6 @@ export interface ContractProjectionResult {
 export interface ContractMilestone {
   contractId: string;
   contractName: string;
-  sphere: ContractSphere;
   category: ContractCategory;
   kind: "milestone" | "fixed_interest_end";
   date: string;
@@ -257,7 +254,6 @@ export function extractContractMilestones(
       milestones.push({
         contractId: contract.id,
         contractName: contract.name,
-        sphere: contract.sphere,
         category: contract.category,
         kind: "milestone",
         date: contract.milestoneDate,
@@ -277,8 +273,7 @@ export function extractContractMilestones(
         milestones.push({
           contractId: contract.id,
           contractName: contract.name,
-          sphere: contract.sphere,
-          category: contract.category,
+            category: contract.category,
           kind: "fixed_interest_end",
           date: contract.fixedInterestUntil,
           label: "Zinsbindungsende",

@@ -59,7 +59,6 @@ export interface DomainRentalProperty
 }
 
 export type RentalWarning =
-  | { kind: "personal_sphere_loan"; contractId: string }
   | { kind: "negative_equity" }
   | { kind: "missing_purchase_price" };
 
@@ -160,13 +159,6 @@ export function calculateRentalMetrics(
     }
     if (contract.status === "closed") {
       continue;
-    }
-
-    if (contract.category === "loan" && contract.sphere === "personal") {
-      warnings.push({
-        kind: "personal_sphere_loan",
-        contractId: contract.id,
-      });
     }
 
     if (contract.status === "active") {

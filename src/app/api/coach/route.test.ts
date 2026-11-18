@@ -88,7 +88,6 @@ function seed(options: { withPositions?: boolean } = {}) {
     contractCreateSchema.parse({
     name: "Darlehen Erika Mustermann",
     provider: "Musterbank AG",
-    sphere: "household",
     category: "loan",
     status: "active",
     currentBalanceCents: 20_000_000,
@@ -250,6 +249,31 @@ describe("POST /api/coach/assessment", () => {
     const noPositions = await handler(post({}));
     expect(noPositions.status).toBe(422);
     expect(assess).not.toHaveBeenCalled();
+  });
+
+  it("antwortet mit 422 und ruft die KI nicht auf, wenn nur persönliche Positionen existieren", async () => {
+    insertExternalSnapshot({
+      source: "finanz_cockpit",
+      liquidCashCents: 0,
+      etfStocksCents: 0,
+      cryptoCents: 0,
+      totalPersonalNetWorthCents: 0,
+      fetchedAt: new Date().toISOString(),
+      accounts: [
+        { id: "acc-pr-1", name: "Musterbank Privat", type: "brokerage", scope: "personal", balanceCents: 0, holdingsValueCents: 500_000 },
+      ],
+      positions: [
+        { id: "pos-pr-1", accountId: "acc-pr-1", symbol: "MSTR", isin: null, name: "Privat-ETF", assetClass: "etf", marketValueCents: 500_000, costBasisCents: null, lastPriceAt: null },
+      ],
+    });
+    const { coach, assess, chat } = fakeCoach();
+    const response = await createAssessmentHandler(() => coach)(post({}));
+    expect(response.status).toBe(422);
+    const json = (await response.json()) as { code: string; error: string };
+    expect(json.code).toBe("coach_context_unavailable");
+    expect(json.error).toBe("Kein Haushalts-Depot vorhanden.");
+    expect(assess).not.toHaveBeenCalled();
+    expect(chat).not.toHaveBeenCalled();
   });
 
   it("antwortet mit 400 bei ungültigem Body, unbekanntem Schlüssel und ungültigem JSON", async () => {

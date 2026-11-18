@@ -177,9 +177,8 @@ function PotModalInner({
     initialLinkValue !== "" &&
     !linkOptions.some((o) => `${o.kind}:${o.ref}` === initialLinkValue);
   const isLinked = externalLinkValue !== "";
-  const selectedLinkScope =
-    linkOptions.find((o) => `${o.kind}:${o.ref}` === externalLinkValue)
-      ?.scope ?? initialPot?.externalLinkScope ?? null;
+  const initialLinkOutOfScope =
+    initialLinkMissing && initialPot?.externalLinkScope === "personal";
   const linkSelectDisabled = linkOptions.length === 0 && !initialLinkMissing;
 
   // An account and one of its positions must not be linked at the same time
@@ -653,7 +652,10 @@ function PotModalInner({
             <option value="">Nicht gekoppelt (virtueller Topf)</option>
             {initialLinkMissing ? (
               <option value={initialLinkValue}>
-                (nicht gefunden) {initialPot?.externalLinkRef}
+                {initialLinkOutOfScope
+                  ? "(außerhalb des Haushalts)"
+                  : "(nicht gefunden)"}{" "}
+                {initialPot?.externalLinkRef}
               </option>
             ) : null}
             {accountOptions.length > 0 ? (
@@ -672,10 +674,10 @@ function PotModalInner({
               Erst finanz_cockpit synchronisieren.
             </p>
           ) : null}
-          {isLinked && selectedLinkScope === "personal" ? (
+          {initialLinkOutOfScope && externalLinkValue === initialLinkValue ? (
             <p className="text-xs text-[var(--text-secondary)]">
-              Zählt nicht zusätzlich zur Haushalts-Liquidität (bereits im
-              persönlichen Vermögen enthalten).
+              Kopplung außerhalb des Haushalts – zählt nicht. Bitte ein
+              Haushalts-Konto wählen oder Kopplung lösen.
             </p>
           ) : null}
           {errors.externalLink ? (

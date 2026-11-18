@@ -34,7 +34,7 @@ afterEach(() => {
 });
 
 describe("loadCockpitData integration", () => {
-  it("counts only truly projected contracts (excluding paused and lump_sum) and consolidates external overdraft", () => {
+  it("counts only truly projected contracts (excluding paused and lump_sum) and ignores personal snapshot aggregates", () => {
     createProperty({
       name: "Musterstraße 1",
       usage: "owner_occupied",
@@ -55,7 +55,6 @@ describe("loadCockpitData integration", () => {
       contractCreateSchema.parse({
         name: "Musterbank Annuität",
         provider: "Musterbank",
-        sphere: "household",
         category: "loan",
         status: "active",
         currentBalanceCents: 10_000_000,
@@ -73,7 +72,6 @@ describe("loadCockpitData integration", () => {
       contractCreateSchema.parse({
         name: "Musterbank Pausiert",
         provider: "Musterbank",
-        sphere: "household",
         category: "loan",
         status: "paused",
         currentBalanceCents: 1_000_000,
@@ -91,7 +89,6 @@ describe("loadCockpitData integration", () => {
       contractCreateSchema.parse({
         name: "Musterbank Endfällig",
         provider: "Musterbank",
-        sphere: "household",
         category: "loan",
         status: "active",
         currentBalanceCents: 2_000_000,
@@ -119,10 +116,10 @@ describe("loadCockpitData integration", () => {
     expect(data.projectedContractsCount).toBe(1);
     expect(data.projectedAssetContractsCount).toBe(0);
     expect(data.projectedLiabilityContractsCount).toBe(1);
-    expect(data.balance.personalExternalAssetsCents).toBe(2_000_000);
-    expect(data.balance.personalLiabilitiesCents).toBe(50_000);
+    // Personal aggregates of the snapshot never enter the household balance.
+    expect(data.balance.totalAssetsCents).toBe(30_500_000);
     expect(data.balance.propertiesValueCents).toBe(30_000_000);
-    expect(data.balance.householdLiquidCents).toBe(500_000);
+    expect(data.balance.freeAssetsCents).toBe(500_000);
     expect(data.milestones.items.map((m) => m.contractName)).toEqual([
       "Musterbank Annuität",
       "Musterbank Endfällig",
@@ -136,7 +133,6 @@ describe("loadCockpitData integration", () => {
       contractCreateSchema.parse({
         name: "Musterbank Bausparer",
         provider: "Musterbank",
-        sphere: "household",
         category: "savings_contract",
         status: "active",
         currentBalanceCents: 1_500_000,
@@ -203,6 +199,58 @@ describe("loadCockpitData integration", () => {
     }
   });
 
+  it("does not change the balance when the snapshot carries high personal aggregates", () => {
+    createPot(
+      potCreateSchema.parse({ name: "Notgroschen", currentCents: 500_000, ruleType: "fixed_monthly", fixedMonthlyCents: 1 }),
+    );
+    const without = loadCockpitData("2026-11-16");
+    expect(without.latestSnapshotFetchedAt).toBeNull();
+
+    insertExternalSnapshot({
+      source: "finanz_cockpit",
+      liquidCashCents: 9_000_000,
+      etfStocksCents: 8_000_000,
+      cryptoCents: 7_000_000,
+      totalPersonalNetWorthCents: 24_000_000,
+      fetchedAt: "2026-11-16T12:00:00.000Z",
+    });
+    const withSnapshot = loadCockpitData("2026-11-16");
+    expect(withSnapshot.balance).toEqual(without.balance);
+    expect(withSnapshot.latestSnapshotFetchedAt).toBe(new Date("2026-11-16T12:00:00.000Z").toISOString());
+    expect("latestSnapshot" in withSnapshot).toBe(false);
+    const json = JSON.stringify(withSnapshot);
+    expect(json).not.toContain("totalPersonalNetWorth");
+    expect(json).not.toContain("etfStocks");
+  });
+
+  it("does not count a pot whose linked account turns personal and reports it as out of scope", () => {
+    const snap = (scope: "household" | "personal", fetchedAt: string) =>
+      insertExternalSnapshot({
+        source: "finanz_cockpit",
+        liquidCashCents: 0,
+        etfStocksCents: 0,
+        cryptoCents: 0,
+        totalPersonalNetWorthCents: 0,
+        fetchedAt,
+        accounts: [
+          { id: "acc-pr-1", name: "Muster Konto", type: "checking", scope, balanceCents: 300_000, holdingsValueCents: 0 },
+        ],
+        positions: [],
+      });
+    snap("household", "2026-11-16T12:00:00.000Z");
+    createPot(potCreateSchema.parse({ name: "Gekoppelt", ruleType: "fixed_monthly", fixedMonthlyCents: 1, externalLink: { kind: "account", ref: "acc-pr-1" } }));
+    createPot(potCreateSchema.parse({ name: "Virtuell", ruleType: "fixed_monthly", fixedMonthlyCents: 1, currentCents: 50_000 }));
+
+    const before = loadCockpitData("2026-11-16");
+    expect(before.balance.freeAssetsCents).toBe(350_000);
+    expect(before.balance.outOfScopeLinkedPotsCents).toBe(0);
+
+    snap("personal", "2026-11-16T13:00:00.000Z");
+    const after = loadCockpitData("2026-11-16");
+    expect(after.balance.freeAssetsCents).toBe(50_000);
+    expect(after.balance.outOfScopeLinkedPotsCents).toBe(300_000);
+  });
+
   it("does not count a position pot twice when its account is linked as a whole (link_conflict)", () => {
     insertExternalSnapshot({
       source: "finanz_cockpit",
@@ -224,7 +272,7 @@ describe("loadCockpitData integration", () => {
     expect(accountPot.currentCents).toBe(500_000);
 
     const before = loadCockpitData("2026-11-16");
-    expect(before.balance.householdLiquidCents).toBe(900_000);
+    expect(before.balance.freeAssetsCents).toBe(900_000);
     expect(before.balance.conflictingLinkedPotsCents).toBe(0);
 
     // Later the position moves into the linked account.
@@ -244,7 +292,7 @@ describe("loadCockpitData integration", () => {
     });
     const after = loadCockpitData("2026-11-16");
     expect(positionPot.currentCents).toBe(400_000);
-    expect(after.balance.householdLiquidCents).toBe(500_000);
+    expect(after.balance.freeAssetsCents).toBe(500_000);
     expect(after.balance.conflictingLinkedPotsCents).toBe(400_000);
   });
 
@@ -264,7 +312,6 @@ describe("loadCockpitData integration", () => {
       contractCreateSchema.parse({
         name: "Musterbank Baudarlehen",
         provider: "Musterbank",
-        sphere: "household",
         category: "loan",
         status: "active",
         currentBalanceCents: 15_000_000,
@@ -280,7 +327,6 @@ describe("loadCockpitData integration", () => {
       contractCreateSchema.parse({
         name: "Musterkasse Bausparer",
         provider: "Musterkasse",
-        sphere: "household",
         category: "savings_contract",
         status: "active",
         currentBalanceCents: 2_000_000,
@@ -336,10 +382,11 @@ describe("loadCockpitData integration", () => {
       expect(cockpit.rentalPortfolioHint).toBeNull();
       expect(cockpit.balance.propertiesValueCents).toBe(35_000_000);
       expect(cockpit.balance.savingsContractsValueCents).toBe(2_000_000);
-      expect(cockpit.balance.householdLiquidCents).toBe(1_000_000);
-      expect(cockpit.balance.householdLiabilitiesCents).toBe(15_000_000);
-      expect(cockpit.balance.netWorthCents).toBe(25_000_000);
-      expect(cockpit.barBreakdown.totalVolumeCents).toBe(55_000_000);
+      expect(cockpit.balance.freeAssetsCents).toBe(1_000_000);
+      expect(cockpit.balance.liabilitiesCents).toBe(15_000_000);
+      // Personal snapshot aggregates are ignored (household only).
+      expect(cockpit.balance.netWorthCents).toBe(23_000_000);
+      expect(cockpit.barBreakdown.totalVolumeCents).toBe(53_000_000);
       expect(cockpit.potDeadlines.atRiskCount).toBe(0);
       expect(cockpit.potDeadlines.overdueCount).toBe(0);
       expect(cockpit.potDeadlines.tightCount).toBe(0);

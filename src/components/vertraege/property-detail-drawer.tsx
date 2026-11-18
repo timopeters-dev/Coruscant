@@ -683,11 +683,9 @@ function PropertyDetailDrawerInner({
               <div className="space-y-1 border-t border-[var(--border)]/60 pt-2.5 text-xs text-[var(--text-secondary)]">
                 {rentalMetrics.warnings.map((warning, idx) => (
                   <p key={`${warning.kind}-${idx}`}>
-                    {warning.kind === "personal_sphere_loan"
-                      ? "Hinweis: Objektwert zählt zum Haushalts-Nettovermögen, diese Schuld nicht. Haushalts-Nettovermögen ist dadurch zu hoch ausgewiesen."
-                      : warning.kind === "negative_equity"
-                        ? "Hinweis: Restschuld übersteigt den aktuellen Schätzwert (negative Kapitalbindung)."
-                        : "Hinweis: Kein Kaufpreis hinterlegt – Rendite nicht berechenbar."}
+                    {warning.kind === "negative_equity"
+                      ? "Hinweis: Restschuld übersteigt den aktuellen Schätzwert (negative Kapitalbindung)."
+                      : "Hinweis: Kein Kaufpreis hinterlegt – Rendite nicht berechenbar."}
                   </p>
                 ))}
               </div>

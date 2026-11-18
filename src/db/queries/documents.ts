@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { and, desc, eq, type SQL } from "drizzle-orm";
 import { getDb } from "@/db";
-import { type FinancialContractRow } from "@/db/queries/contracts";
+import { type FinancialContractRow, toContractRow } from "@/db/queries/contracts";
 import { documents, financialContracts, properties } from "@/db/schema";
 import {
   type ContractCalibrationEvaluation,
@@ -485,7 +485,7 @@ export function verifyDocumentAndOptionallyCalibrate(
         );
       }
 
-      calibratedContract = updatedContract;
+      calibratedContract = toContractRow(updatedContract);
       persistedDetectedBalanceCents = targetBalanceCents;
     }
 
@@ -722,7 +722,7 @@ export function createContractFromDocument(
     }
 
     return {
-      contract: createdContract,
+      contract: toContractRow(createdContract),
       document: updatedDoc,
     };
   });

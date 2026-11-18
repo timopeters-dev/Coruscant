@@ -415,3 +415,23 @@ describe("contractCreateSchema & contractUpdateSchema", () => {
     ).toBe(false);
   });
 });
+
+describe("contract schemas without sphere (household only)", () => {
+  const payload = {
+    name: "Musterkredit",
+    category: "loan",
+    currentBalanceCents: 100_000,
+    balanceAsOfDate: "2026-11-01",
+  };
+
+  it("silently strips a legacy sphere field on create", () => {
+    const parsed = contractCreateSchema.parse({ ...payload, sphere: "personal" });
+    expect("sphere" in parsed).toBe(false);
+    expect(contractCreateSchema.parse(payload)).toEqual(parsed);
+  });
+
+  it("silently strips a legacy sphere field on update", () => {
+    const parsed = contractUpdateSchema.parse({ name: "Neuer Name", sphere: "personal" });
+    expect("sphere" in parsed).toBe(false);
+  });
+});

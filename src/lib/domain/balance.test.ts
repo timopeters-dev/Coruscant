@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import {
+  type BalanceSummary,
   calculateBalanceBarBreakdown,
   calculateHouseholdBalance,
 } from "./balance";
@@ -31,7 +32,6 @@ describe("calculateHouseholdBalance", () => {
     {
       id: "loan-1",
       name: "Hauskredit Musterbank",
-      sphere: "household",
       category: "loan",
       status: "active",
       currentBalanceCents: 20_000_000,
@@ -43,7 +43,6 @@ describe("calculateHouseholdBalance", () => {
     {
       id: "sav-1",
       name: "Bausparvertrag Musterkasse",
-      sphere: "household",
       category: "savings_contract",
       status: "active",
       currentBalanceCents: 3_000_000,
@@ -54,7 +53,6 @@ describe("calculateHouseholdBalance", () => {
     {
       id: "closed-loan",
       name: "Abgelöster Kredit",
-      sphere: "household",
       category: "loan",
       status: "closed",
       currentBalanceCents: 9_999_999,
@@ -64,7 +62,7 @@ describe("calculateHouseholdBalance", () => {
     },
   ];
 
-  it("calculates consolidated balance with property, projected contracts, pots, and external snapshot", () => {
+  it("calculates the household balance from pots, property and projected contracts", () => {
     const balance = calculateHouseholdBalance({
       asOfDate: "2026-03-01", // 2 months elapsed
       properties: [
@@ -76,84 +74,73 @@ describe("calculateHouseholdBalance", () => {
       ],
       contracts,
       pots,
-      externalSnapshot: {
-        liquidCashCents: 500_000,
-        etfStocksCents: 2_000_000,
-        cryptoCents: 100_000,
-        totalPersonalNetWorthCents: 2_600_000,
-        fetchedAt: "2026-03-01T10:00:00.000Z",
-      },
     });
 
-    expect(balance.householdLiquidCents).toBe(1_250_000);
-    expect(balance.personalExternalAssetsCents).toBe(2_600_000);
-    expect(balance.freeAssetsCents).toBe(3_850_000);
+    expect(balance.freeAssetsCents).toBe(1_250_000);
     expect(balance.propertiesValueCents).toBe(35_000_000);
     // sav-1: 3_000_000 + 2 * 50_000 = 3_100_000
     expect(balance.savingsContractsValueCents).toBe(3_100_000);
     expect(balance.boundAssetsCents).toBe(38_100_000);
-    expect(balance.totalAssetsCents).toBe(41_950_000);
+    expect(balance.totalAssetsCents).toBe(39_350_000);
     // loan-1: 20_000_000 - 2 * 100_000 = 19_800_000 (closed-loan ignored)
     expect(balance.liabilitiesCents).toBe(19_800_000);
-    expect(balance.netWorthCents).toBe(22_150_000);
-    expect(balance.householdNetWorthCents).toBe(19_550_000);
+    expect(balance.netWorthCents).toBe(19_550_000);
+    expect(balance.conflictingLinkedPotsCents).toBe(0);
+    expect(balance.outOfScopeLinkedPotsCents).toBe(0);
   });
 
-  it("sets personalExternalAssetsCents to 0 when externalSnapshot is null", () => {
+  it("returns only household fields (no personal/household-prefixed keys)", () => {
     const balance = calculateHouseholdBalance({
       asOfDate: "2026-01-01",
       properties: [],
       contracts: [],
-      pots,
-      externalSnapshot: null,
+      pots: [],
     });
-
-    expect(balance.personalExternalAssetsCents).toBe(0);
-    expect(balance.householdNetWorthCents).toBe(balance.netWorthCents);
-    expect(balance.netWorthCents).toBe(1_250_000);
+    expect(Object.keys(balance).filter((k) => /personal|household/i.test(k))).toEqual([]);
+    expectTypeOf<Extract<keyof BalanceSummary, `personal${string}` | `household${string}`>>().toEqualTypeOf<never>();
   });
 
-  it("excludes personal-sphere contracts from householdNetWorthCents while consolidating them into netWorthCents", () => {
-    const personalLoan: DomainContract = {
-      id: "personal-loan",
-      name: "Persönlicher Kredit Musterbank",
-      sphere: "personal",
-      category: "loan",
-      status: "active",
-      currentBalanceCents: 500_000,
-      balanceAsOfDate: "2026-01-01",
-      monthlyRateCents: 0,
-      interestRateBps: 0,
-      repaymentType: "lump_sum",
-    };
-    const personalSavings: DomainContract = {
-      id: "personal-sav",
-      name: "Persönlicher Sparvertrag",
-      sphere: "personal",
-      category: "savings_contract",
-      status: "active",
-      currentBalanceCents: 200_000,
-      balanceAsOfDate: "2026-01-01",
-      monthlyRateCents: 0,
-      interestRateBps: 0,
-    };
-
+  it("returns all zeros without pots, contracts and properties", () => {
     const balance = calculateHouseholdBalance({
       asOfDate: "2026-01-01",
       properties: [],
-      contracts: [contracts[0]!, personalLoan, personalSavings],
-      pots,
+      contracts: [],
+      pots: [],
     });
+    expect(balance).toEqual({
+      asOfDate: "2026-01-01",
+      freeAssetsCents: 0,
+      conflictingLinkedPotsCents: 0,
+      outOfScopeLinkedPotsCents: 0,
+      propertiesValueCents: 0,
+      savingsContractsValueCents: 0,
+      boundAssetsCents: 0,
+      totalAssetsCents: 0,
+      liabilitiesCents: 0,
+      netWorthCents: 0,
+    });
+  });
 
-    expect(balance.householdLiabilitiesCents).toBe(20_000_000);
-    expect(balance.personalLiabilitiesCents).toBe(500_000);
-    expect(balance.liabilitiesCents).toBe(20_500_000);
-    expect(balance.personalContractsAssetsCents).toBe(200_000);
-    expect(balance.savingsContractsValueCents).toBe(0);
-    // Household net worth: 1_250_000 - 20_000_000 = -18_750_000 (personal contracts excluded)
-    expect(balance.householdNetWorthCents).toBe(-18_750_000);
-    // Consolidated net worth: (1_250_000 + 200_000) - 20_500_000 = -19_050_000
-    expect(balance.netWorthCents).toBe(-19_050_000);
+  it("counts a 0-cent pot and ignores closed contracts", () => {
+    const balance = calculateHouseholdBalance({
+      asOfDate: "2026-01-01",
+      properties: [],
+      contracts: [contracts[2]!],
+      pots: [{ ...pots[0]!, currentCents: 0 }],
+    });
+    expect(balance.freeAssetsCents).toBe(0);
+    expect(balance.liabilitiesCents).toBe(0);
+  });
+
+  it("rejects negative pot stands", () => {
+    expect(() =>
+      calculateHouseholdBalance({
+        asOfDate: "2026-01-01",
+        properties: [],
+        contracts: [],
+        pots: [{ ...pots[0]!, currentCents: -1 }],
+      }),
+    ).toThrow(RangeError);
   });
 
   it("handles 0-cent totals and negative net worth (over-indebtedness)", () => {
@@ -194,56 +181,6 @@ describe("calculateHouseholdBalance", () => {
         pots: [],
       }),
     ).toThrow(RangeError);
-  });
-
-  it("accounts for external overdraft when totalPersonalNetWorthCents < clamped external assets", () => {
-    const withOverdraft = calculateHouseholdBalance({
-      asOfDate: "2026-11-16",
-      properties: [],
-      contracts: [],
-      pots: [
-        {
-          id: "pot-1",
-          name: "Rücklage",
-          priority: 1,
-          currentCents: 100_000,
-          targetCents: null,
-          ruleType: "fill_to_target",
-        },
-      ],
-      externalSnapshot: {
-        liquidCashCents: 0,
-        etfStocksCents: 2_000_000,
-        cryptoCents: 0,
-        totalPersonalNetWorthCents: 1_950_000,
-        fetchedAt: "2026-11-16T10:00:00.000Z",
-      },
-    });
-
-    expect(withOverdraft.personalExternalAssetsCents).toBe(2_000_000);
-    expect(withOverdraft.personalLiabilitiesCents).toBe(50_000);
-    expect(withOverdraft.liabilitiesCents).toBe(50_000);
-    expect(withOverdraft.totalAssetsCents).toBe(2_100_000);
-    expect(withOverdraft.netWorthCents).toBe(2_050_000);
-
-    const negativeExternalNetWorth = calculateHouseholdBalance({
-      asOfDate: "2026-11-16",
-      properties: [],
-      contracts: [],
-      pots: [],
-      externalSnapshot: {
-        liquidCashCents: 0,
-        etfStocksCents: 0,
-        cryptoCents: 0,
-        totalPersonalNetWorthCents: -75_000,
-        fetchedAt: "2026-11-16T10:00:00.000Z",
-      },
-    });
-
-    expect(negativeExternalNetWorth.personalExternalAssetsCents).toBe(0);
-    expect(negativeExternalNetWorth.personalLiabilitiesCents).toBe(75_000);
-    expect(negativeExternalNetWorth.liabilitiesCents).toBe(75_000);
-    expect(negativeExternalNetWorth.netWorthCents).toBe(-75_000);
   });
 });
 
@@ -323,59 +260,13 @@ describe("calculateBalanceBarBreakdown", () => {
   });
 });
 
-describe("calculateHouseholdBalance with externally linked pots", () => {
-  const base = {
-    asOfDate: "2026-11-17",
-    properties: [],
-    contracts: [],
-  };
-
-  it("excludes personal-linked pots from householdLiquidCents and reports them separately", () => {
-    const summary = calculateHouseholdBalance({
-      ...base,
-      externalSnapshot: {
-        liquidCashCents: 500_000,
-        etfStocksCents: 0,
-        cryptoCents: 0,
-        totalPersonalNetWorthCents: 500_000,
-        fetchedAt: "2026-11-17T10:00:00.000Z",
-      },
-      pots: [
-        { id: "p", name: "Personal verknüpft", priority: 1, currentCents: 300_000, targetCents: null, ruleType: "fixed_monthly", externalLinkScope: "personal" },
-        { id: "h", name: "Haushalt verknüpft", priority: 2, currentCents: 200_000, targetCents: null, ruleType: "fixed_monthly", externalLinkScope: "household" },
-        { id: "v", name: "Virtuell", priority: 3, currentCents: 100_000, targetCents: null, ruleType: "fixed_monthly", externalLinkScope: null },
-        { id: "u", name: "Undefiniert", priority: 4, currentCents: 50_000, targetCents: null, ruleType: "fixed_monthly" },
-      ],
-    });
-
-    expect(summary.householdLiquidCents).toBe(350_000);
-    expect(summary.personalLinkedPotsCents).toBe(300_000);
-    expect(summary.personalExternalAssetsCents).toBe(500_000);
-    // 300_000 is only counted once (inside the external 500_000).
-    expect(summary.freeAssetsCents).toBe(850_000);
-  });
-
-  it("reports 0 personalLinkedPotsCents without personal-linked pots", () => {
-    const summary = calculateHouseholdBalance({ ...base, pots: [] });
-    expect(summary.personalLinkedPotsCents).toBe(0);
-    expect(summary.householdLiquidCents).toBe(0);
-  });
-
-  it("still validates currentCents of skipped pots", () => {
-    expect(() =>
-      calculateHouseholdBalance({
-        ...base,
-        pots: [
-          { id: "p", name: "Float", priority: 1, currentCents: 10.5, targetCents: null, ruleType: "fixed_monthly", externalLinkScope: "personal" },
-        ],
-      }),
-    ).toThrow(RangeError);
-  });
-});
-
-describe("calculateHouseholdBalance with conflicting linked pots", () => {
+describe("calculateHouseholdBalance with excluded linked pots", () => {
   const base = { asOfDate: "2026-11-17", properties: [], contracts: [] };
-  const mk = (id: string, currentCents: number, extra: Record<string, unknown> = {}) => ({
+  const mk = (
+    id: string,
+    currentCents: number,
+    extra: Record<string, unknown> = {},
+  ) => ({
     id,
     name: id,
     priority: 1,
@@ -385,34 +276,53 @@ describe("calculateHouseholdBalance with conflicting linked pots", () => {
     ...extra,
   });
 
-  it("excludes conflicting pots from householdLiquidCents and reports them separately", () => {
+  it("excludes conflicting pots from freeAssetsCents and reports them separately", () => {
     const summary = calculateHouseholdBalance({
       ...base,
       pots: [
-        mk("account", 500_000, { externalLinkScope: "household" }),
-        mk("position", 400_000, { externalLinkScope: "household", excludeFromLiquidity: true }),
-        mk("virtual", 100_000),
+        mk("account", 500_000),
+        mk("position", 400_000, { liquidityExclusion: "link_conflict" }),
+        mk("virtual", 100_000, { liquidityExclusion: null }),
       ],
     });
-    expect(summary.householdLiquidCents).toBe(600_000);
+    expect(summary.freeAssetsCents).toBe(600_000);
     expect(summary.conflictingLinkedPotsCents).toBe(400_000);
-    expect(summary.personalLinkedPotsCents).toBe(0);
+    expect(summary.outOfScopeLinkedPotsCents).toBe(0);
   });
 
-  it("counts a personal-scope conflicting pot only once (as personal-linked)", () => {
+  it("excludes out-of-scope pots and reports them separately", () => {
     const summary = calculateHouseholdBalance({
       ...base,
-      pots: [mk("p", 300, { externalLinkScope: "personal", excludeFromLiquidity: true })],
+      pots: [
+        mk("hh", 200_000),
+        mk("oos", 300_000, { liquidityExclusion: "out_of_scope" }),
+      ],
     });
-    expect(summary.personalLinkedPotsCents).toBe(300);
-    expect(summary.conflictingLinkedPotsCents).toBe(0);
-    expect(summary.householdLiquidCents).toBe(0);
+    expect(summary.freeAssetsCents).toBe(200_000);
+    expect(summary.outOfScopeLinkedPotsCents).toBe(300_000);
+    expect(summary.totalAssetsCents).toBe(200_000);
   });
 
-  it("reports 0 without conflicts and still validates currentCents of excluded pots", () => {
-    expect(calculateHouseholdBalance({ ...base, pots: [mk("a", 5)] }).conflictingLinkedPotsCents).toBe(0);
+  it("sums conflicting and out-of-scope pots separately when both occur", () => {
+    const summary = calculateHouseholdBalance({
+      ...base,
+      pots: [
+        mk("a", 100, { liquidityExclusion: "link_conflict" }),
+        mk("b", 20, { liquidityExclusion: "out_of_scope" }),
+        mk("c", 3),
+      ],
+    });
+    expect(summary.conflictingLinkedPotsCents).toBe(100);
+    expect(summary.outOfScopeLinkedPotsCents).toBe(20);
+    expect(summary.freeAssetsCents).toBe(3);
+  });
+
+  it("still validates currentCents of excluded pots", () => {
     expect(() =>
-      calculateHouseholdBalance({ ...base, pots: [mk("a", 1.5, { excludeFromLiquidity: true })] }),
+      calculateHouseholdBalance({
+        ...base,
+        pots: [mk("a", 1.5, { liquidityExclusion: "out_of_scope" })],
+      }),
     ).toThrow(RangeError);
   });
 });
@@ -425,7 +335,6 @@ describe("calculateHouseholdBalance with rented properties", () => {
       {
         id: "loan-1",
         name: "Objektkredit Musterbank",
-        sphere: "household" as const,
         category: "loan" as const,
         status: "active" as const,
         currentBalanceCents: 18_000_000,
@@ -465,7 +374,7 @@ describe("calculateHouseholdBalance with rented properties", () => {
     expect(asRented).toEqual(asOwner);
   });
 
-  it("counts rented property once in propertiesValueCents and household loan once in householdLiabilitiesCents", () => {
+  it("counts rented property once in propertiesValueCents and household loan once in liabilitiesCents", () => {
     const rentedProp = {
       id: "prop-rent-1",
       name: "Wohnung Musterstraße 1",
@@ -479,7 +388,6 @@ describe("calculateHouseholdBalance with rented properties", () => {
         {
           id: "loan-hh",
           name: "Haushaltskredit Musterbank",
-          sphere: "household",
           category: "loan",
           status: "active",
           currentBalanceCents: 15_000_000,
@@ -492,40 +400,7 @@ describe("calculateHouseholdBalance with rented properties", () => {
     });
 
     expect(summary.propertiesValueCents).toBe(25_000_000);
-    expect(summary.householdLiabilitiesCents).toBe(15_000_000);
-    expect(summary.householdNetWorthCents).toBe(10_000_000);
-  });
-
-  it("places personal-sphere loan on rented property into personalLiabilitiesCents (accepted distortion)", () => {
-    const rentedProp = {
-      id: "prop-rent-1",
-      name: "Wohnung Musterstraße 1",
-      usage: "rented" as const,
-      estimatedValueCents: 25_000_000,
-    };
-    const summary = calculateHouseholdBalance({
-      asOfDate: baseDate,
-      properties: [rentedProp],
-      contracts: [
-        {
-          id: "loan-pers",
-          name: "Privatkredit Musterbank",
-          sphere: "personal",
-          category: "loan",
-          status: "active",
-          currentBalanceCents: 15_000_000,
-          balanceAsOfDate: baseDate,
-          monthlyRateCents: 50_000,
-          interestRateBps: 350,
-        },
-      ],
-      pots: [],
-    });
-
-    expect(summary.propertiesValueCents).toBe(25_000_000);
-    expect(summary.householdLiabilitiesCents).toBe(0);
-    expect(summary.personalLiabilitiesCents).toBe(15_000_000);
-    expect(summary.householdNetWorthCents).toBe(25_000_000);
+    expect(summary.liabilitiesCents).toBe(15_000_000);
     expect(summary.netWorthCents).toBe(10_000_000);
   });
 

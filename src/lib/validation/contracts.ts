@@ -259,7 +259,6 @@ export const propertyUpdateSchema = z
 export type PropertyCreateInput = z.infer<typeof propertyCreateSchema>;
 export type PropertyUpdateInput = z.infer<typeof propertyUpdateSchema>;
 
-export const contractSphereSchema = z.enum(["household", "personal"]);
 export const contractCategorySchema = z.enum(["loan", "savings_contract"]);
 export const contractStatusSchema = z.enum(["active", "paused", "closed"]);
 export const repaymentTypeSchema = z.enum([
@@ -271,7 +270,6 @@ export const repaymentTypeSchema = z.enum([
 export const contractBaseObject = z.object({
   name: z.string().trim().min(1, "Name ist erforderlich.").max(120),
   provider: nullableOptionalTrimmedString(120),
-  sphere: contractSphereSchema.default("household"),
   category: contractCategorySchema,
   status: contractStatusSchema.default("active"),
   currentBalanceCents: nonNegativeSafeInt,
@@ -294,7 +292,6 @@ type ContractBaseValues = z.infer<typeof contractBaseObject>;
 export interface NormalizedContractInput {
   name: string;
   provider: string | null;
-  sphere: "household" | "personal";
   category: "loan" | "savings_contract";
   status: "active" | "paused" | "closed";
   currentBalanceCents: number;
@@ -318,7 +315,6 @@ export function normalizeContractPayload(
   const base = {
     name: input.name,
     provider: input.provider ?? null,
-    sphere: input.sphere,
     category: input.category,
     status: input.status,
     currentBalanceCents: input.currentBalanceCents,
@@ -362,7 +358,6 @@ export const contractUpdateSchema = z
   .object({
     name: z.string().trim().min(1, "Name ist erforderlich.").max(120),
     provider: nullableOptionalTrimmedString(120),
-    sphere: contractSphereSchema,
     category: contractCategorySchema,
     status: contractStatusSchema,
     currentBalanceCents: nonNegativeSafeInt,

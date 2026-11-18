@@ -21,7 +21,6 @@ import type {
 } from "@/lib/domain/contracts";
 import { formatBpsDE, formatCentsDE } from "@/lib/domain/money";
 import {
-  CONTRACT_SPHERE_LABELS,
   CONTRACT_STATUS_LABELS,
   getContractTypeLabel,
 } from "./labels";
@@ -145,7 +144,6 @@ function ContractDetailDrawerInner({
         ) : null}
 
         <div className="flex flex-wrap items-center gap-2">
-          <Badge>{CONTRACT_SPHERE_LABELS[contract.sphere]}</Badge>
           <Badge variant="outline">
             {CONTRACT_STATUS_LABELS[contract.status]}
           </Badge>

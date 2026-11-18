@@ -85,6 +85,13 @@
       "when": 1795009678908,
       "tag": "0011_glossy_beyonder",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1795018882740,
+      "tag": "0012_household_only",
+      "breakpoints": true
     }
   ]
 }

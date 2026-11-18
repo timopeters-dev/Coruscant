@@ -98,7 +98,6 @@ describe("/api/documents integration", () => {
     const contract = createContract({
       name: "Musterbank Darlehen",
       provider: "Musterbank",
-      sphere: "household",
       category: "loan",
       status: "active",
       currentBalanceCents: 30_000_000,
@@ -216,7 +215,6 @@ describe("/api/documents integration", () => {
     const contract = createContract({
       name: "Musterbank Darlehen",
       provider: "Musterbank",
-      sphere: "household",
       category: "loan",
       status: "active",
       currentBalanceCents: 30_000_000,
@@ -283,6 +281,12 @@ describe("/api/documents integration", () => {
       { params: Promise.resolve({ id: doc.id }) },
     );
     expect(verifyRes.status).toBe(200);
+    const verifyBody = (await verifyRes.clone().json()) as Record<string, unknown>;
+    const returnedContract = (verifyBody.calibratedContract ?? verifyBody.contract) as
+      | Record<string, unknown>
+      | undefined;
+    expect(returnedContract).toBeDefined();
+    expect("sphere" in returnedContract!).toBe(false);
     const updatedContract = getContractById(contract.id);
     expect(updatedContract?.currentBalanceCents).toBe(29_500_000);
     expect(updatedContract?.balanceAsOfDate).toBe("2026-03-01");
@@ -643,7 +647,6 @@ describe("/api/documents integration", () => {
           contract: {
             name: "Hauskredit Musterstraße 1",
             provider: "Musterbank AG",
-            sphere: "household",
             category: "loan",
             status: "active",
             currentBalanceCents: 29_500_000,
@@ -667,7 +670,7 @@ describe("/api/documents integration", () => {
     );
 
     expect(createRes.status).toBe(201);
-    const createdBody = (await createRes.json()) as {
+    const createdBody = (await createRes.clone().json()) as {
       contract: {
         id: string;
         linkedPropertyId: string | null;
@@ -682,6 +685,7 @@ describe("/api/documents integration", () => {
       };
     };
 
+    expect("sphere" in createdBody.contract).toBe(false);
     expect(createdBody.contract.linkedPropertyId).toBe(property.id);
     expect(createdBody.contract.interestRateBps).toBe(345);
     expect(createdBody.contract.currentBalanceCents).toBe(29_500_000);

@@ -27,7 +27,18 @@ import {
 } from "@/lib/validation/contracts";
 
 export type PropertyRow = typeof properties.$inferSelect;
-export type FinancialContractRow = typeof financialContracts.$inferSelect;
+type StoredContractRow = typeof financialContracts.$inferSelect;
+/**
+ * Contract as exposed to the app. The legacy `sphere` column stays in the DB
+ * (default `household`, removal is tech debt) but never leaves the query layer.
+ */
+export type FinancialContractRow = Omit<StoredContractRow, "sphere">;
+
+export function toContractRow(row: StoredContractRow): FinancialContractRow {
+  const { sphere: _legacySphere, ...rest } = row;
+  void _legacySphere;
+  return rest;
+}
 
 export class LinkedPropertyNotFoundError extends Error {
   constructor(propertyId: string) {
@@ -537,7 +548,8 @@ export function listContracts(): FinancialContractRow[] {
       asc(financialContracts.category),
       asc(financialContracts.name),
     )
-    .all();
+    .all()
+    .map(toContractRow);
 }
 
 export function getContractById(id: string): FinancialContractRow | null {
@@ -547,7 +559,7 @@ export function getContractById(id: string): FinancialContractRow | null {
     .from(financialContracts)
     .where(eq(financialContracts.id, id))
     .get();
-  return row ?? null;
+  return row ? toContractRow(row) : null;
 }
 
 export function createContract(
@@ -570,7 +582,7 @@ export function createContract(
   if (!created) {
     throw new Error("Failed to create contract");
   }
-  return created;
+  return toContractRow(created);
 }
 
 export function updateContract(
@@ -585,7 +597,6 @@ export function updateContract(
   const merged = contractCreateSchema.parse({
     name: patch.name !== undefined ? patch.name : existing.name,
     provider: patch.provider !== undefined ? patch.provider : existing.provider,
-    sphere: patch.sphere !== undefined ? patch.sphere : existing.sphere,
     category: patch.category !== undefined ? patch.category : existing.category,
     status: patch.status !== undefined ? patch.status : existing.status,
     currentBalanceCents:
@@ -656,7 +667,7 @@ export function updateContract(
     .returning()
     .all();
 
-  return updated ?? null;
+  return updated ? toContractRow(updated) : null;
 }
 
 export function deleteContract(id: string): string | null {

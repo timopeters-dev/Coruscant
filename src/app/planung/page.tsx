@@ -20,7 +20,6 @@ export default function PlanungPage() {
       id: c.id,
       name: c.name,
       provider: c.provider,
-      sphere: c.sphere,
       defaults: buildPrepaymentDefaults(c, asOfDate),
     }));
 

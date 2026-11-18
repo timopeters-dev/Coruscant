@@ -1,3 +1,4 @@
+import { isHouseholdScope, selectHouseholdHoldings } from "./household-scope";
 import { assertSafeInteger } from "./money";
 
 export type ExternalLinkKind = "account" | "position";
@@ -8,6 +9,8 @@ export interface PotLinkState {
   currentCents: number;
   externalLinkKind: ExternalLinkKind | null;
   externalLinkRef: string | null;
+  /** Last stored scope of the link target (fallback when the target is gone). */
+  externalLinkScope?: ExternalScope | null;
 }
 
 export interface ExternalAccountInput {
@@ -47,7 +50,9 @@ export type PotSyncOutcome =
     }
   | { potId: string; status: "link_missing"; currentCents: number }
   /** Account and one of its positions are both linked (value would count twice). */
-  | { potId: string; status: "link_conflict"; currentCents: number };
+  | { potId: string; status: "link_conflict"; currentCents: number }
+  /** Link target lies outside the household (scope personal): not counted, not synced. */
+  | { potId: string; status: "link_out_of_scope"; currentCents: number };
 
 export interface ResolvedExternalLinkValue {
   valueCents: number;
@@ -226,7 +231,19 @@ export function computePotSyncPlan(input: {
     );
 
     if (resolved === null) {
-      outcomes.push({ potId: pot.id, status: "link_missing", currentCents });
+      outcomes.push({
+        potId: pot.id,
+        status:
+          pot.externalLinkScope === "personal"
+            ? "link_out_of_scope"
+            : "link_missing",
+        currentCents,
+      });
+      continue;
+    }
+
+    if (!isHouseholdScope(resolved.scope)) {
+      outcomes.push({ potId: pot.id, status: "link_out_of_scope", currentCents });
       continue;
     }
 
@@ -279,7 +296,6 @@ export interface PotLinkOption {
   label: string;
   /** Account type (accounts) or account name (positions). */
   detail: string;
-  scope: ExternalScope;
   valueCents: number;
   /** True when the account is overdrawn (value clamped to 0). */
   clampedNegative: boolean;
@@ -292,9 +308,13 @@ export interface PotLinkOption {
  * Values follow the same rules as the sync (negative totals clamp to 0).
  */
 export function buildPotLinkOptions(
-  accounts: readonly LinkOptionAccountSource[],
-  positions: readonly LinkOptionPositionSource[],
+  allAccounts: readonly LinkOptionAccountSource[],
+  allPositions: readonly LinkOptionPositionSource[],
 ): PotLinkOption[] {
+  const { accounts, positions } = selectHouseholdHoldings(
+    allAccounts,
+    allPositions,
+  );
   const accountById = new Map(accounts.map((a) => [a.id, a]));
   const options: PotLinkOption[] = accounts.map((account) => {
     const total = assertSafeInteger(
@@ -306,7 +326,6 @@ export function buildPotLinkOptions(
       ref: account.id,
       label: account.name,
       detail: account.type,
-      scope: account.scope,
       valueCents: Math.max(0, total),
       clampedNegative: total < 0,
       accountId: null,
@@ -323,7 +342,6 @@ export function buildPotLinkOptions(
       ref: position.id,
       label: position.name,
       detail: account.name,
-      scope: account.scope,
       valueCents: assertSafeInteger(
         position.marketValueCents,
         `position(${position.id}).marketValueCents`,

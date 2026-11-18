@@ -60,7 +60,7 @@ function buildContextForRequest(monthlySavingsRateCents?: number): ContextResult
       ok: false,
       response: NextResponse.json(
         {
-          error: "Keine Depot-Positionen im letzten Sync – Coach nicht verfügbar.",
+          error: "Kein Haushalts-Depot vorhanden.",
           code: "coach_context_unavailable",
         },
         { status: 422 },

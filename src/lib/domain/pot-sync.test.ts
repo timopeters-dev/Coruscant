@@ -13,8 +13,8 @@ import {
 
 const accounts: ExternalAccountInput[] = [
   { id: "acc-giro", scope: "household", balanceCents: 250_000, holdingsValueCents: 0 },
-  { id: "acc-depot", scope: "personal", balanceCents: 10_000, holdingsValueCents: 500_000 },
-  { id: "acc-dispo", scope: "personal", balanceCents: -30_000, holdingsValueCents: 0 },
+  { id: "acc-depot", scope: "household", balanceCents: 10_000, holdingsValueCents: 500_000 },
+  { id: "acc-dispo", scope: "household", balanceCents: -30_000, holdingsValueCents: 0 },
   { id: "acc-leer", scope: "household", balanceCents: 0, holdingsValueCents: 0 },
 ];
 
@@ -36,7 +36,7 @@ describe("resolveExternalLinkValue", () => {
   it("sums balance and holdings for accounts and inherits scope", () => {
     expect(resolveExternalLinkValue("account", "acc-depot", accounts, positions)).toEqual({
       valueCents: 510_000,
-      scope: "personal",
+      scope: "household",
       clampedNegative: false,
       asOf: null,
     });
@@ -51,7 +51,7 @@ describe("resolveExternalLinkValue", () => {
   it("uses the market value for positions and the scope of the owning account", () => {
     expect(resolveExternalLinkValue("position", "pos-mstr", accounts, positions)).toEqual({
       valueCents: 400_000,
-      scope: "personal",
+      scope: "household",
       clampedNegative: false,
       asOf: null,
     });
@@ -60,7 +60,7 @@ describe("resolveExternalLinkValue", () => {
   it("clamps negative balances to 0 and flags it", () => {
     expect(resolveExternalLinkValue("account", "acc-dispo", accounts, positions)).toEqual({
       valueCents: 0,
-      scope: "personal",
+      scope: "household",
       clampedNegative: true,
       asOf: null,
     });
@@ -86,7 +86,7 @@ describe("resolveExternalLinkValue", () => {
       resolveExternalLinkValue(
         "account",
         "x",
-        [{ id: "x", scope: "personal", balanceCents: Number.MAX_SAFE_INTEGER, holdingsValueCents: 1 }],
+        [{ id: "x", scope: "household", balanceCents: Number.MAX_SAFE_INTEGER, holdingsValueCents: 1 }],
         [],
       ),
     ).toThrow(RangeError);
@@ -94,7 +94,7 @@ describe("resolveExternalLinkValue", () => {
       resolveExternalLinkValue(
         "account",
         "x",
-        [{ id: "x", scope: "personal", balanceCents: 10.5, holdingsValueCents: 0 }],
+        [{ id: "x", scope: "household", balanceCents: 10.5, holdingsValueCents: 0 }],
         [],
       ),
     ).toThrow(RangeError);
@@ -102,7 +102,7 @@ describe("resolveExternalLinkValue", () => {
       resolveExternalLinkValue(
         "position",
         "p",
-        [{ id: "a", scope: "personal", balanceCents: 0, holdingsValueCents: 0 }],
+        [{ id: "a", scope: "household", balanceCents: 0, holdingsValueCents: 0 }],
         [{ id: "p", accountId: "a", marketValueCents: 1.5 }],
       ),
     ).toThrow(RangeError);
@@ -136,7 +136,7 @@ describe("computePotSyncPlan", () => {
       potId: "linked-pos",
       status: "unchanged",
       currentCents: 400_000,
-      scope: "personal",
+      scope: "household",
       clampedNegative: false,
       asOf: null,
     });
@@ -236,7 +236,7 @@ describe("buildPotLinkOptions", () => {
   it("lists accounts and positions with clamped values and skips orphan positions", () => {
     const options = buildPotLinkOptions(
       [
-        { id: "a1", name: "Muster-Depot", type: "brokerage", scope: "personal", balanceCents: 100, holdingsValueCents: 900 },
+        { id: "a1", name: "Muster-Depot", type: "brokerage", scope: "household", balanceCents: 100, holdingsValueCents: 900 },
         { id: "a2", name: "Muster Giro", type: "checking", scope: "household", balanceCents: -5, holdingsValueCents: 0 },
       ],
       [
@@ -244,12 +244,27 @@ describe("buildPotLinkOptions", () => {
         { id: "p2", accountId: "zz", name: "Waise", assetClass: "etf", marketValueCents: 1 },
       ],
     );
-    expect(options.map((o) => [o.kind, o.ref, o.valueCents, o.scope])).toEqual([
-      ["account", "a1", 1_000, "personal"],
-      ["account", "a2", 0, "household"],
-      ["position", "p1", 900, "personal"],
+    expect(options.map((o) => [o.kind, o.ref, o.valueCents])).toEqual([
+      ["account", "a1", 1_000],
+      ["account", "a2", 0],
+      ["position", "p1", 900],
     ]);
     expect(options[2]?.detail).toBe("Muster-Depot");
+    expect(options.every((o) => !("scope" in o))).toBe(true);
+  });
+
+  it("offers only household accounts and their positions", () => {
+    const options = buildPotLinkOptions(
+      [
+        { id: "acc-hh-1", name: "Muster Haushalt", type: "checking", scope: "household", balanceCents: 100, holdingsValueCents: 0 },
+        { id: "acc-pr-1", name: "Muster Privat", type: "brokerage", scope: "personal", balanceCents: 0, holdingsValueCents: 900 },
+      ],
+      [
+        { id: "pos-hh-1", accountId: "acc-hh-1", name: "Muster-Fonds", assetClass: "etf", marketValueCents: 50 },
+        { id: "pos-pr-1", accountId: "acc-pr-1", name: "Muster-ETF", assetClass: "etf", marketValueCents: 900 },
+      ],
+    );
+    expect(options.map((o) => o.ref)).toEqual(["acc-hh-1", "pos-hh-1"]);
   });
 
   it("returns [] for empty input", () => {
@@ -390,8 +405,8 @@ describe("buildPotLinkOptions flags", () => {
   it("flags overdrawn accounts and exposes accountId for positions", () => {
     const options = buildPotLinkOptions(
       [
-        { id: "a1", name: "Dispo Giro", type: "checking", scope: "personal", balanceCents: -100, holdingsValueCents: 0 },
-        { id: "a2", name: "Muster-Depot", type: "brokerage", scope: "personal", balanceCents: 0, holdingsValueCents: 50 },
+        { id: "a1", name: "Dispo Giro", type: "checking", scope: "household", balanceCents: -100, holdingsValueCents: 0 },
+        { id: "a2", name: "Muster-Depot", type: "brokerage", scope: "household", balanceCents: 0, holdingsValueCents: 50 },
       ],
       [{ id: "p1", accountId: "a2", name: "Muster-ETF", assetClass: "etf", marketValueCents: 50 }],
     );
@@ -400,5 +415,87 @@ describe("buildPotLinkOptions flags", () => {
       ["a2", false, null],
       ["p1", false, "a2"],
     ]);
+  });
+});
+
+describe("computePotSyncPlan out of scope", () => {
+  const accounts: ExternalAccountInput[] = [
+    { id: "acc-hh-1", scope: "household", balanceCents: 10_000, holdingsValueCents: 0 },
+    { id: "acc-pr-1", scope: "personal", balanceCents: 99_000, holdingsValueCents: 0 },
+    { id: "acc-pr-2", scope: "personal", balanceCents: 1_000, holdingsValueCents: 5_000 },
+  ];
+  const positions: ExternalPositionInput[] = [
+    { id: "pos-pr-1", accountId: "acc-pr-1", marketValueCents: 5_000 },
+    { id: "pos-pr-2", accountId: "acc-pr-2", marketValueCents: 5_000 },
+  ];
+  const mk = (
+    id: string,
+    kind: "account" | "position",
+    ref: string,
+    currentCents = 1,
+    externalLinkScope: "personal" | "household" | null = null,
+  ) => ({
+    id,
+    currentCents,
+    externalLinkKind: kind,
+    externalLinkRef: ref,
+    externalLinkScope,
+  });
+
+  it("syncs a household account with scope household", () => {
+    const [outcome] = computePotSyncPlan({
+      pots: [mk("a", "account", "acc-hh-1")],
+      accounts,
+      positions,
+    });
+    expect(outcome).toMatchObject({ status: "updated", scope: "household", nextCents: 10_000 });
+  });
+
+  it("marks personal accounts and positions of personal accounts as out of scope without changing the stand", () => {
+    const outcomes = computePotSyncPlan({
+      pots: [mk("a", "account", "acc-pr-1", 123), mk("b", "position", "pos-pr-2", 45)],
+      accounts,
+      positions,
+    });
+    expect(outcomes).toEqual([
+      { potId: "a", status: "link_out_of_scope", currentCents: 123 },
+      { potId: "b", status: "link_out_of_scope", currentCents: 45 },
+    ]);
+  });
+
+  it("uses the stored scope as fallback when the target is gone", () => {
+    const outcomes = computePotSyncPlan({
+      pots: [
+        mk("a", "account", "gone-1", 7, "personal"),
+        mk("b", "account", "gone-2", 8, null),
+        mk("c", "account", "gone-3", 9, "household"),
+      ],
+      accounts: [],
+      positions: [],
+    });
+    expect(outcomes.map((o) => o.status)).toEqual([
+      "link_out_of_scope",
+      "link_missing",
+      "link_missing",
+    ]);
+  });
+
+  it("prefers link_conflict over out of scope", () => {
+    const outcomes = computePotSyncPlan({
+      pots: [mk("a", "account", "acc-pr-1"), mk("b", "position", "pos-pr-1")],
+      accounts,
+      positions,
+    });
+    expect(outcomes.map((o) => o.status)).toEqual(["link_out_of_scope", "link_conflict"]);
+  });
+
+  it("still throws on duplicate links", () => {
+    expect(() =>
+      computePotSyncPlan({
+        pots: [mk("a", "account", "acc-pr-1"), mk("b", "account", "acc-pr-1")],
+        accounts,
+        positions,
+      }),
+    ).toThrow(RangeError);
   });
 });

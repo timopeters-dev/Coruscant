@@ -328,7 +328,7 @@ function ContractModalInner({
       open={open}
       onOpenChange={onOpenChange}
       title={isEditing ? "Vertrag bearbeiten" : "Neuen Vertrag anlegen"}
-      description="Generische Erfassung für Kredite, Privatdarlehen und Bausparverträge."
+      description="Generische Erfassung für Kredite, Darlehen und Bausparverträge."
       className="max-w-2xl"
     >
       <form onSubmit={handleSubmit} className="space-y-5">

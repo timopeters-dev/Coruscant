@@ -40,7 +40,6 @@ export interface InvestmentContextInput {
     id: string;
     name: string;
     type: ContextAccountType;
-    scope: string;
     balanceCents: number;
   }[];
   pots: {

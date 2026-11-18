@@ -68,7 +68,7 @@ interface AllokationWorkspaceProps {
   pendingTransferCentsByPotId: Record<string, number>;
   linkStatusByPotId: Record<
     string,
-    { status: "ok" | "missing" | "conflict"; clampedNegative: boolean }
+    { status: "ok" | "missing" | "conflict" | "out_of_scope"; clampedNegative: boolean }
   >;
   recentAllocations: RecentPotAllocationRow[];
   properties: PropertyRow[];
@@ -1064,8 +1064,8 @@ export function AllokationWorkspace({
             <p className="text-[11px] text-[var(--text-secondary)]">
               Hinweis:{" "}
               <span className="tabular-nums">{excludedContractsCount}</span>{" "}
-              persönliche oder pausierte/geschlossene Verträge fließen bewusst
-              nicht in den Haushalts-Cashflow ein.
+              pausierte, geschlossene oder ratenlose Verträge fließen nicht in
+              den Haushalts-Cashflow ein.
             </p>
           ) : null}
         </div>
@@ -1195,9 +1195,16 @@ export function AllokationWorkspace({
                   )
                 : undefined;
               const linkStatus = linkStatusByPotId[pot.id];
-              const isLinkMissing = isLinked && linkStatus?.status !== "ok" && linkStatus?.status !== "conflict";
+              const isLinkOutOfScope =
+                isLinked && linkStatus?.status === "out_of_scope";
+              const isLinkMissing =
+                isLinked &&
+                linkStatus?.status !== "ok" &&
+                linkStatus?.status !== "conflict" &&
+                linkStatus?.status !== "out_of_scope";
               const isLinkConflict = isLinked && linkStatus?.status === "conflict";
-              const isLinkStale = isLinkMissing || isLinkConflict;
+              const isLinkStale =
+                isLinkMissing || isLinkConflict || isLinkOutOfScope;
 
               const hasTarget = pot.targetCents !== null && pot.targetCents > 0;
               const progressPct = hasTarget
@@ -1242,6 +1249,12 @@ export function AllokationWorkspace({
                               variant="calibration_warning"
                               label="Verknüpfung überschneidet sich"
                               detail="Konto und Position gleichzeitig gekoppelt"
+                            />
+                          ) : isLinkOutOfScope ? (
+                            <StatusBadge
+                              variant="calibration_warning"
+                              label="Außerhalb des Haushalts"
+                              detail="zählt nicht"
                             />
                           ) : isLinkStale ? (
                             <StatusBadge

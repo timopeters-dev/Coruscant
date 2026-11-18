@@ -20,7 +20,6 @@ describe("summarizeProperties", () => {
       {
         id: "loan-1",
         name: "Hauskredit Musterbank",
-        sphere: "household",
         category: "loan",
         status: "active",
         currentBalanceCents: 30000000,
@@ -33,7 +32,6 @@ describe("summarizeProperties", () => {
       {
         id: "bauspar-1",
         name: "Bausparer Musterkasse",
-        sphere: "household",
         category: "savings_contract",
         status: "active",
         currentBalanceCents: 2000000,
@@ -103,7 +101,6 @@ describe("summarizeProperties", () => {
       {
         id: "loan-paused",
         name: "Privatdarlehen Familie Muster",
-        sphere: "household",
         category: "loan",
         status: "paused",
         currentBalanceCents: 55000000,
@@ -116,7 +113,6 @@ describe("summarizeProperties", () => {
       {
         id: "loan-closed",
         name: "Alter Kredit Musterbank",
-        sphere: "household",
         category: "loan",
         status: "closed",
         currentBalanceCents: 10000000,

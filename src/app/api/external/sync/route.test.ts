@@ -378,7 +378,7 @@ describe("POST /api/external/sync", () => {
   });
 
   describe("pot sync", () => {
-    const account = (id: string, scope: "personal" | "household", balanceCents: number, holdingsValueCents = 0) => ({
+    const account = (id: string, scope: "household" | "personal", balanceCents: number, holdingsValueCents = 0) => ({
       id,
       name: `Muster ${id}`,
       type: "checking" as const,
@@ -434,19 +434,19 @@ describe("POST /api/external/sync", () => {
       const virtualBefore = getPotById(virtual.id);
 
       mockSummary("2026-11-17T09:00:00.000Z", {
-        accounts: [account("acc-1", "personal", 120_000, 30_000), account("acc-2", "household", 7_000)],
+        accounts: [account("acc-1", "household", 120_000, 30_000), account("acc-2", "household", 7_000)],
         positions: [],
       });
 
       const response = await syncExternal();
       const body = await response.json();
       expect(body.status).toBe("synced");
-      expect(body.potSync).toEqual({ updated: 1, unchanged: 1, missing: [linkedGone.id], conflicts: [], clamped: [] });
+      expect(body.potSync).toEqual({ updated: 1, unchanged: 1, missing: [linkedGone.id], conflicts: [], outOfScope: [], clamped: [] });
 
       expect(getPotById(virtual.id)).toEqual(virtualBefore);
       expect(getPotById(linkedAcc.id)).toMatchObject({
         currentCents: 150_000,
-        externalLinkScope: "personal",
+        externalLinkScope: "household",
         externalSyncedAt: "2026-11-17T09:00:00.000Z",
       });
       expect(getPotById(linkedSame.id)).toMatchObject({
@@ -477,13 +477,33 @@ describe("POST /api/external/sync", () => {
       });
     });
 
+    it("keeps personal-linked pots untouched, flags them in potSync.outOfScope and updates household pots", async () => {
+      const hh = makePot("Haushalt", { kind: "account", ref: "acc-hh-1" }, 1);
+      const pr = makePot("Privat", { kind: "account", ref: "acc-pr-1" }, 4_000);
+      const prBefore = getPotById(pr.id);
+
+      mockSummary("2026-11-17T09:00:00.000Z", {
+        accounts: [account("acc-hh-1", "household", 20_000), account("acc-pr-1", "personal", 900_000)],
+        positions: [],
+      });
+
+      const body = await (await syncExternal()).json();
+      expect(body.potSync).toEqual({ updated: 1, unchanged: 0, missing: [], conflicts: [], outOfScope: [pr.id], clamped: [] });
+      expect(getPotById(hh.id)).toMatchObject({ currentCents: 20_000, externalLinkScope: "household" });
+      expect(getPotById(pr.id)).toMatchObject({
+        currentCents: 4_000,
+        externalLinkScope: "personal",
+        externalSyncedAt: prBefore?.externalSyncedAt ?? null,
+      });
+    });
+
     it("tolerates an older payload without accounts/positions", async () => {
       const pot = makePot("Konto", { kind: "account", ref: "acc-1" }, 3_000);
       mockSummary("2026-11-17T09:00:00.000Z");
       const response = await syncExternal();
       expect(response.status).toBe(200);
       const body = await response.json();
-      expect(body.potSync).toEqual({ updated: 0, unchanged: 0, missing: [pot.id], conflicts: [], clamped: [] });
+      expect(body.potSync).toEqual({ updated: 0, unchanged: 0, missing: [pot.id], conflicts: [], outOfScope: [], clamped: [] });
       expect(getPotById(pot.id)?.currentCents).toBe(3_000);
     });
 
@@ -529,13 +549,13 @@ describe("POST /api/external/sync", () => {
 
     it("reports clamped (overdrawn) linked pots in the potSync response", async () => {
       const pot = makePot("Dispo", { kind: "account", ref: "acc-1" }, 500);
-      mockSummary("2026-11-17T09:00:00.000Z", { accounts: [account("acc-1", "personal", -2_000)], positions: [] });
+      mockSummary("2026-11-17T09:00:00.000Z", { accounts: [account("acc-1", "household", -2_000)], positions: [] });
       const body = await (await syncExternal()).json();
       expect(body.potSync.clamped).toEqual([pot.id]);
       expect(getPotById(pot.id)?.currentCents).toBe(0);
 
       vi.restoreAllMocks();
-      mockSummary("2026-11-17T10:00:00.000Z", { accounts: [account("acc-1", "personal", -5)], positions: [] });
+      mockSummary("2026-11-17T10:00:00.000Z", { accounts: [account("acc-1", "household", -5)], positions: [] });
       const again = await (await syncExternal()).json();
       expect(again.potSync).toMatchObject({ unchanged: 1, clamped: [pot.id] });
     });
@@ -604,7 +624,7 @@ describe("POST /api/external/sync", () => {
 
     it("persists accounts/positions JSON and parses corrupt JSON to []", async () => {
       mockSummary("2026-11-17T09:00:00.000Z", {
-        accounts: [account("acc-1", "personal", 100)],
+        accounts: [account("acc-1", "household", 100)],
         positions: [],
       });
       await syncExternal();

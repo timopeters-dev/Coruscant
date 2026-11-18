@@ -110,6 +110,9 @@ export async function POST(request?: Request): Promise<Response> {
         conflicts: outcomes
           .filter((o) => o.status === "link_conflict")
           .map((o) => o.potId),
+        outOfScope: outcomes
+          .filter((o) => o.status === "link_out_of_scope")
+          .map((o) => o.potId),
         clamped: outcomes
           .filter(
             (o) =>

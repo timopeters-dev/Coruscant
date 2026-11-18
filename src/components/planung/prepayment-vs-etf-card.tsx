@@ -26,7 +26,6 @@ export interface LoanOption {
   id: string;
   name: string;
   provider: string | null;
-  sphere: "household" | "personal";
   defaults: PrepaymentDefaults;
 }
 

@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import * as dbModule from "@/db";
+import { financialContracts } from "@/db/schema";
 import {
   DELETE as deleteContractById,
   GET as getContractById,
@@ -203,5 +204,37 @@ describe("/api/contracts CRUD & validation", () => {
       { params: Promise.resolve({ id: "missing-contract" }) },
     );
     expect(unknownContract.status).toBe(404);
+  });
+});
+
+describe("/api/contracts household only", () => {
+  it("ignores a legacy sphere field, stores household and returns contracts without sphere in the list", async () => {
+    const res = await createContract(
+      new Request("http://localhost/api/contracts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Musterkredit",
+          sphere: "personal",
+          category: "loan",
+          currentBalanceCents: 100_000,
+          balanceAsOfDate: "2026-11-01",
+        }),
+      }),
+    );
+    expect(res.status).toBe(201);
+
+    const row = dbModule
+      .getDb()
+      .select()
+      .from(financialContracts)
+      .get();
+    expect(row?.sphere).toBe("household");
+
+    const list = (await (await listContracts()).json()) as {
+      contracts: Array<Record<string, unknown>>;
+    };
+    expect(list.contracts).toHaveLength(1);
+    expect("sphere" in list.contracts[0]!).toBe(false);
   });
 });

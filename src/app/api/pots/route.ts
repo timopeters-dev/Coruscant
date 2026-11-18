@@ -4,6 +4,7 @@ import {
   LinkedContractNotFoundError,
   LinkedPropertyNotFoundError,
   PotExternalLinkConflictError,
+  PotExternalLinkOutOfScopeError,
   PotExternalLinkTargetNotFoundError,
   listPots,
   listRecentPotAllocations,
@@ -61,6 +62,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     if (error instanceof PotExternalLinkTargetNotFoundError) {
       return badRequestResponse(error.message, {
         externalLink: "Ziel nicht im letzten Snapshot gefunden.",
+      });
+    }
+    if (error instanceof PotExternalLinkOutOfScopeError) {
+      return badRequestResponse(error.message, {
+        externalLink: "Nur Haushalts-Konten können gekoppelt werden.",
       });
     }
     if (error instanceof PotExternalLinkConflictError) {

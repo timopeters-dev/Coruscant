@@ -10,7 +10,6 @@ import {
 const sampleLoan: DomainContract = {
   id: "loan-musterbank",
   name: "Musterbank Darlehen",
-  sphere: "household",
   category: "loan",
   status: "active",
   currentBalanceCents: 30_000_000, // 300.000,00 €

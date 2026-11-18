@@ -1,4 +1,3 @@
-import type { ExternalSnapshotRow } from "@/db/schema";
 import {
   getLatestExternalSnapshot,
   insertExternalSnapshot,
@@ -44,7 +43,7 @@ export interface CockpitPageData {
   milestones: ActiveMilestonesResult;
   potDeadlines: ReturnType<typeof summarizeDeadlineRisks>;
   topPots: PotProgressItem[];
-  latestSnapshot: ExternalSnapshotRow | null;
+  latestSnapshotFetchedAt: string | null;
   activeContractsCount: number;
   projectedContractsCount: number;
   projectedAssetContractsCount: number;
@@ -79,16 +78,20 @@ export function loadCockpitData(
     now,
   });
 
-  // Pots whose link overlaps another linked pot must not be counted twice.
-  const conflictingPotIds = new Set(
-    computePotSyncPlan({
-      pots,
-      accounts: parseSnapshotAccounts(latestSnapshot),
-      positions: parseSnapshotPositions(latestSnapshot),
-    })
-      .filter((outcome) => outcome.status === "link_conflict")
-      .map((outcome) => outcome.potId),
-  );
+  // Pots whose link overlaps another linked pot (double count) or points outside
+  // the household must not count towards liquidity.
+  const exclusionByPotId = new Map<string, "link_conflict" | "out_of_scope">();
+  for (const outcome of computePotSyncPlan({
+    pots,
+    accounts: parseSnapshotAccounts(latestSnapshot),
+    positions: parseSnapshotPositions(latestSnapshot),
+  })) {
+    if (outcome.status === "link_conflict") {
+      exclusionByPotId.set(outcome.potId, "link_conflict");
+    } else if (outcome.status === "link_out_of_scope") {
+      exclusionByPotId.set(outcome.potId, "out_of_scope");
+    }
+  }
 
   const balance = calculateHouseholdBalance({
     asOfDate,
@@ -96,9 +99,8 @@ export function loadCockpitData(
     contracts,
     pots: pots.map((pot) => ({
       ...pot,
-      excludeFromLiquidity: conflictingPotIds.has(pot.id),
+      liquidityExclusion: exclusionByPotId.get(pot.id) ?? null,
     })),
-    externalSnapshot: latestSnapshot,
   });
 
   const barBreakdown = calculateBalanceBarBreakdown(balance);
@@ -150,7 +152,7 @@ export function loadCockpitData(
     milestones,
     potDeadlines,
     topPots,
-    latestSnapshot,
+    latestSnapshotFetchedAt: latestSnapshot?.fetchedAt ?? null,
     activeContractsCount,
     projectedContractsCount,
     projectedAssetContractsCount,

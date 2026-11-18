@@ -84,14 +84,13 @@ describe("/api/cashflow-items CRUD & live contract derivation", () => {
       item: { id: string };
     };
 
-    // 2. Create active household contract (1200 €) and personal contract (500 €)
+    // 2. Create active active contract (1200 €) and paused contract (500 €)
     const householdContractRes = await createContract(
       new Request("http://localhost/api/contracts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: "Hypothek Musterbank",
-          sphere: "household",
           category: "loan",
           status: "active",
           currentBalanceCents: 25_000_000,
@@ -112,10 +111,9 @@ describe("/api/cashflow-items CRUD & live contract derivation", () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: "Privat-Sparplan Muster",
-          sphere: "personal",
+          name: "Pausierter Sparplan Muster",
           category: "savings_contract",
-          status: "active",
+          status: "paused",
           currentBalanceCents: 500_000,
           balanceAsOfDate: "2026-11-01",
           monthlyRateCents: 50_000,
@@ -125,7 +123,7 @@ describe("/api/cashflow-items CRUD & live contract derivation", () => {
     );
     expect(personalContractRes.status).toBe(201);
 
-    // 3. GET /api/cashflow-items derives only active household contracts
+    // 3. GET /api/cashflow-items derives only active contracts
     const listRes1 = await listCashflowItems();
     expect(listRes1.status).toBe(200);
     const listBody1 = (await listRes1.json()) as {
@@ -258,7 +256,6 @@ describe("/api/cashflow-items CRUD & live contract derivation", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: "Hauskredit Musterbank",
-          sphere: "household",
           category: "loan",
           status: "active",
           currentBalanceCents: 15_000_000,

@@ -21,7 +21,6 @@ import {
   type ContractCategory,
   type ContractMilestone,
   type ContractProjectionResult,
-  type ContractSphere,
   extractContractMilestones,
 } from "@/lib/domain/contracts";
 import { formatBpsDE, formatCentsDE } from "@/lib/domain/money";
@@ -38,7 +37,6 @@ import {
 import { ContractDetailDrawer } from "./contract-detail-drawer";
 import { ContractModal } from "./contract-modal";
 import {
-  CONTRACT_SPHERE_LABELS,
   getContractTypeLabel,
   PROPERTY_USAGE_LABELS,
 } from "./labels";
@@ -64,7 +62,6 @@ interface VertraegeWorkspaceProps {
 }
 
 type CategoryFilter = "all" | ContractCategory;
-type SphereFilter = "all" | ContractSphere;
 type WorkspaceTab = "uebersicht" | "portfolio";
 
 export function VertraegeWorkspace({
@@ -86,7 +83,6 @@ export function VertraegeWorkspace({
   const [activeTab, setActiveTab] = React.useState<WorkspaceTab>(initialTab);
   const [categoryFilter, setCategoryFilter] =
     React.useState<CategoryFilter>("all");
-  const [sphereFilter, setSphereFilter] = React.useState<SphereFilter>("all");
   const [showClosed, setShowClosed] = React.useState(false);
 
   const [selectedPropertyId, setSelectedPropertyId] = React.useState<
@@ -178,12 +174,9 @@ export function VertraegeWorkspace({
       if (categoryFilter !== "all" && contract.category !== categoryFilter) {
         return false;
       }
-      if (sphereFilter !== "all" && contract.sphere !== sphereFilter) {
-        return false;
-      }
       return true;
     });
-  }, [contracts, categoryFilter, sphereFilter]);
+  }, [contracts, categoryFilter]);
 
   const activeAndPausedContracts = React.useMemo(
     () => filteredContracts.filter((c) => c.status !== "closed"),
@@ -240,7 +233,7 @@ export function VertraegeWorkspace({
             Verträge &amp; Immobilien
           </h1>
           <p className="text-sm text-[var(--text-secondary)]">
-            Generisches Register für Kredite, Privatdarlehen, Bausparverträge
+            Generisches Register für Kredite, Darlehen, Bausparverträge
             und Immobilien ·{" "}
             <span className="tabular-nums font-medium text-[var(--text-primary)]">
               Stand: {asOfDate}
@@ -782,28 +775,6 @@ export function VertraegeWorkspace({
               ))}
             </div>
 
-            <div className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface)] p-0.5">
-              {(
-                [
-                  { id: "all", label: "Alle Sphären" },
-                  { id: "household", label: "Haushalt" },
-                  { id: "personal", label: "Privat" },
-                ] as const
-              ).map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => setSphereFilter(option.id)}
-                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                    sphereFilter === option.id
-                      ? "bg-[var(--surface-elevated)] text-[var(--text-primary)]"
-                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
           </div>
         </div>
 
@@ -815,7 +786,7 @@ export function VertraegeWorkspace({
                   Keine aktiven oder pausierten Verträge gefunden
                 </p>
                 <p className="text-xs text-[var(--text-secondary)]">
-                  Erfasse Kredite, Privatdarlehen oder Bausparverträge ohne
+                  Erfasse Kredite, Darlehen oder Bausparverträge ohne
                   hartcodierte Sonderfälle.
                 </p>
               </div>
@@ -876,9 +847,6 @@ export function VertraegeWorkspace({
                       </div>
 
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <Badge variant="secondary">
-                          {CONTRACT_SPHERE_LABELS[contract.sphere]}
-                        </Badge>
                         <Badge variant="outline">
                           {getContractTypeLabel(
                             contract.category,

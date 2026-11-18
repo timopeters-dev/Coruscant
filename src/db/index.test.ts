@@ -135,7 +135,6 @@ describe("Database client and startup migrations", () => {
           id: "contract-loan-1",
           name: "Hauskredit Musterbank",
           provider: "Musterbank",
-          sphere: "household",
           category: "loan",
           status: "active",
           currentBalanceCents: 24_000_000,
@@ -504,5 +503,84 @@ describe("Database client and startup migrations", () => {
     } finally {
       sqlite.close();
     }
+  });
+
+  describe("migration 0012_household_only", () => {
+    function buildDirUpTo11(dbPath: string): string {
+      const sourceDrizzleDir = path.resolve(process.cwd(), "drizzle");
+      const tempDrizzleDir = path.join(path.dirname(dbPath), "drizzle-0011");
+      fs.mkdirSync(path.join(tempDrizzleDir, "meta"), { recursive: true });
+      const fullJournal = JSON.parse(
+        fs.readFileSync(path.join(sourceDrizzleDir, "meta/_journal.json"), "utf-8"),
+      ) as { entries: Array<{ idx: number; tag: string }> };
+      const kept = fullJournal.entries.filter((entry) => entry.idx <= 11);
+      for (const entry of kept) {
+        fs.copyFileSync(
+          path.join(sourceDrizzleDir, `${entry.tag}.sql`),
+          path.join(tempDrizzleDir, `${entry.tag}.sql`),
+        );
+      }
+      fs.writeFileSync(
+        path.join(tempDrizzleDir, "meta/_journal.json"),
+        JSON.stringify({ ...fullJournal, entries: kept }),
+      );
+      return tempDrizzleDir;
+    }
+
+    const insertContract = (
+      sqlite: Database.Database,
+      id: string,
+      sphere: string,
+      category: string,
+    ) =>
+      sqlite
+        .prepare(
+          `INSERT INTO financial_contracts (id, name, provider, sphere, category, status, current_balance_cents, balance_as_of_date, monthly_rate_cents, interest_rate_bps, updated_at)
+           VALUES (?, ?, 'Musterbank', ?, ?, 'active', 1234500, '2026-11-01', 5000, 250, '2026-11-02T10:00:00.000Z')`,
+        )
+        .run(id, `Vertrag ${id}`, sphere, category);
+
+    it("moves personal contracts to household without touching any other column, and is idempotent", () => {
+      const dbPath = makeTempDbPath("household-only.db");
+      const oldDir = buildDirUpTo11(dbPath);
+      const oldClient = createDbClient(dbPath, oldDir);
+      let before: Array<Record<string, unknown>>;
+      try {
+        insertContract(oldClient.sqlite, "c-personal", "personal", "loan");
+        insertContract(oldClient.sqlite, "c-household", "household", "savings_contract");
+        before = oldClient.sqlite
+          .prepare("SELECT * FROM financial_contracts ORDER BY id")
+          .all() as Array<Record<string, unknown>>;
+      } finally {
+        oldClient.sqlite.close();
+      }
+
+      const expected = before.map((row) => ({ ...row, sphere: "household" }));
+      for (let run = 0; run < 2; run += 1) {
+        const client = createDbClient(dbPath);
+        try {
+          const rows = client.sqlite
+            .prepare("SELECT * FROM financial_contracts ORDER BY id")
+            .all();
+          expect(rows).toEqual(expected);
+        } finally {
+          client.sqlite.close();
+        }
+      }
+    });
+
+    it("runs without error on an empty table", () => {
+      const dbPath = makeTempDbPath("household-only-empty.db");
+      const oldClient = createDbClient(dbPath, buildDirUpTo11(dbPath));
+      oldClient.sqlite.close();
+      const client = createDbClient(dbPath);
+      try {
+        expect(
+          client.sqlite.prepare("SELECT COUNT(*) AS n FROM financial_contracts").get(),
+        ).toEqual({ n: 0 });
+      } finally {
+        client.sqlite.close();
+      }
+    });
   });
 });

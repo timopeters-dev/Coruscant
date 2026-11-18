@@ -11,7 +11,6 @@ describe("selectUpcomingActiveMilestones", () => {
     DomainContract,
     "id" | "name" | "status" | "milestoneDate" | "milestoneLabel" | "fixedInterestUntil"
   > = {
-    sphere: "household",
     category: "loan",
     currentBalanceCents: 5_000_000,
     balanceAsOfDate: "2026-11-01",

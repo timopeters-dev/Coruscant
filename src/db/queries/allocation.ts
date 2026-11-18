@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { and, asc, desc, eq, gt, inArray, isNotNull, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, ne, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   appMeta,
@@ -16,6 +16,7 @@ import {
   parseSnapshotAccounts,
   parseSnapshotPositions,
 } from "@/db/queries/external-snapshots";
+import { isHouseholdScope } from "@/lib/domain/household-scope";
 import {
   computePotSyncPlan,
   findAccountPositionOverlap,
@@ -118,6 +119,13 @@ export class PotExternalLinkTargetNotFoundError extends Error {
   constructor() {
     super("Das Kopplungsziel ist im letzten finanz_cockpit-Snapshot nicht enthalten.");
     this.name = "PotExternalLinkTargetNotFoundError";
+  }
+}
+
+export class PotExternalLinkOutOfScopeError extends Error {
+  constructor() {
+    super("Nur Haushalts-Konten und -Positionen können gekoppelt werden.");
+    this.name = "PotExternalLinkOutOfScopeError";
   }
 }
 
@@ -384,6 +392,9 @@ function resolveLinkState(
 
   if (!snapshot || !resolved) {
     throw new PotExternalLinkTargetNotFoundError();
+  }
+  if (!isHouseholdScope(resolved.scope)) {
+    throw new PotExternalLinkOutOfScopeError();
   }
 
   const otherLinks = tx
@@ -849,6 +860,16 @@ function applyPotSyncInTx(
     if (outcome.status === "link_missing" || outcome.status === "link_conflict") {
       continue;
     }
+    if (outcome.status === "link_out_of_scope") {
+      // Keep stand and sync time frozen; only remember the scope (idempotent).
+      tx.update(pots)
+        .set({ externalLinkScope: "personal" })
+        .where(
+          and(eq(pots.id, outcome.potId), isNotNull(pots.externalLinkKind)),
+        )
+        .run();
+      continue;
+    }
     const where = and(
       eq(pots.id, outcome.potId),
       isNotNull(pots.externalLinkKind),
@@ -911,7 +932,12 @@ export function getPendingTransferCentsByPotId(): Map<string, number> {
       linkedAt: pots.externalLinkedAt,
     })
     .from(pots)
-    .where(isNotNull(pots.externalLinkKind))
+    .where(
+      and(
+        isNotNull(pots.externalLinkKind),
+        or(isNull(pots.externalLinkScope), ne(pots.externalLinkScope, "personal")),
+      ),
+    )
     .all();
 
   const result = new Map<string, number>();

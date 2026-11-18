@@ -59,7 +59,7 @@ function seedSnapshot(
     fetchedAt,
     accounts: [
       { id: "acc-giro", name: "Musterbank Tagesgeld", type: "savings", scope: "household", balanceCents: 250_000, holdingsValueCents: 0, ...(balanceAsOf ? { balanceAsOf } : {}) },
-      { id: "acc-depot", name: "Muster-Depot", type: "brokerage", scope: "personal", balanceCents: 10_000, holdingsValueCents: 500_000 },
+      { id: "acc-depot", name: "Muster-Depot", type: "brokerage", scope: "household", balanceCents: 10_000, holdingsValueCents: 500_000 },
     ],
     positions: [
       { id: "pos-1", accountId: "acc-depot", symbol: "MSTR", isin: "XX0000000001", name: "Muster-ETF", assetClass: "etf", marketValueCents: 400_000, costBasisCents: null, lastPriceAt: null },
@@ -117,7 +117,7 @@ describe("pots linked to finanz_cockpit accounts/positions", () => {
     });
 
     const position = await create({ ...baseBody, name: "ETF-Topf", externalLink: { kind: "position", ref: "pos-1" } });
-    expect(position.json.pot).toMatchObject({ currentCents: 400_000, externalLinkScope: "personal" });
+    expect(position.json.pot).toMatchObject({ currentCents: 400_000, externalLinkScope: "household" });
 
   });
 
@@ -148,7 +148,7 @@ describe("pots linked to finanz_cockpit accounts/positions", () => {
     expect(getPotRow(id)).toMatchObject({
       currentCents: 510_000,
       externalLinkRef: "acc-depot",
-      externalLinkScope: "personal",
+      externalLinkScope: "household",
     });
   });
 
@@ -235,7 +235,7 @@ describe("pots linked to finanz_cockpit accounts/positions", () => {
     const { json } = await create({ ...baseBody, name: "Virtuell", currentCents: 42 });
     const res = await patch(json.pot!.id, { externalLink: { kind: "position", ref: "pos-1" } });
     expect(res.status).toBe(200);
-    expect(getPotRow(json.pot!.id)).toMatchObject({ currentCents: 400_000, externalLinkScope: "personal" });
+    expect(getPotRow(json.pot!.id)).toMatchObject({ currentCents: 400_000, externalLinkScope: "household" });
   });
 
   it("returns 409 when re-linking to a target that another pot holds", async () => {
@@ -407,5 +407,116 @@ describe("pots linked to finanz_cockpit accounts/positions", () => {
     const nextSnap = seedSnapshot("2026-11-18T07:00:00.000Z", "2026-11-18T06:00:00.000Z");
     applyPotSyncFromSnapshot(nextSnap);
     expect(getPotRow(id)?.targetDate).toBe("2028-12-31");
+  });
+});
+
+describe("household-only linking (Slice 17)", () => {
+  function seedMixed(
+    fetchedAt: string,
+    prScope: "household" | "personal",
+    options: { empty?: boolean; hhBalanceCents?: number } = {},
+  ) {
+    return insertExternalSnapshot(
+      finanzCockpitSummarySchema.parse({
+        source: "finanz_cockpit",
+        liquidCashCents: 0,
+        etfStocksCents: 0,
+        cryptoCents: 0,
+        totalPersonalNetWorthCents: 0,
+        fetchedAt,
+        accounts: options.empty
+          ? []
+          : [
+              { id: "acc-hh-1", name: "Musterbank Haushalt", type: "checking", scope: "household", balanceCents: options.hhBalanceCents ?? 100_000, holdingsValueCents: 0 },
+              { id: "acc-pr-1", name: "Musterbank Privat", type: "checking", scope: prScope, balanceCents: 300_000, holdingsValueCents: 0 },
+            ],
+        positions: options.empty
+          ? []
+          : [
+              { id: "pos-pr-1", accountId: "acc-pr-1", symbol: "MSTR", isin: null, name: "Muster-ETF", assetClass: "etf", marketValueCents: 5_000, costBasisCents: null, lastPriceAt: null },
+            ],
+      }),
+    );
+  }
+
+  it("rejects a new link to a personal account or position with 400 and fieldErrors.externalLink", async () => {
+    seedMixed("2026-11-17T08:00:00.000Z", "personal");
+    const account = await create({ ...baseBody, name: "Privat", externalLink: { kind: "account", ref: "acc-pr-1" } });
+    expect(account.status).toBe(400);
+    expect(account.json.fieldErrors?.externalLink).toBeTruthy();
+    const position = await create({ ...baseBody, name: "Privat-ETF", externalLink: { kind: "position", ref: "pos-pr-1" } });
+    expect(position.status).toBe(400);
+    expect(listPotRows()).toHaveLength(0);
+
+    const household = await create({ ...baseBody, name: "Haushalt", externalLink: { kind: "account", ref: "acc-hh-1" } });
+    expect(household.status).toBe(201);
+    expect(household.json.pot?.currentCents).toBe(100_000);
+  });
+
+  it("rejects re-linking an existing pot to a personal target", async () => {
+    seedMixed("2026-11-17T08:00:00.000Z", "personal");
+    const hh = await create({ ...baseBody, name: "Haushalt", externalLink: { kind: "account", ref: "acc-hh-1" } });
+    const res = await patch(hh.json.pot!.id, { externalLink: { kind: "account", ref: "acc-pr-1" } });
+    expect(res.status).toBe(400);
+    expect(getPotRow(hh.json.pot!.id)).toMatchObject({ externalLinkRef: "acc-hh-1", currentCents: 100_000 });
+  });
+
+  it("marks an existing link as out of scope on sync, keeps stand, and still allows rename and unlinking", async () => {
+    seedMixed("2026-11-17T08:00:00.000Z", "household");
+    const hh = await create({ ...baseBody, name: "Haushalt", externalLink: { kind: "account", ref: "acc-hh-1" } });
+    const pr = await create({ ...baseBody, name: "Später privat", externalLink: { kind: "account", ref: "acc-pr-1" } });
+    expect(pr.json.pot?.currentCents).toBe(300_000);
+    const prBefore = getPotRow(pr.json.pot!.id)!;
+
+    const next = seedMixed("2026-11-17T09:00:00.000Z", "personal", { hhBalanceCents: 120_000 });
+    const outcomes = applyPotSyncFromSnapshot(next);
+    expect(outcomes.map((o) => o.status).sort()).toEqual(["link_out_of_scope", "updated"]);
+
+    expect(getPotRow(hh.json.pot!.id)).toMatchObject({ currentCents: 120_000, externalLinkScope: "household" });
+    const prAfter = getPotRow(pr.json.pot!.id)!;
+    expect(prAfter).toMatchObject({ currentCents: 300_000, externalLinkScope: "personal" });
+    expect(prAfter.externalSyncedAt).toBe(prBefore.externalSyncedAt);
+    expect(prAfter.updatedAt).toBe(prBefore.updatedAt);
+
+    // Rename with unchanged link stays possible.
+    expect((await patch(pr.json.pot!.id, { name: "Umbenannt" })).status).toBe(200);
+    expect(getPotRow(pr.json.pot!.id)).toMatchObject({ name: "Umbenannt", externalLinkRef: "acc-pr-1" });
+
+    // Unlinking keeps the stand and makes the pot virtual.
+    expect((await patch(pr.json.pot!.id, { externalLink: null })).status).toBe(200);
+    expect(getPotRow(pr.json.pot!.id)).toMatchObject({ externalLinkKind: null, externalLinkRef: null, currentCents: 300_000 });
+  });
+
+  it("sync with empty accounts yields link_missing or link_out_of_scope by stored scope without throwing", async () => {
+    seedMixed("2026-11-17T08:00:00.000Z", "household");
+    await create({ ...baseBody, name: "Haushalt", externalLink: { kind: "account", ref: "acc-hh-1" } });
+    await create({ ...baseBody, name: "Privat", externalLink: { kind: "account", ref: "acc-pr-1" } });
+    applyPotSyncFromSnapshot(seedMixed("2026-11-17T09:00:00.000Z", "personal"));
+
+    const outcomes = applyPotSyncFromSnapshot(seedMixed("2026-11-17T10:00:00.000Z", "personal", { empty: true }));
+    expect(outcomes.map((o) => o.status).sort()).toEqual(["link_missing", "link_out_of_scope"]);
+  });
+
+  it("excludes out-of-scope pots from pending transfers, but keeps them for household pots", async () => {
+    seedMixed("2026-11-17T08:00:00.000Z", "household");
+    const hh = await create({ ...baseBody, name: "Haushalt", externalLink: { kind: "account", ref: "acc-hh-1" } });
+    const pr = await create({ ...baseBody, name: "Privat", externalLink: { kind: "account", ref: "acc-pr-1" } });
+    applyPotSyncFromSnapshot(seedMixed("2026-11-17T09:00:00.000Z", "personal"));
+
+    const res = await allocatePots(
+      jsonRequest("http://localhost/api/pots/allocate", "POST", {
+        inputAmountCents: 30_000,
+        mode: "one_time",
+        sourceLabel: "Einmalzufluss",
+        allocations: [
+          { potId: hh.json.pot!.id, amountCents: 10_000 },
+          { potId: pr.json.pot!.id, amountCents: 20_000 },
+        ],
+      }),
+    );
+    expect(res.status).toBe(201);
+    const pending = getPendingTransferCentsByPotId();
+    expect(pending.get(hh.json.pot!.id)).toBe(10_000);
+    expect(pending.has(pr.json.pot!.id)).toBe(false);
   });
 });

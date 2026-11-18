@@ -77,7 +77,7 @@ export function CockpitWorkspace({ data }: CockpitWorkspaceProps) {
   const lastAutoAttemptMsRef = useRef(0);
   const rescheduleAutoSyncRef = useRef<(() => void) | null>(null);
 
-  const latestFetchedAt = data.latestSnapshot?.fetchedAt ?? null;
+  const latestFetchedAt = data.latestSnapshotFetchedAt;
 
   const runSync = useCallback(
     async (mode: "manual" | "auto", bypassCooldown = false) => {
@@ -254,7 +254,7 @@ export function CockpitWorkspace({ data }: CockpitWorkspaceProps) {
     milestones,
     potDeadlines,
     topPots,
-    latestSnapshot,
+    latestSnapshotFetchedAt,
   } = data;
   const totalDeadlineIssues =
     potDeadlines.atRiskCount + potDeadlines.overdueCount;
@@ -266,20 +266,6 @@ export function CockpitWorkspace({ data }: CockpitWorkspaceProps) {
     balance.liabilitiesCents > 0
       ? "text-[var(--rose)]"
       : "text-[var(--text-primary)]";
-
-  const externalNetWorthCents = latestSnapshot
-    ? latestSnapshot.totalPersonalNetWorthCents
-    : 0;
-  const externalOverdraftCents = latestSnapshot
-    ? Math.max(
-        0,
-        balance.personalExternalAssetsCents -
-          latestSnapshot.totalPersonalNetWorthCents,
-      )
-    : 0;
-  const personalCoruscantNetCents =
-    balance.personalContractsAssetsCents -
-    (balance.personalLiabilitiesCents - externalOverdraftCents);
 
   const hasModeledAssets =
     data.projectedAssetContractsCount > 0 || balance.propertiesValueCents > 0;
@@ -310,11 +296,11 @@ export function CockpitWorkspace({ data }: CockpitWorkspaceProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          {latestSnapshot ? (
+          {latestSnapshotFetchedAt ? (
             <StatusBadge
               variant="calibrated"
               label="finanz_cockpit Geeicht"
-              detail={formatTimestampDE(latestSnapshot.fetchedAt)}
+              detail={formatTimestampDE(latestSnapshotFetchedAt)}
             />
           ) : (
             <Badge
@@ -407,11 +393,14 @@ export function CockpitWorkspace({ data }: CockpitWorkspaceProps) {
                 />
               </div>
             ) : null}
-            {balance.personalLinkedPotsCents > 0 ? (
-              <p className="tabular-nums text-xs text-[var(--text-secondary)]">
-                davon in persönlichen Konten geführt:{" "}
-                {formatCentsDE(balance.personalLinkedPotsCents)}
-              </p>
+            {balance.outOfScopeLinkedPotsCents > 0 ? (
+              <div className="mt-1.5 space-y-1">
+                <StatusBadge
+                  variant="calibration_warning"
+                  label="Kopplung außerhalb des Haushalts"
+                  detail={`${formatCentsDE(balance.outOfScopeLinkedPotsCents)} nicht mitgezählt`}
+                />
+              </div>
             ) : null}
           </CardContent>
         </Card>
@@ -432,12 +421,6 @@ export function CockpitWorkspace({ data }: CockpitWorkspaceProps) {
               {formatCentsDE(balance.liabilitiesCents)}
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="tabular-nums text-xs text-[var(--text-secondary)]">
-              Haushalt: {formatCentsDE(balance.householdLiabilitiesCents)} ·
-              Privat: {formatCentsDE(balance.personalLiabilitiesCents)}
-            </p>
-          </CardContent>
         </Card>
 
         <Card
@@ -456,15 +439,6 @@ export function CockpitWorkspace({ data }: CockpitWorkspaceProps) {
               {formatCentsDE(balance.netWorthCents)}
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="tabular-nums text-xs text-[var(--text-secondary)]">
-              Haushalt: {formatCentsDE(balance.householdNetWorthCents)} ·
-              finanz_cockpit: {formatCentsDE(externalNetWorthCents)}
-              {personalCoruscantNetCents !== 0
-                ? ` · Privat-Verträge: ${formatCentsDE(personalCoruscantNetCents, { showPlusSign: true })}`
-                : ""}
-            </p>
-          </CardContent>
         </Card>
       </div>
 

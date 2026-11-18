@@ -22,7 +22,6 @@ function loan(overrides: Partial<DomainContract> = {}): DomainContract {
   return {
     id: "contract-secret-1",
     name: "Darlehen Erika Mustermann",
-    sphere: "household",
     category: "loan",
     status: "active",
     currentBalanceCents: 20_000_000,
@@ -75,21 +74,18 @@ function baseInput(
         id: "acc-id-1",
         name: "Girokonto Max Mustermann",
         type: "checking",
-        scope: "household",
         balanceCents: 300_000,
       },
       {
         id: "acc-id-2",
         name: "Tagesgeld Musterbank AG",
         type: "savings",
-        scope: "personal",
         balanceCents: 700_000,
       },
       {
         id: "acc-id-3",
         name: "Depot Musterbank AG",
         type: "brokerage",
-        scope: "personal",
         balanceCents: 50_000,
       },
     ],
@@ -308,7 +304,6 @@ describe("buildInvestmentContext – Liquidität & Notgroschen", () => {
         id: "a",
         name: "x",
         type: "checking",
-        scope: "household",
         balanceCents: 349_000,
       },
     ];

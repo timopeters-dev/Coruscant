@@ -47,7 +47,7 @@ export default function AllokationPage() {
   // Current link health per pot (pure calculation against the latest snapshot).
   const linkStatusByPotId: Record<
     string,
-    { status: "ok" | "missing" | "conflict"; clampedNegative: boolean }
+    { status: "ok" | "missing" | "conflict" | "out_of_scope"; clampedNegative: boolean }
   > = {};
   for (const outcome of computePotSyncPlan({
     pots,
@@ -60,7 +60,9 @@ export default function AllokationPage() {
           ? "missing"
           : outcome.status === "link_conflict"
             ? "conflict"
-            : "ok",
+            : outcome.status === "link_out_of_scope"
+              ? "out_of_scope"
+              : "ok",
       clampedNegative:
         (outcome.status === "updated" || outcome.status === "unchanged") &&
         outcome.clampedNegative,

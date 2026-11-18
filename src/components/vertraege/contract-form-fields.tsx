@@ -9,7 +9,6 @@ import type { FinancialContractRow, PropertyRow } from "@/db/queries/contracts";
 import type { ContractPrefillResult } from "@/lib/domain/contract-prefill";
 import type {
   ContractCategory,
-  ContractSphere,
   ContractStatus,
   RepaymentType,
 } from "@/lib/domain/contracts";
@@ -23,7 +22,6 @@ import {
 export interface ContractFormValues {
   name: string;
   provider: string;
-  sphere: ContractSphere;
   category: ContractCategory;
   status: ContractStatus;
   linkedPropertyId: string;
@@ -62,7 +60,6 @@ export interface ContractFieldErrors {
 export interface ContractPayload {
   name: string;
   provider: string | null;
-  sphere: ContractSphere;
   category: ContractCategory;
   status: ContractStatus;
   currentBalanceCents: number;
@@ -87,7 +84,6 @@ export function createInitialContractFormValues(
   return {
     name: initialContract?.name ?? "",
     provider: initialContract?.provider ?? "",
-    sphere: initialContract?.sphere ?? "household",
     category: initialContract?.category ?? "loan",
     status: initialContract?.status ?? "active",
     linkedPropertyId: initialContract?.linkedPropertyId ?? "",
@@ -267,7 +263,6 @@ export function validateAndBuildContractPayload(
   const base = {
     name: trimmedName,
     provider: values.provider.trim() || null,
-    sphere: values.sphere,
     category: values.category,
     status: values.status,
     currentBalanceCents,
@@ -447,21 +442,6 @@ export function ContractFormFields({
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor={`${idPrefix}-sphere`}>Sphäre</Label>
-          <Select
-            id={`${idPrefix}-sphere`}
-            value={values.sphere}
-            onChange={(e) =>
-              updateField("sphere", e.target.value as ContractSphere)
-            }
-            disabled={disabled}
-          >
-            <option value="household">Haushalt</option>
-            <option value="personal">Privat</option>
-          </Select>
-        </div>
-
-        <div className="space-y-1.5">
           <Label htmlFor={`${idPrefix}-status`}>Status</Label>
           <Select
             id={`${idPrefix}-status`}
@@ -600,7 +580,7 @@ export function ContractFormFields({
               >
                 <option value="annuity">Annuitätendarlehen</option>
                 <option value="installment">Ratendarlehen</option>
-                <option value="lump_sum">Endfällig / Privatdarlehen</option>
+                <option value="lump_sum">Endfällig (z. B. Verwandtendarlehen)</option>
               </Select>
             </div>
 
@@ -652,7 +632,7 @@ export function ContractFormFields({
 
           {values.repaymentType === "lump_sum" ? (
             <p className="text-xs text-[var(--text-secondary)]">
-              Hinweis: Bei endfälligen Darlehen / Privatdarlehen erfolgt keine
+              Hinweis: Bei endfälligen Darlehen erfolgt keine
               automatische monatliche Tilgungsprojektion.
             </p>
           ) : null}

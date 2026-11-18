@@ -35,7 +35,6 @@ describe("deriveContractCashflowItems", () => {
       {
         id: "loan-1",
         name: "Hauskredit Musterbank",
-        sphere: "household",
         category: "loan",
         status: "active",
         currentBalanceCents: 20_000_000,
@@ -46,7 +45,6 @@ describe("deriveContractCashflowItems", () => {
       {
         id: "loan-paused",
         name: "Pausiert",
-        sphere: "household",
         category: "loan",
         status: "paused",
         currentBalanceCents: 500_000,
@@ -57,7 +55,6 @@ describe("deriveContractCashflowItems", () => {
       {
         id: "loan-lump",
         name: "Privatdarlehen",
-        sphere: "household",
         category: "loan",
         status: "active",
         currentBalanceCents: 500_000,
@@ -67,11 +64,10 @@ describe("deriveContractCashflowItems", () => {
         repaymentType: "lump_sum",
       },
       {
-        id: "loan-personal",
-        name: "Persönlicher Kredit Musterbank",
-        sphere: "personal",
+        id: "loan-closed",
+        name: "Beendeter Kredit Musterbank",
         category: "loan",
-        status: "active",
+        status: "closed",
         currentBalanceCents: 1_000_000,
         balanceAsOfDate: "2026-01-01",
         monthlyRateCents: 25_000,
@@ -579,7 +575,6 @@ describe("calculateConsolidatedCashflow with propertyItems", () => {
     const linkedLoan = {
       id: "loan-1",
       name: "Objektkredit Musterbank",
-      sphere: "household" as const,
       category: "loan" as const,
       status: "active" as const,
       currentBalanceCents: 18_000_000,

@@ -1,10 +1,6 @@
 import { type DomainContract, projectContractBalance } from "./contracts";
 import { parseIsoDate } from "./date";
-import {
-  assertNonNegativeInteger,
-  assertSafeInteger,
-  roundHalfUpBigInt,
-} from "./money";
+import { assertNonNegativeInteger, roundHalfUpBigInt } from "./money";
 import type { DomainPot } from "./waterfall";
 
 export interface DomainProperty {
@@ -13,25 +9,13 @@ export interface DomainProperty {
   estimatedValueCents: number;
 }
 
-export interface DomainExternalSnapshot {
-  liquidCashCents: number;
-  etfStocksCents: number;
-  cryptoCents: number;
-  totalPersonalNetWorthCents: number;
-  fetchedAt: string;
-}
-
 export interface BalancePot extends DomainPot {
   /**
-   * Scope of the linked finanz_cockpit account/position. Pots linked to a
-   * `personal` target are already part of `personalExternalAssetsCents`.
+   * Set for pots that must not count towards liquidity: their link overlaps
+   * another linked pot (`link_conflict`) or points outside the household
+   * (`out_of_scope`).
    */
-  externalLinkScope?: "personal" | "household" | null;
-  /**
-   * Set for pots whose link overlaps another linked pot (account vs. its
-   * position): their money is already counted elsewhere.
-   */
-  excludeFromLiquidity?: boolean;
+  liquidityExclusion?: "link_conflict" | "out_of_scope" | null;
 }
 
 export interface BalanceInput {
@@ -39,26 +23,19 @@ export interface BalanceInput {
   properties: readonly DomainProperty[];
   contracts: readonly DomainContract[];
   pots: readonly BalancePot[];
-  externalSnapshot?: DomainExternalSnapshot | null;
 }
 
 export interface BalanceSummary {
   asOfDate: string;
-  householdLiquidCents: number;
-  personalLinkedPotsCents: number;
-  conflictingLinkedPotsCents: number;
-  personalExternalAssetsCents: number;
-  personalContractsAssetsCents: number;
-  personalLiabilitiesCents: number;
   freeAssetsCents: number;
+  conflictingLinkedPotsCents: number;
+  outOfScopeLinkedPotsCents: number;
   propertiesValueCents: number;
   savingsContractsValueCents: number;
   boundAssetsCents: number;
   totalAssetsCents: number;
-  householdLiabilitiesCents: number;
   liabilitiesCents: number;
   netWorthCents: number;
-  householdNetWorthCents: number;
 }
 
 /**
@@ -68,50 +45,22 @@ export interface BalanceSummary {
 export function calculateHouseholdBalance(input: BalanceInput): BalanceSummary {
   parseIsoDate(input.asOfDate, "asOfDate");
 
-  let householdLiquidCents = 0;
-  let personalLinkedPotsCents = 0;
+  let freeAssetsCents = 0;
   let conflictingLinkedPotsCents = 0;
+  let outOfScopeLinkedPotsCents = 0;
   for (const pot of input.pots) {
     const potCents = assertNonNegativeInteger(
       pot.currentCents,
       `pot(${pot.id}).currentCents`,
     );
-    if (pot.externalLinkScope === "personal") {
-      personalLinkedPotsCents += potCents;
-    } else if (pot.excludeFromLiquidity === true) {
+    if (pot.liquidityExclusion === "link_conflict") {
       conflictingLinkedPotsCents += potCents;
+    } else if (pot.liquidityExclusion === "out_of_scope") {
+      outOfScopeLinkedPotsCents += potCents;
     } else {
-      householdLiquidCents += potCents;
+      freeAssetsCents += potCents;
     }
   }
-
-  let personalExternalAssetsCents = 0;
-  let externalOverdraftCents = 0;
-  if (input.externalSnapshot != null) {
-    const cash = assertNonNegativeInteger(
-      input.externalSnapshot.liquidCashCents,
-      "externalSnapshot.liquidCashCents",
-    );
-    const etf = assertNonNegativeInteger(
-      input.externalSnapshot.etfStocksCents,
-      "externalSnapshot.etfStocksCents",
-    );
-    const crypto = assertNonNegativeInteger(
-      input.externalSnapshot.cryptoCents,
-      "externalSnapshot.cryptoCents",
-    );
-    const totalPersonalNetWorthCents = assertSafeInteger(
-      input.externalSnapshot.totalPersonalNetWorthCents,
-      "externalSnapshot.totalPersonalNetWorthCents",
-    );
-    personalExternalAssetsCents = cash + etf + crypto;
-    externalOverdraftCents = Math.max(
-      0,
-      personalExternalAssetsCents - totalPersonalNetWorthCents,
-    );
-  }
-
-  const freeAssetsCents = householdLiquidCents + personalExternalAssetsCents;
 
   let propertiesValueCents = 0;
   for (const prop of input.properties) {
@@ -122,59 +71,34 @@ export function calculateHouseholdBalance(input: BalanceInput): BalanceSummary {
   }
 
   let savingsContractsValueCents = 0;
-  let householdLiabilitiesCents = 0;
-  let personalContractsAssetsCents = 0;
-  let personalLiabilitiesCents = externalOverdraftCents;
-
+  let liabilitiesCents = 0;
   for (const contract of input.contracts) {
     if (contract.status === "closed") {
       continue;
     }
-
     const projection = projectContractBalance(contract, input.asOfDate);
-    if (contract.sphere === "personal") {
-      if (contract.category === "savings_contract") {
-        personalContractsAssetsCents += projection.projectedBalanceCents;
-      } else {
-        personalLiabilitiesCents += projection.projectedBalanceCents;
-      }
-    } else if (contract.category === "savings_contract") {
+    if (contract.category === "savings_contract") {
       savingsContractsValueCents += projection.projectedBalanceCents;
     } else {
-      householdLiabilitiesCents += projection.projectedBalanceCents;
+      liabilitiesCents += projection.projectedBalanceCents;
     }
   }
 
-  const householdBoundAssetsCents =
-    propertiesValueCents + savingsContractsValueCents;
-  const boundAssetsCents =
-    householdBoundAssetsCents + personalContractsAssetsCents;
+  const boundAssetsCents = propertiesValueCents + savingsContractsValueCents;
   const totalAssetsCents = freeAssetsCents + boundAssetsCents;
-  const liabilitiesCents =
-    householdLiabilitiesCents + personalLiabilitiesCents;
   const netWorthCents = totalAssetsCents - liabilitiesCents;
-  const householdNetWorthCents =
-    householdLiquidCents +
-    householdBoundAssetsCents -
-    householdLiabilitiesCents;
 
   return {
     asOfDate: input.asOfDate,
-    householdLiquidCents,
-    personalLinkedPotsCents,
-    conflictingLinkedPotsCents,
-    personalExternalAssetsCents,
-    personalContractsAssetsCents,
-    personalLiabilitiesCents,
     freeAssetsCents,
+    conflictingLinkedPotsCents,
+    outOfScopeLinkedPotsCents,
     propertiesValueCents,
     savingsContractsValueCents,
     boundAssetsCents,
     totalAssetsCents,
-    householdLiabilitiesCents,
     liabilitiesCents,
     netWorthCents,
-    householdNetWorthCents,
   };
 }
 

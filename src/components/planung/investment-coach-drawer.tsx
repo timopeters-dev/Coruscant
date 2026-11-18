@@ -50,7 +50,7 @@ const ERROR_TEXT_BY_CODE: Record<string, string> = {
   network_error: "Die KI ist gerade nicht erreichbar. Bitte später erneut versuchen.",
   invalid_payload: "Die KI-Antwort war nicht nutzbar. Bitte erneut versuchen.",
   coach_context_unavailable:
-    "Keine Depot-Positionen im letzten Sync – Coach nicht verfügbar.",
+    "Kein Haushalts-Depot vorhanden. Sobald in finanz_cockpit ein Haushalts-Depot synchronisiert ist, erscheint hier die Einordnung.",
 };
 
 async function readError(response: Response): Promise<string> {

@@ -429,7 +429,6 @@ describe("buildPrepaymentDefaults", () => {
   const contract: DomainContract & { specialRepaymentMaxYearlyCents?: number | null } = {
     id: "c1",
     name: "Musterbank Annuitätendarlehen",
-    sphere: "household",
     category: "loan",
     status: "active",
     currentBalanceCents: 10_000_000,

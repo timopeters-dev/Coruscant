@@ -1,7 +1,6 @@
 import type { AutoValuationInterval } from "@/lib/domain/auto-valuation-schedule";
 import type {
   ContractCategory,
-  ContractSphere,
   ContractStatus,
   RepaymentType,
 } from "@/lib/domain/contracts";
@@ -27,11 +26,6 @@ export const PROPERTY_USAGE_LABELS: Record<PropertyUsage, string> = {
   rented: "Vermietet",
 };
 
-export const CONTRACT_SPHERE_LABELS: Record<ContractSphere, string> = {
-  household: "Haushalt",
-  personal: "Privat",
-};
-
 export const CONTRACT_STATUS_LABELS: Record<ContractStatus, string> = {
   active: "Aktiv",
   paused: "Pausiert",
@@ -41,7 +35,7 @@ export const CONTRACT_STATUS_LABELS: Record<ContractStatus, string> = {
 export const REPAYMENT_TYPE_LABELS: Record<RepaymentType, string> = {
   annuity: "Annuitätendarlehen",
   installment: "Ratendarlehen",
-  lump_sum: "Endfällig / Privatdarlehen",
+  lump_sum: "Endfällig (z. B. Verwandtendarlehen)",
 };
 
 export function getContractTypeLabel(

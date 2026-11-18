@@ -10,7 +10,6 @@ function makeLoan(overrides: Partial<DomainContract> = {}): DomainContract {
   return {
     id: "loan-1",
     name: "Hauskredit Musterbank",
-    sphere: "household",
     category: "loan",
     status: "active",
     currentBalanceCents: 10_000_000, // 100.000,00 €
@@ -99,7 +98,6 @@ describe("projectContractBalance", () => {
     const bausparer: DomainContract = {
       id: "sav-1",
       name: "Bausparvertrag Musterkasse",
-      sphere: "household",
       category: "savings_contract",
       status: "active",
       currentBalanceCents: 1_900_000,
