@@ -5,7 +5,10 @@ import { formatIsoDateDE } from "@/components/planung/format";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
-import type { PropertyRow } from "@/db/queries/contracts";
+import type {
+  PropertyApiRecord,
+  PropertyRow,
+} from "@/db/queries/contracts";
 import type { PropertyValuationHistoryRow } from "@/db/schema";
 import {
   AUTO_VALUATION_INTERVALS,
@@ -16,7 +19,12 @@ import {
   type QuotaEvaluation,
   type QuotaSnapshot,
 } from "@/lib/domain/auto-valuation-schedule";
-import { formatBpsDE, formatCentsDE } from "@/lib/domain/money";
+import {
+  bpsToPercentInputString,
+  formatBpsDE,
+  formatCentsDE,
+  parsePercentInputToBps,
+} from "@/lib/domain/money";
 import {
   computeValuationDeviationBps,
   isDeviationAboveThreshold,
@@ -24,6 +32,19 @@ import {
   type ValuationRejectReason,
   type ValuationWarning,
 } from "@/lib/domain/property-valuation";
+import {
+  applyValuationAdjustment,
+  applyValuationAdjustmentToBounds,
+  formatAdjustmentSummary,
+  MAX_VALUATION_ADJUSTMENTS,
+  normalizeAdjustmentLabel,
+  normalizeValuationAdjustments,
+  parseValuationAdjustments,
+  sumAdjustmentBps,
+  validateValuationAdjustments,
+  type ValuationAdjustment,
+} from "@/lib/domain/property-valuation-adjustments";
+import { planAdjustmentRecompute } from "@/lib/domain/valuation-adjustment-recompute";
 import {
   buildAdoptionRequest,
   getSelectedValuationCents,
@@ -35,14 +56,16 @@ import type { ValuatorErrorCode } from "@/lib/integrations/property-valuator";
 import {
   AUTO_VALUATION_INTERVAL_LABELS,
   AUTO_VALUATION_OUTCOME_LABELS,
+  VALUATION_ADJUSTMENT_ERROR_LABELS,
   VALUATION_CONFIDENCE_LABELS,
   VALUATION_ERROR_CODE_LABELS,
   VALUATION_REJECT_REASON_LABELS,
+  VALUATION_VALUE_CHANGED_LABEL,
 } from "./labels";
 import { PropertyValuationHistoryChart } from "./property-valuation-history-chart";
 
 interface PropertyValuationCardProps {
-  property: PropertyRow;
+  property: PropertyRow | PropertyApiRecord;
   onMutated: () => void;
 }
 
@@ -76,6 +99,10 @@ interface PendingSuggestionView {
   lowerCents: number;
   medianCents: number;
   upperCents: number;
+  adjustmentBps: number;
+  adjustedLowerCents: number;
+  adjustedMedianCents: number;
+  adjustedUpperCents: number;
   asOfDate: string;
   valuedAtDate: string;
   confidence: "low" | "medium" | "high" | null;
@@ -86,6 +113,39 @@ interface PendingSuggestionView {
   factors: Array<{ label: string; effect: "up" | "down" | "neutral" }>;
   cached: boolean;
   warnings: ValuationWarning[];
+}
+
+type PendingSuggestionApiRow = PropertyValuationHistoryRow & {
+  adjustedLowerCents?: number;
+  adjustedMedianCents?: number;
+  adjustedUpperCents?: number;
+};
+
+interface AdjustmentDraftRow {
+  id: string;
+  label: string;
+  percentText: string;
+}
+
+function readPropertyAdjustments(
+  raw: string | null | readonly ValuationAdjustment[],
+): ValuationAdjustment[] {
+  return typeof raw === "string" || raw === null
+    ? parseValuationAdjustments(raw)
+    : normalizeValuationAdjustments(raw);
+}
+
+function toDraftRows(list: readonly ValuationAdjustment[]): AdjustmentDraftRow[] {
+  return list.map((item, idx) => ({
+    id: `adj-${idx}-${item.label}`,
+    label: item.label,
+    percentText: bpsToPercentInputString(item.bps, { allowNegative: true }),
+  }));
+}
+
+function formatSignedBps(bps: number): string {
+  if (bps === 0) return "0,00 %";
+  return `${bps > 0 ? "+" : ""}${formatBpsDE(bps)}`;
 }
 
 function mapApiErrorToState(
@@ -134,13 +194,27 @@ function formatDeviationPercent(deviationBps: number): string {
 }
 
 function mapHistoryToSuggestion(
-  row: PropertyValuationHistoryRow,
+  row: PendingSuggestionApiRow,
+  fallbackAdjustmentBps = 0,
 ): PendingSuggestionView {
+  const adjustmentBps = row.adjustmentBps ?? fallbackAdjustmentBps;
+  const bounds = applyValuationAdjustmentToBounds(
+    {
+      lowerCents: row.lowerCents,
+      medianCents: row.medianCents,
+      upperCents: row.upperCents,
+    },
+    adjustmentBps,
+  );
   return {
     historyId: row.id,
     lowerCents: row.lowerCents,
     medianCents: row.medianCents,
     upperCents: row.upperCents,
+    adjustmentBps,
+    adjustedLowerCents: row.adjustedLowerCents ?? bounds.lowerCents,
+    adjustedMedianCents: row.adjustedMedianCents ?? bounds.medianCents,
+    adjustedUpperCents: row.adjustedUpperCents ?? bounds.upperCents,
     asOfDate: row.dataAsOf ?? toBerlinDateKeyClient(row.valuedAt),
     valuedAtDate: toBerlinDateKeyClient(row.valuedAt),
     confidence: row.confidence,
@@ -182,6 +256,31 @@ export function PropertyValuationCard({
     null,
   );
   const [adoptedNotice, setAdoptedNotice] = React.useState(false);
+
+  const savedAdjustments = React.useMemo(
+    () => readPropertyAdjustments(property.valuationAdjustments),
+    [property.valuationAdjustments],
+  );
+  const savedTotalBps = React.useMemo(
+    () => sumAdjustmentBps(savedAdjustments),
+    [savedAdjustments],
+  );
+
+  const [adjustmentsOpen, setAdjustmentsOpen] = React.useState(false);
+  const [draftRows, setDraftRows] = React.useState<AdjustmentDraftRow[]>(() =>
+    toDraftRows(savedAdjustments),
+  );
+  const [isSavingAdjustments, setIsSavingAdjustments] = React.useState(false);
+  const [confirmingRecompute, setConfirmingRecompute] = React.useState<{
+    fromCents: number;
+    toCents: number;
+  } | null>(null);
+  const [adjustmentNotice, setAdjustmentNotice] = React.useState<string | null>(
+    null,
+  );
+  const [adjustmentServerError, setAdjustmentServerError] = React.useState<
+    string | null
+  >(null);
 
   const [adoptionState, dispatch] = React.useReducer(
     valuationAdoptionReducer,
@@ -226,9 +325,24 @@ export function PropertyValuationCard({
           if (
             suggestionRef.current?.historyId === histBody.pendingSuggestion.id
           ) {
-            // Keep rich details (rationale, limitations, cached) from just-run POST
+            const updatedPending = mapHistoryToSuggestion(
+              histBody.pendingSuggestion as PendingSuggestionApiRow,
+            );
+            setSuggestion((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    adjustmentBps: updatedPending.adjustmentBps,
+                    adjustedLowerCents: updatedPending.adjustedLowerCents,
+                    adjustedMedianCents: updatedPending.adjustedMedianCents,
+                    adjustedUpperCents: updatedPending.adjustedUpperCents,
+                  }
+                : updatedPending,
+            );
           } else {
-            const mapped = mapHistoryToSuggestion(histBody.pendingSuggestion);
+            const mapped = mapHistoryToSuggestion(
+              histBody.pendingSuggestion as PendingSuggestionApiRow,
+            );
             setSuggestion(mapped);
             dispatch({ type: "suggest", historyId: mapped.historyId });
           }
@@ -290,7 +404,9 @@ export function PropertyValuationCard({
             if (
               suggestionRef.current?.historyId !== histBody.pendingSuggestion.id
             ) {
-              const mapped = mapHistoryToSuggestion(histBody.pendingSuggestion);
+              const mapped = mapHistoryToSuggestion(
+                histBody.pendingSuggestion as PendingSuggestionApiRow,
+              );
               setSuggestion(mapped);
               dispatch({ type: "suggest", historyId: mapped.historyId });
             }
@@ -403,6 +519,10 @@ export function PropertyValuationCard({
         lowerCents: data.valuation.lowerCents,
         medianCents: data.valuation.medianCents,
         upperCents: data.valuation.upperCents,
+        adjustmentBps: data.valuation.adjustmentBps,
+        adjustedLowerCents: data.valuation.adjustedLowerCents,
+        adjustedMedianCents: data.valuation.adjustedMedianCents,
+        adjustedUpperCents: data.valuation.adjustedUpperCents,
         asOfDate: data.valuation.asOfDate,
         valuedAtDate: toBerlinDateKeyClient(new Date().toISOString()),
         confidence: data.valuation.confidence,
@@ -469,20 +589,192 @@ export function PropertyValuationCard({
     }
   }
 
+  const draftValidation = React.useMemo(() => {
+    const rowErrors: Record<number, { label?: string; bps?: string }> = {};
+    const parsedItems: ValuationAdjustment[] = [];
+    let hasParseError = false;
+
+    draftRows.forEach((row, idx) => {
+      const bps = parsePercentInputToBps(row.percentText, {
+        allowNegative: true,
+      });
+      if (bps === null) {
+        hasParseError = true;
+        rowErrors[idx] = {
+          ...rowErrors[idx],
+          bps: "Bitte gültigen Prozentwert (z. B. -10,00 oder +3,5) eingeben.",
+        };
+      }
+      parsedItems.push({
+        label: normalizeAdjustmentLabel(row.label),
+        bps: bps ?? 100, // placeholder if parse failed so label checks still run
+      });
+    });
+
+    const domainRes = validateValuationAdjustments(parsedItems);
+    let totalError: string | null = null;
+    if (!domainRes.ok) {
+      for (const err of domainRes.errors) {
+        const msg = VALUATION_ADJUSTMENT_ERROR_LABELS[err.code];
+        if (err.index !== undefined) {
+          if (err.code.startsWith("label_")) {
+            rowErrors[err.index] = { ...rowErrors[err.index], label: msg };
+          } else if (!rowErrors[err.index]?.bps) {
+            rowErrors[err.index] = { ...rowErrors[err.index], bps: msg };
+          }
+        } else {
+          totalError = msg;
+        }
+      }
+    }
+
+    const valid = !hasParseError && domainRes.ok;
+    const totalBps = valid ? sumAdjustmentBps(parsedItems) : null;
+    return { valid, parsedItems, rowErrors, totalError, totalBps };
+  }, [draftRows]);
+
+  const latestAppliedImmoEntry = React.useMemo(() => {
+    let best: PropertyValuationHistoryRow | null = null;
+    for (const e of historyEntries) {
+      if (e.source !== "immoanalyse" || e.appliedAt === null) {
+        continue;
+      }
+      if (
+        !best ||
+        e.appliedAt > best.appliedAt! ||
+        (e.appliedAt === best.appliedAt && e.valuedAt > best.valuedAt)
+      ) {
+        best = e;
+      }
+    }
+    return best;
+  }, [historyEntries]);
+
+  const previewBaseCents = React.useMemo(() => {
+    if (latestAppliedImmoEntry) {
+      const choice = latestAppliedImmoEntry.appliedChoice ?? "median";
+      return choice === "lower"
+        ? latestAppliedImmoEntry.lowerCents
+        : choice === "upper"
+          ? latestAppliedImmoEntry.upperCents
+          : latestAppliedImmoEntry.medianCents;
+    }
+    if (suggestion) {
+      return suggestion.medianCents;
+    }
+    return null;
+  }, [latestAppliedImmoEntry, suggestion]);
+
+  const previewAdjustedCents = React.useMemo(() => {
+    if (previewBaseCents === null || draftValidation.totalBps === null) {
+      return null;
+    }
+    return applyValuationAdjustment(previewBaseCents, draftValidation.totalBps);
+  }, [previewBaseCents, draftValidation.totalBps]);
+
+  async function executeSaveAdjustments(list: readonly ValuationAdjustment[]) {
+    setIsSavingAdjustments(true);
+    setAdjustmentServerError(null);
+    setAdjustmentNotice(null);
+    try {
+      const res = await fetch(
+        `/api/properties/${encodeURIComponent(property.id)}/valuation/adjustments`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            adjustments: list,
+            expectedEstimatedValueCents: property.estimatedValueCents,
+          }),
+        },
+      );
+      if (res.status === 409) {
+        setConfirmingRecompute(null);
+        setAdjustmentServerError(VALUATION_VALUE_CHANGED_LABEL);
+        onMutated();
+        await loadAll();
+        return;
+      }
+      const data = (await res.json()) as {
+        error?: string;
+        recompute?: { fromCents: number; toCents: number } | null;
+      };
+      if (!res.ok) {
+        setAdjustmentServerError(
+          data.error ?? "Korrekturposten konnten nicht gespeichert werden.",
+        );
+        return;
+      }
+      setConfirmingRecompute(null);
+      setAdjustmentNotice(
+        data.recompute
+          ? `Gespeichert · Objektwert aktualisiert (${formatCentsDE(data.recompute.fromCents)} → ${formatCentsDE(data.recompute.toCents)})`
+          : "Korrekturposten gespeichert.",
+      );
+      onMutated();
+      await loadAll();
+    } catch {
+      setAdjustmentServerError(
+        "Korrekturposten konnten nicht gespeichert werden.",
+      );
+    } finally {
+      setIsSavingAdjustments(false);
+    }
+  }
+
+  function handleRequestSaveAdjustments() {
+    if (!draftValidation.valid || draftValidation.totalBps === null) {
+      return;
+    }
+    setAdjustmentServerError(null);
+    setAdjustmentNotice(null);
+
+    const plan = planAdjustmentRecompute({
+      currentSource: property.estimatedValueSource,
+      currentValueCents: property.estimatedValueCents,
+      appliedEntry: latestAppliedImmoEntry,
+      newTotalBps: draftValidation.totalBps,
+    });
+
+    if (plan.action === "recompute") {
+      setConfirmingRecompute({
+        fromCents: plan.fromCents,
+        toCents: plan.toCents,
+      });
+      return;
+    }
+
+    void executeSaveAdjustments(draftValidation.parsedItems);
+  }
+
   const isBusy =
-    isEstimating || isSavingInterval || adoptionState.phase === "submitting";
+    isEstimating ||
+    isSavingInterval ||
+    isSavingAdjustments ||
+    adoptionState.phase === "submitting";
   const selectedCents =
     suggestion &&
     (adoptionState.phase === "suggested" ||
       adoptionState.phase === "confirming" ||
       adoptionState.phase === "submitting")
-      ? getSelectedValuationCents(suggestion, adoptionState.choice)
+      ? getSelectedValuationCents(
+          {
+            lowerCents: suggestion.adjustedLowerCents,
+            medianCents: suggestion.adjustedMedianCents,
+            upperCents: suggestion.adjustedUpperCents,
+          },
+          adoptionState.choice,
+        )
       : null;
 
-  const latestHistory =
-    historyEntries.length > 0
-      ? historyEntries[historyEntries.length - 1]
-      : null;
+  const latestHistory = React.useMemo(() => {
+    for (let i = historyEntries.length - 1; i >= 0; i--) {
+      if (historyEntries[i]!.trigger !== "adjustment") {
+        return historyEntries[i]!;
+      }
+    }
+    return null;
+  }, [historyEntries]);
 
   const schedulerJob = statusData?.scheduler.jobs[0] ?? null;
   const quotaSnapshot = statusData?.quota.snapshot ?? null;
@@ -514,7 +806,7 @@ export function PropertyValuationCard({
 
   const deviationBps = suggestion
     ? computeValuationDeviationBps(
-        suggestion.medianCents,
+        suggestion.adjustedMedianCents,
         property.estimatedValueCents,
       )
     : null;
@@ -568,15 +860,15 @@ export function PropertyValuationCard({
           {property.estimatedValueSource === "manual"
             ? "manuell"
             : property.estimatedValueAsOf
-              ? `aus ImmoAnalyse, Stand ${formatIsoDateDE(property.estimatedValueAsOf)}`
-              : "aus ImmoAnalyse"}
+              ? `aus ImmoAnalyse, Stand ${formatIsoDateDE(property.estimatedValueAsOf)}${savedTotalBps !== 0 ? `, inkl. ${formatSignedBps(savedTotalBps)} eigene Korrektur` : ""}`
+              : `aus ImmoAnalyse${savedTotalBps !== 0 ? `, inkl. ${formatSignedBps(savedTotalBps)} eigene Korrektur` : ""}`}
         </p>
         <p>
           <span className="font-medium text-[var(--text-primary)]">
             Letzte Schätzung:
           </span>{" "}
           {latestHistory
-            ? `${formatIsoDateDE(toBerlinDateKeyClient(latestHistory.valuedAt))} · ${formatCentsDE(latestHistory.medianCents)}`
+            ? `${formatIsoDateDE(toBerlinDateKeyClient(latestHistory.valuedAt))} · ${formatCentsDE(applyValuationAdjustment(latestHistory.medianCents, latestHistory.adjustmentBps))}`
             : "noch keine"}
           {property.lastAutoValuationOutcome
             ? ` (${AUTO_VALUATION_OUTCOME_LABELS[property.lastAutoValuationOutcome]})`
@@ -607,6 +899,223 @@ export function PropertyValuationCard({
           Hinweis: Das API-Kontingent ist aktuell erschöpft (0 frei).
         </p>
       ) : null}
+
+      {/* Eigene Korrektur (lokal) */}
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              const nextOpen = !adjustmentsOpen;
+              if (nextOpen) {
+                setDraftRows(toDraftRows(savedAdjustments));
+                setConfirmingRecompute(null);
+              }
+              setAdjustmentsOpen(nextOpen);
+            }}
+            className="flex items-center gap-2 text-left font-medium text-[var(--text-primary)] hover:text-[var(--accent)]"
+          >
+            <span>Eigene Korrektur</span>
+            <span className="font-normal text-[var(--text-secondary)] tabular-nums">
+              {savedAdjustments.length === 0
+                ? "Keine"
+                : `${formatAdjustmentSummary(savedAdjustments)} (${formatSignedBps(savedTotalBps)} gesamt)`}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const nextOpen = !adjustmentsOpen;
+              if (nextOpen) {
+                setDraftRows(toDraftRows(savedAdjustments));
+                setConfirmingRecompute(null);
+              }
+              setAdjustmentsOpen(nextOpen);
+            }}
+            className="text-[var(--text-secondary)] underline underline-offset-2 hover:text-[var(--text-primary)]"
+          >
+            {adjustmentsOpen ? "Schließen" : "Bearbeiten"}
+          </button>
+        </div>
+
+        {adjustmentsOpen ? (
+          <div className="mt-3 space-y-3 border-t border-[var(--border)] pt-3">
+            <p className="text-[11px] text-[var(--text-secondary)]">
+              Zustand, Energieklasse, Ausstattung und Vermietung bewertet der
+              Dienst selbst. Hier nur, was er nicht kennt (z. B. Bauweise,
+              Lage, Grundriss).
+            </p>
+
+            <div className="space-y-2">
+              {draftRows.map((row, idx) => {
+                const errs = draftValidation.rowErrors[idx];
+                return (
+                  <div key={row.id} className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="text"
+                        value={row.label}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setDraftRows((prev) =>
+                            prev.map((r, i) =>
+                              i === idx ? { ...r, label: val } : r,
+                            ),
+                          );
+                          setConfirmingRecompute(null);
+                        }}
+                        placeholder="z. B. Fertighaus"
+                        maxLength={60}
+                        disabled={isBusy}
+                        className="min-w-[160px] flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
+                      />
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={row.percentText}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setDraftRows((prev) =>
+                              prev.map((r, i) =>
+                                i === idx ? { ...r, percentText: val } : r,
+                              ),
+                            );
+                            setConfirmingRecompute(null);
+                          }}
+                          placeholder="-10,00"
+                          disabled={isBusy}
+                          className="w-24 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-right text-xs text-[var(--text-primary)] tabular-nums focus:border-[var(--accent)] focus:outline-none"
+                        />
+                        <span className="text-[var(--text-secondary)]">%</span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={isBusy}
+                        onClick={() => {
+                          setDraftRows((prev) =>
+                            prev.filter((_, i) => i !== idx),
+                          );
+                          setConfirmingRecompute(null);
+                        }}
+                      >
+                        Entfernen
+                      </Button>
+                    </div>
+                    {errs?.label || errs?.bps ? (
+                      <p className="text-[11px] text-[var(--rose)]">
+                        {[errs.label, errs.bps].filter(Boolean).join(" · ")}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+
+            {draftValidation.totalError ? (
+              <p className="text-[11px] text-[var(--rose)]">
+                {draftValidation.totalError}
+              </p>
+            ) : null}
+
+            {previewBaseCents !== null &&
+            previewAdjustedCents !== null &&
+            draftValidation.totalBps !== null ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface-elevated)]/40 px-2.5 py-2 tabular-nums">
+                <StatusBadge variant="modeled" />
+                <span className="text-[var(--text-secondary)]">
+                  Basis ImmoAnalyse {formatCentsDE(previewBaseCents)} ·{" "}
+                  {formatSignedBps(draftValidation.totalBps)} →{" "}
+                  <strong className="font-medium text-[var(--text-primary)]">
+                    {formatCentsDE(previewAdjustedCents)}
+                  </strong>
+                </span>
+              </div>
+            ) : null}
+
+            {property.estimatedValueSource === "manual" ? (
+              <p className="text-[11px] text-[var(--text-secondary)]">
+                Wirkt bei der nächsten Übernahme, der manuelle Wert bleibt.
+              </p>
+            ) : null}
+
+            {adjustmentServerError ? (
+              <p className="text-[11px] text-[var(--rose)]">
+                {adjustmentServerError}
+              </p>
+            ) : null}
+            {adjustmentNotice ? (
+              <p className="text-[11px] text-[var(--emerald)]">
+                {adjustmentNotice}
+              </p>
+            ) : null}
+
+            {confirmingRecompute ? (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--amber)]/40 bg-[var(--amber)]/10 px-3 py-2">
+                <span className="text-[var(--text-primary)] tabular-nums">
+                  Objektwert von{" "}
+                  {formatCentsDE(confirmingRecompute.fromCents)} auf{" "}
+                  {formatCentsDE(confirmingRecompute.toCents)} setzen?
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isBusy}
+                    onClick={() => setConfirmingRecompute(null)}
+                  >
+                    Abbrechen
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={isBusy}
+                    onClick={() =>
+                      void executeSaveAdjustments(draftValidation.parsedItems)
+                    }
+                  >
+                    {isSavingAdjustments ? "Speichert…" : "Bestätigen"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={
+                    isBusy || draftRows.length >= MAX_VALUATION_ADJUSTMENTS
+                  }
+                  onClick={() => {
+                    setDraftRows((prev) => [
+                      ...prev,
+                      {
+                        id: `adj-new-${Date.now()}-${prev.length}`,
+                        label: "",
+                        percentText: "",
+                      },
+                    ]);
+                    setConfirmingRecompute(null);
+                  }}
+                >
+                  Posten hinzufügen
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={isBusy || !draftValidation.valid}
+                  onClick={handleRequestSaveAdjustments}
+                >
+                  {isSavingAdjustments ? "Speichert…" : "Korrekturen speichern"}
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </div>
 
       {/* Intervall & Verbrauchsrechnung */}
       <div className="space-y-1.5">
@@ -708,20 +1217,28 @@ export function PropertyValuationCard({
             <p className="tabular-nums text-sm text-[var(--text-primary)]">
               Auto-Schätzung vom {formatIsoDateDE(suggestion.valuedAtDate)}:{" "}
               <span className="text-[var(--text-secondary)]">
-                {formatCentsDE(suggestion.lowerCents)}
+                {formatCentsDE(suggestion.adjustedLowerCents)}
               </span>
               {" – "}
               <strong className="font-semibold text-[var(--text-primary)]">
-                {formatCentsDE(suggestion.medianCents)}
+                {formatCentsDE(suggestion.adjustedMedianCents)}
               </strong>
               {" – "}
               <span className="text-[var(--text-secondary)]">
-                {formatCentsDE(suggestion.upperCents)}
+                {formatCentsDE(suggestion.adjustedUpperCents)}
               </span>
               {deviationBps !== null
                 ? ` (${formatDeviationPercent(deviationBps)})`
                 : ""}
             </p>
+            {suggestion.adjustmentBps !== 0 ? (
+              <p className="mt-0.5 text-[11px] text-[var(--text-secondary)] tabular-nums">
+                Basis ImmoAnalyse: {formatCentsDE(suggestion.lowerCents)} –{" "}
+                {formatCentsDE(suggestion.medianCents)} –{" "}
+                {formatCentsDE(suggestion.upperCents)} (
+                {formatSignedBps(suggestion.adjustmentBps)})
+              </p>
+            ) : null}
             <p className="mt-0.5 text-xs text-[var(--text-secondary)] tabular-nums">
               Aktueller Objektwert: {formatCentsDE(property.estimatedValueCents)}
               {suggestion.pricePerSqmMedianCents !== null
@@ -755,6 +1272,29 @@ export function PropertyValuationCard({
             </ul>
           ) : null}
 
+          {suggestion.factors.length > 0 ? (
+            <div className="space-y-1 text-xs text-[var(--text-secondary)]">
+              <p className="font-medium text-[var(--text-primary)]">
+                Vom Dienst berücksichtigt:
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {suggestion.factors.map((f, idx) => (
+                  <span
+                    key={idx}
+                    className="rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-0.5 text-[11px]"
+                  >
+                    {f.label}{" "}
+                    {f.effect === "up"
+                      ? "↑"
+                      : f.effect === "down"
+                        ? "↓"
+                        : "•"}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           <div className="flex flex-wrap items-center gap-2 pt-1">
             {(
               [
@@ -778,7 +1318,14 @@ export function PropertyValuationCard({
                 >
                   {label} (
                   {formatCentsDE(
-                    getSelectedValuationCents(suggestion, choiceKey),
+                    getSelectedValuationCents(
+                      {
+                        lowerCents: suggestion.adjustedLowerCents,
+                        medianCents: suggestion.adjustedMedianCents,
+                        upperCents: suggestion.adjustedUpperCents,
+                      },
+                      choiceKey,
+                    ),
                   )}
                   )
                 </button>

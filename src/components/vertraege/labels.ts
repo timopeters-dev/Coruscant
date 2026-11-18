@@ -12,6 +12,7 @@ import type {
   ValuationConfidence,
   ValuationRejectReason,
 } from "@/lib/domain/property-valuation";
+import type { ValuationAdjustmentErrorCode } from "@/lib/domain/property-valuation-adjustments";
 import type { ValuatorErrorCode } from "@/lib/integrations/property-valuator";
 import {
   PROPERTY_ENERGY_CLASSES,
@@ -136,3 +137,29 @@ export const VALUATION_ERROR_CODE_LABELS: Record<ValuatorErrorCode, string> = {
   network_error: "ImmoAnalyse.Pro ist derzeit nicht erreichbar.",
   invalid_payload: "Antwort von ImmoAnalyse.Pro war nicht auswertbar.",
 };
+
+export const VALUATION_TRIGGER_LABELS: Record<
+  "auto" | "manual" | "adjustment",
+  string
+> = {
+  auto: "ImmoAnalyse (Auto)",
+  manual: "ImmoAnalyse (Manuell)",
+  adjustment: "Eigene Korrektur",
+};
+
+export const VALUATION_ADJUSTMENT_ERROR_LABELS: Record<
+  ValuationAdjustmentErrorCode,
+  string
+> = {
+  too_many: "Maximal 8 Korrekturposten zulässig.",
+  label_empty: "Bezeichnung darf nicht leer sein.",
+  label_too_long: "Bezeichnung darf höchstens 60 Zeichen lang sein.",
+  label_duplicate: "Bezeichnung darf nicht doppelt vorkommen.",
+  bps_not_integer: "Prozentwert muss maximal 2 Nachkommastellen haben.",
+  bps_zero: "Posten ohne Wirkung (0 %) entfernen.",
+  bps_item_out_of_range: "Einzelner Posten darf höchstens ±50,00 % betragen.",
+  total_out_of_range: "Summe der Korrekturen darf höchstens ±50,00 % betragen.",
+};
+
+export const VALUATION_VALUE_CHANGED_LABEL =
+  "Wert hat sich zwischenzeitlich geändert, neu geladen.";

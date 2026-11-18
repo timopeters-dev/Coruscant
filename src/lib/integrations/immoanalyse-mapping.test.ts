@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildPropertyValuationContext,
   ValuationContextPiiError,
   type PropertyValuationContext,
 } from "@/lib/domain/property-valuation-context";
@@ -192,5 +193,45 @@ describe("immoanalyse-mapping", () => {
       resetAt: "2026-12-01T00:00:00Z",
       tariff: "free",
     });
+  });
+
+  it("never includes local valuation adjustments in serialized requestJson", () => {
+    const contextInput = {
+      asOfDate: "2026-11-18",
+      usage: "owner_occupied" as const,
+      propertyType: "efh" as const,
+      postalCode: "12345",
+      city: "Musterstadt",
+      livingAreaSqm: 140,
+      plotAreaSqm: 400,
+      constructionYear: 2010,
+      energyClass: "B" as const,
+      renovations: [],
+      monthlyColdRentCents: null,
+      forbiddenTerms: { street: "Musterstraße", houseNumber: "1" },
+    };
+
+    const builtWithout = buildPropertyValuationContext(contextInput);
+    const builtWith = buildPropertyValuationContext({
+      ...contextInput,
+      // Local adjustments must never enter context or requestJson
+      ...({
+        adjustments: [{ label: "Fertighaus Musterweg", bps: -1_000 }],
+      } as Record<string, unknown>),
+    });
+
+    expect(builtWithout.ok).toBe(true);
+    expect(builtWith.ok).toBe(true);
+    if (builtWithout.ok && builtWith.ok) {
+      const jsonWithout = serializeImmoAnalyseRequest(
+        buildImmoAnalyseRequest(builtWithout.context),
+      );
+      const jsonWith = serializeImmoAnalyseRequest(
+        buildImmoAnalyseRequest(builtWith.context),
+      );
+      expect(jsonWith).toBe(jsonWithout);
+      expect(jsonWith).not.toContain("Fertighaus Musterweg");
+      expect(jsonWith).not.toContain("-1000");
+    }
   });
 });

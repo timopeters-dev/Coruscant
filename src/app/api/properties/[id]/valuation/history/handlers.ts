@@ -5,6 +5,11 @@ import {
   listValuationHistory,
 } from "@/db/queries/property-valuations";
 import { internalErrorResponse, notFoundResponse } from "@/lib/api/http";
+import {
+  applyValuationAdjustmentToBounds,
+  parseValuationAdjustments,
+  sumAdjustmentBps,
+} from "@/lib/domain/property-valuation-adjustments";
 
 export interface RouteContext {
   params: Promise<{ id: string }>;
@@ -23,7 +28,31 @@ export function createValuationHistoryHandler() {
       }
 
       const entries = listValuationHistory(id);
-      const pendingSuggestion = getLatestPendingSuggestion(id);
+      const rawPending = getLatestPendingSuggestion(id);
+      const currentAdjustments = parseValuationAdjustments(
+        property.valuationAdjustments,
+      );
+      const currentAdjustmentBps = sumAdjustmentBps(currentAdjustments);
+
+      const pendingSuggestion = rawPending
+        ? (() => {
+            const adjusted = applyValuationAdjustmentToBounds(
+              {
+                lowerCents: rawPending.lowerCents,
+                medianCents: rawPending.medianCents,
+                upperCents: rawPending.upperCents,
+              },
+              currentAdjustmentBps,
+            );
+            return {
+              ...rawPending,
+              adjustmentBps: currentAdjustmentBps,
+              adjustedLowerCents: adjusted.lowerCents,
+              adjustedMedianCents: adjusted.medianCents,
+              adjustedUpperCents: adjusted.upperCents,
+            };
+          })()
+        : null;
 
       return NextResponse.json(
         { entries, pendingSuggestion },

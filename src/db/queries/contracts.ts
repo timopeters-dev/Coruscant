@@ -12,6 +12,10 @@ import {
   parseRenovations,
   serializeRenovations,
 } from "@/lib/domain/property-renovations";
+import {
+  parseValuationAdjustments,
+  type ValuationAdjustment,
+} from "@/lib/domain/property-valuation-adjustments";
 import type { PropertyValuationContextInput } from "@/lib/domain/property-valuation-context";
 import { validateRentalProfile } from "@/lib/domain/rental";
 import {
@@ -101,8 +105,21 @@ export function getPropertyById(id: string): PropertyRow | null {
   return row ?? null;
 }
 
+export interface PropertyApiRecord
+  extends Omit<PropertyRow, "valuationAdjustments"> {
+  valuationAdjustments: ValuationAdjustment[];
+}
+
+export function serializePropertyForApi(row: PropertyRow): PropertyApiRecord {
+  return {
+    ...row,
+    valuationAdjustments: parseValuationAdjustments(row.valuationAdjustments),
+  };
+}
+
 export interface PropertyValuationSourceData {
   contextInput: PropertyValuationContextInput;
+  adjustments: ValuationAdjustment[];
   currentValueCents: number;
   currentSource: PropertyRow["estimatedValueSource"];
   autoValuationInterval: PropertyRow["autoValuationInterval"];
@@ -132,6 +149,7 @@ export function loadPropertyValuationSource(
       houseNumber: properties.houseNumber,
       estimatedValueCents: properties.estimatedValueCents,
       estimatedValueSource: properties.estimatedValueSource,
+      valuationAdjustments: properties.valuationAdjustments,
       autoValuationInterval: properties.autoValuationInterval,
       lastAutoValuationAt: properties.lastAutoValuationAt,
       lastAutoValuationAttemptAt: properties.lastAutoValuationAttemptAt,
@@ -163,6 +181,7 @@ export function loadPropertyValuationSource(
         houseNumber: row.houseNumber,
       },
     },
+    adjustments: parseValuationAdjustments(row.valuationAdjustments),
     currentValueCents: row.estimatedValueCents,
     currentSource: row.estimatedValueSource,
     autoValuationInterval: row.autoValuationInterval,

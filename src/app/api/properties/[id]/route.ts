@@ -5,6 +5,7 @@ import {
   MaintenancePotValidationError,
   PropertyValidationError,
   RentalProfileValidationError,
+  serializePropertyForApi,
   updateProperty,
 } from "@/db/queries/contracts";
 import {
@@ -33,7 +34,10 @@ export async function GET(
     if (!property) {
       return notFoundResponse("Immobilie nicht gefunden.");
     }
-    return NextResponse.json({ property }, { status: 200 });
+    return NextResponse.json(
+      { property: serializePropertyForApi(property) },
+      { status: 200 },
+    );
   } catch {
     return internalErrorResponse();
   }
@@ -59,7 +63,10 @@ export async function PATCH(
     if (!property) {
       return notFoundResponse("Immobilie nicht gefunden.");
     }
-    return NextResponse.json({ property }, { status: 200 });
+    return NextResponse.json(
+      { property: serializePropertyForApi(property) },
+      { status: 200 },
+    );
   } catch (error) {
     if (
       error instanceof RentalProfileValidationError ||

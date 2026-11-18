@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { serializePropertyForApi } from "@/db/queries/contracts";
 import {
   adoptValuationHistoryEntry,
   ValuationHistoryNotFoundError,
@@ -42,7 +43,10 @@ export function createValuationAdoptHandler(
         parsed.data.choice,
         nowFn().toISOString(),
       );
-      return NextResponse.json({ property }, { status: 200 });
+      return NextResponse.json(
+        { property: serializePropertyForApi(property) },
+        { status: 200 },
+      );
     } catch (error) {
       if (error instanceof ValuationHistoryNotFoundError) {
         return notFoundResponse(error.message);

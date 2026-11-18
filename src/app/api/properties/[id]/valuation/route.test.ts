@@ -10,6 +10,7 @@ import {
 } from "@/db/queries/contracts";
 import { getQuotaSnapshot } from "@/db/queries/property-valuations";
 import type { PropertyValuator } from "@/lib/integrations/property-valuator";
+import { createValuationAdjustmentsHandler } from "./adjustments/handlers";
 import { createValuationAdoptHandler } from "./adopt/handlers";
 import {
   createValuationEstimateHandler,
@@ -411,5 +412,98 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
       pendingSuggestion: unknown;
     };
     expect(histAfterBody.pendingSuggestion).toBeNull();
+  });
+
+  it("applies current adjustments on adopt (lower) and dynamically adjusts history.pendingSuggestion", async () => {
+    const prop = createSampleProperty({ estimatedValueCents: 49_000_000 });
+    const ESTIMATE = createValuationEstimateHandler(
+      () => ({
+        estimate: async () => ({
+          ok: true,
+          provider: "immoanalyse",
+          result: {
+            requestId: "req_pending_adj",
+            cached: false,
+            valuability: "valuable",
+            lowerCents: 46_000_000,
+            medianCents: 49_000_000,
+            upperCents: 52_000_000,
+            asOfDate: "2026-11-10",
+            confidence: "high",
+            confidenceScore: 85,
+            rationale: "Markt",
+            limitations: [],
+            factors: [],
+          },
+          quota: null,
+        }),
+      }),
+      FIXED_NOW,
+    );
+    const PUT_ADJ = createValuationAdjustmentsHandler(FIXED_NOW);
+    const HISTORY = createValuationHistoryHandler();
+    const ADOPT = createValuationAdoptHandler(FIXED_NOW);
+
+    const estRes = await ESTIMATE(
+      new Request("http://localhost", { method: "POST", body: "{}" }),
+      { params: Promise.resolve({ id: prop.id }) },
+    );
+    const { historyId } = (await estRes.json()) as { historyId: string };
+
+    // Set -1000 bps while suggestion is pending
+    await PUT_ADJ(
+      new Request("http://localhost", {
+        method: "PUT",
+        body: JSON.stringify({
+          adjustments: [{ label: "Fertighaus", bps: -1_000 }],
+        }),
+      }),
+      { params: Promise.resolve({ id: prop.id }) },
+    );
+
+    const histRes = await HISTORY(new Request("http://localhost"), {
+      params: Promise.resolve({ id: prop.id }),
+    });
+    const histBody = (await histRes.json()) as {
+      pendingSuggestion: {
+        lowerCents: number;
+        medianCents: number;
+        upperCents: number;
+        adjustmentBps: number;
+        adjustedLowerCents: number;
+        adjustedMedianCents: number;
+        adjustedUpperCents: number;
+      };
+    };
+    expect(histBody.pendingSuggestion.lowerCents).toBe(46_000_000);
+    expect(histBody.pendingSuggestion.adjustmentBps).toBe(-1_000);
+    expect(histBody.pendingSuggestion.adjustedLowerCents).toBe(41_400_000);
+    expect(histBody.pendingSuggestion.adjustedMedianCents).toBe(44_100_000);
+    expect(histBody.pendingSuggestion.adjustedUpperCents).toBe(46_800_000);
+
+    // Adopt lower -> writes 41_400_000 and records appliedChoice = lower
+    const adoptRes = await ADOPT(
+      new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({ historyId, choice: "lower" }),
+      }),
+      { params: Promise.resolve({ id: prop.id }) },
+    );
+    expect(adoptRes.status).toBe(200);
+    const adoptBody = (await adoptRes.json()) as {
+      property: { estimatedValueCents: number };
+    };
+    expect(adoptBody.property.estimatedValueCents).toBe(41_400_000);
+
+    const histAfter = await HISTORY(new Request("http://localhost"), {
+      params: Promise.resolve({ id: prop.id }),
+    });
+    const histAfterBody = (await histAfter.json()) as {
+      entries: { appliedChoice: string | null; adjustmentBps: number }[];
+      pendingSuggestion: unknown;
+    };
+    expect(histAfterBody.pendingSuggestion).toBeNull();
+    expect(histAfterBody.entries[0]?.appliedChoice).toBe("lower");
+    expect(histAfterBody.entries[0]?.adjustmentBps).toBe(-1_000);
   });
 });

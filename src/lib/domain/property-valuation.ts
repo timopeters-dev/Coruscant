@@ -1,5 +1,6 @@
 import { addMonthsToIsoDate, parseIsoDate } from "./date";
 import { divRoundHalfUpSigned, roundHalfUpBigInt } from "./money";
+import { applyValuationAdjustmentToBounds } from "./property-valuation-adjustments";
 import type { PropertyValuationContext } from "./property-valuation-context";
 
 /** Plausibilitäts-Richtwerte für die Immobilien-Wertschätzung (Orientierung, kein Gutachten). */
@@ -40,6 +41,10 @@ export interface PropertyValuation {
   lowerCents: number;
   medianCents: number;
   upperCents: number;
+  adjustmentBps: number;
+  adjustedLowerCents: number;
+  adjustedMedianCents: number;
+  adjustedUpperCents: number;
   pricePerSqmMedianCents: number;
   asOfDate: string;
   confidence: ValuationConfidence;
@@ -82,6 +87,7 @@ export interface ValidatePropertyValuationInput {
   context: PropertyValuationContext;
   currentValueCents: number;
   today: string;
+  adjustmentBps?: number;
 }
 
 function isPositiveSafeCents(value: number | null): value is number {
@@ -113,6 +119,7 @@ export function validatePropertyValuation(
   input: ValidatePropertyValuationInput,
 ): ValidatePropertyValuationResult {
   const { normalized, context, currentValueCents, today } = input;
+  const adjustmentBps = input.adjustmentBps ?? 0;
 
   if (normalized.valuability === "not_reliably_valuable") {
     return { ok: false, reason: "not_reliably_valuable" };
@@ -163,9 +170,14 @@ export function validatePropertyValuation(
     return { ok: false, reason: "as_of_too_old" };
   }
 
+  const adjustedBounds = applyValuationAdjustmentToBounds(
+    { lowerCents, medianCents, upperCents },
+    adjustmentBps,
+  );
+
   const warnings: ValuationWarning[] = [];
   const deviationBps = computeValuationDeviationBps(
-    medianCents,
+    adjustedBounds.medianCents,
     currentValueCents,
   );
   if (deviationBps !== null && isDeviationAboveThreshold(deviationBps)) {
@@ -181,6 +193,10 @@ export function validatePropertyValuation(
       lowerCents,
       medianCents,
       upperCents,
+      adjustmentBps,
+      adjustedLowerCents: adjustedBounds.lowerCents,
+      adjustedMedianCents: adjustedBounds.medianCents,
+      adjustedUpperCents: adjustedBounds.upperCents,
       pricePerSqmMedianCents,
       asOfDate: normalized.asOfDate,
       confidence: normalized.confidence,

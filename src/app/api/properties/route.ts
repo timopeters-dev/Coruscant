@@ -4,6 +4,7 @@ import {
   listProperties,
   MaintenancePotValidationError,
   PropertyValidationError,
+  serializePropertyForApi,
 } from "@/db/queries/contracts";
 import {
   badRequestResponse,
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<NextResponse> {
   try {
-    const properties = listProperties();
+    const properties = listProperties().map(serializePropertyForApi);
     return NextResponse.json({ properties }, { status: 200 });
   } catch {
     return internalErrorResponse();
@@ -36,7 +37,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   try {
-    const property = createProperty(parsed.data);
+    const property = serializePropertyForApi(createProperty(parsed.data));
     return NextResponse.json({ property }, { status: 201 });
   } catch (error) {
     if (

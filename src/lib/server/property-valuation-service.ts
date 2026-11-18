@@ -10,6 +10,7 @@ import {
   type ValuationRejectReason,
   type ValuationWarning,
 } from "@/lib/domain/property-valuation";
+import { sumAdjustmentBps } from "@/lib/domain/property-valuation-adjustments";
 import {
   assertValuationContextSafe,
   buildPropertyValuationContext,
@@ -171,6 +172,7 @@ export async function runPropertyValuation(
     context: built.context,
     currentValueCents: source.currentValueCents,
     today: todayKey,
+    adjustmentBps: sumAdjustmentBps(source.adjustments),
   });
 
   if (!validation.ok) {

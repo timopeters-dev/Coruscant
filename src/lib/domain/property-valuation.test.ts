@@ -312,4 +312,95 @@ describe("property-valuation", () => {
       expect(zeroCurrent.warnings).toEqual([]);
     }
   });
+
+  describe("with adjustmentBps", () => {
+    it("plausibility checks use base values, not adjusted values", () => {
+      // livingAreaSqm = 100 -> MIN_PRICE_PER_SQM_CENTS = 30_000 -> min median = 3_000_000
+      // Base median 3_500_000 (35_000/sqm, ok), adjusted -2000 bps -> 2_800_000 (28_000/sqm < 30_000) -> still ok!
+      const baseOkAdjustedLow = validatePropertyValuation({
+        ...makeInput({ currentValueCents: 2_800_000 }),
+        adjustmentBps: -2_000,
+        normalized: makeNormalized({
+          lowerCents: 3_000_000,
+          medianCents: 3_500_000,
+          upperCents: 4_000_000,
+        }),
+      });
+      expect(baseOkAdjustedLow.ok).toBe(true);
+      if (baseOkAdjustedLow.ok) {
+        expect(baseOkAdjustedLow.valuation.adjustedMedianCents).toBe(2_800_000);
+        expect(baseOkAdjustedLow.valuation.adjustmentBps).toBe(-2_000);
+      }
+
+      // Base median 2_800_000 (< 3_000_000) -> rejected even if +2000 bps would bring it to 3_360_000
+      const baseLowAdjustedOk = validatePropertyValuation({
+        ...makeInput({ currentValueCents: 3_360_000 }),
+        adjustmentBps: 2_000,
+        normalized: makeNormalized({
+          lowerCents: 2_500_000,
+          medianCents: 2_800_000,
+          upperCents: 3_200_000,
+        }),
+      });
+      expect(baseLowAdjustedOk).toEqual({
+        ok: false,
+        reason: "price_per_sqm_out_of_range",
+      });
+    });
+
+    it("computes deviation against adjusted median", () => {
+      // current = 44_100_000, base = 49_000_000, adjustment = -1000 bps -> adjusted = 44_100_000 -> 0 bps deviation
+      const res = validatePropertyValuation({
+        ...makeInput({ currentValueCents: 44_100_000 }),
+        adjustmentBps: -1_000,
+        normalized: makeNormalized({
+          lowerCents: 46_000_000,
+          medianCents: 49_000_000,
+          upperCents: 52_000_000,
+        }),
+      });
+      expect(res.ok).toBe(true);
+      if (res.ok) {
+        expect(res.warnings).toEqual([]);
+        expect(res.valuation.adjustedLowerCents).toBe(41_400_000);
+        expect(res.valuation.adjustedMedianCents).toBe(44_100_000);
+        expect(res.valuation.adjustedUpperCents).toBe(46_800_000);
+      }
+    });
+
+    it("triggers deviation warning at exactly > ±4000 bps after adjustment", () => {
+      // current = 10_000_000, base = 17_500_000, -2000 bps -> adjusted = 14_000_000 (+4000 bps -> no warning)
+      const exact4000 = validatePropertyValuation({
+        ...makeInput({ currentValueCents: 10_000_000 }),
+        adjustmentBps: -2_000,
+        normalized: makeNormalized({
+          lowerCents: 15_000_000,
+          medianCents: 17_500_000,
+          upperCents: 20_000_000,
+        }),
+      });
+      expect(exact4000.ok).toBe(true);
+      if (exact4000.ok) {
+        expect(exact4000.warnings).toEqual([]);
+      }
+
+      // current = 10_000_000, adjusted = 14_001_000 -> +4001 bps -> warning
+      // base = 10_000_000 * 1.4001 / 0.8 = 17_501_250
+      const over4000 = validatePropertyValuation({
+        ...makeInput({ currentValueCents: 10_000_000 }),
+        adjustmentBps: -2_000,
+        normalized: makeNormalized({
+          lowerCents: 15_000_000,
+          medianCents: 17_501_250,
+          upperCents: 20_000_000,
+        }),
+      });
+      expect(over4000.ok).toBe(true);
+      if (over4000.ok) {
+        expect(over4000.warnings).toEqual([
+          { code: "deviates_from_current", deviationBps: 4_001 },
+        ]);
+      }
+    });
+  });
 });

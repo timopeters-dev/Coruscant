@@ -215,7 +215,10 @@ export function parseEuroInputToCents(input: string): number | null {
  * into integer basis points using pure string parsing (no float multiplication).
  * Returns null for negative values, invalid inputs, or >2 decimal places.
  */
-export function parsePercentInputToBps(input: string): number | null {
+export function parsePercentInputToBps(
+  input: string,
+  options?: { allowNegative?: boolean },
+): number | null {
   let trimmed = input.trim();
   if (trimmed.length === 0) {
     return null;
@@ -228,10 +231,14 @@ export function parsePercentInputToBps(input: string): number | null {
     return null;
   }
 
+  let sign = 1;
   if (trimmed.startsWith("-")) {
-    return null;
-  }
-  if (trimmed.startsWith("+")) {
+    if (!options?.allowNegative) {
+      return null;
+    }
+    sign = -1;
+    trimmed = trimmed.slice(1).trim();
+  } else if (trimmed.startsWith("+")) {
     trimmed = trimmed.slice(1).trim();
   }
 
@@ -272,7 +279,7 @@ export function parsePercentInputToBps(input: string): number | null {
     return null;
   }
 
-  const bps = whole * 100 + frac;
+  const bps = sign * (whole * 100 + frac);
   if (!Number.isSafeInteger(bps)) {
     return null;
   }
@@ -297,11 +304,18 @@ export function centsToEuroInputString(amountCents: number): string {
  * Converts integer basis points into an editable German percentage string without "%" suffix
  * (e.g. 350 -> "3,50"), round-trip compatible with parsePercentInputToBps.
  */
-export function bpsToPercentInputString(rateBps: number): string {
-  const normalized = assertNonNegativeInteger(rateBps, "rateBps");
-  const whole = Math.trunc(normalized / 100);
-  const frac = String(normalized % 100).padStart(2, "0");
-  return `${whole},${frac}`;
+export function bpsToPercentInputString(
+  rateBps: number,
+  options?: { allowNegative?: boolean },
+): string {
+  const normalized = options?.allowNegative
+    ? assertSafeInteger(rateBps, "rateBps")
+    : assertNonNegativeInteger(rateBps, "rateBps");
+  const abs = Math.abs(normalized);
+  const whole = Math.trunc(abs / 100);
+  const frac = String(abs % 100).padStart(2, "0");
+  const sign = normalized < 0 ? "-" : "";
+  return `${sign}${whole},${frac}`;
 }
 
 /**

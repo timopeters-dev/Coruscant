@@ -2,8 +2,16 @@
 
 import { formatIsoDateDE } from "@/components/planung/format";
 import type { PropertyValuationHistoryRow } from "@/db/schema";
-import { formatCentsDE } from "@/lib/domain/money";
-import { VALUATION_CONFIDENCE_LABELS } from "./labels";
+import { formatBpsDE, formatCentsDE } from "@/lib/domain/money";
+import {
+  applyValuationAdjustmentToBounds,
+  formatAdjustmentSummary,
+  parseValuationAdjustments,
+} from "@/lib/domain/property-valuation-adjustments";
+import {
+  VALUATION_CONFIDENCE_LABELS,
+  VALUATION_TRIGGER_LABELS,
+} from "./labels";
 
 interface PropertyValuationHistoryChartProps {
   entries: readonly PropertyValuationHistoryRow[];
@@ -24,6 +32,20 @@ function toDateKey(valuedAt: string): string {
   return berlinDateFormatter.format(new Date(valuedAt));
 }
 
+function pickAppliedChoiceCents(
+  bounds: { lowerCents: number; medianCents: number; upperCents: number },
+  choice: "lower" | "median" | "upper" | null,
+): number {
+  switch (choice ?? "median") {
+    case "lower":
+      return bounds.lowerCents;
+    case "upper":
+      return bounds.upperCents;
+    case "median":
+      return bounds.medianCents;
+  }
+}
+
 export function PropertyValuationHistoryChart({
   entries,
 }: PropertyValuationHistoryChartProps) {
@@ -31,25 +53,59 @@ export function PropertyValuationHistoryChart({
     return null;
   }
 
-  if (entries.length === 1) {
-    const only = entries[0]!;
+  const computed = entries.map((entry) => {
+    const adjusted = applyValuationAdjustmentToBounds(
+      {
+        lowerCents: entry.lowerCents,
+        medianCents: entry.medianCents,
+        upperCents: entry.upperCents,
+      },
+      entry.adjustmentBps,
+    );
+    const pointCents =
+      entry.appliedAt !== null
+        ? pickAppliedChoiceCents(adjusted, entry.appliedChoice)
+        : adjusted.medianCents;
+    const basePointCents =
+      entry.appliedAt !== null
+        ? pickAppliedChoiceCents(entry, entry.appliedChoice)
+        : entry.medianCents;
+    return {
+      entry,
+      adjustedLowerCents: adjusted.lowerCents,
+      adjustedMedianCents: adjusted.medianCents,
+      adjustedUpperCents: adjusted.upperCents,
+      pointCents,
+      basePointCents,
+    };
+  });
+
+  if (computed.length === 1) {
+    const only = computed[0]!;
     return (
       <div className="space-y-2 border-t border-[var(--border)] pt-3">
         <p className="text-xs text-[var(--text-secondary)] tabular-nums">
-          Wertverlauf: 1 Eintrag am {formatIsoDateDE(toDateKey(only.valuedAt))} (
-          {formatCentsDE(only.medianCents)})
+          Wertverlauf: 1 Eintrag am{" "}
+          {formatIsoDateDE(toDateKey(only.entry.valuedAt))} (
+          {formatCentsDE(only.pointCents)})
         </p>
         <HistoryTable entries={entries} />
       </div>
     );
   }
 
-  const timestamps = entries.map((e) => new Date(e.valuedAt).getTime());
+  const hasAnyAdjustment = computed.some((c) => c.entry.adjustmentBps !== 0);
+
+  const timestamps = computed.map((c) => new Date(c.entry.valuedAt).getTime());
   const minT = Math.min(...timestamps);
   const maxT = Math.max(...timestamps);
   const spanT = Math.max(1, maxT - minT);
 
-  const allCents = entries.flatMap((e) => [e.lowerCents, e.upperCents]);
+  const allCents = computed.flatMap((c) =>
+    hasAnyAdjustment
+      ? [c.adjustedLowerCents, c.adjustedUpperCents, c.basePointCents]
+      : [c.adjustedLowerCents, c.adjustedUpperCents],
+  );
   const minV = Math.min(...allCents);
   const maxV = Math.max(...allCents);
   const spanV = Math.max(1, maxV - minV);
@@ -60,31 +116,43 @@ export function PropertyValuationHistoryChart({
   const x = (idx: number) => {
     const t = timestamps[idx] ?? minT;
     if (maxT === minT) {
-      return PAD.left + (innerW * idx) / (entries.length - 1);
+      return PAD.left + (innerW * idx) / (computed.length - 1);
     }
     return PAD.left + (innerW * (t - minT)) / spanT;
   };
   const y = (cents: number) =>
     PAD.top + innerH - (innerH * (cents - minV)) / spanV;
 
-  const medianPath = entries
-    .map((e, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(e.medianCents).toFixed(1)}`)
+  const medianPath = computed
+    .map(
+      (c, i) =>
+        `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(c.pointCents).toFixed(1)}`,
+    )
     .join(" ");
 
-  const upperPoints = entries.map(
-    (e, i) => `${x(i).toFixed(1)},${y(e.upperCents).toFixed(1)}`,
+  const baseMedianPath = hasAnyAdjustment
+    ? computed
+        .map(
+          (c, i) =>
+            `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(c.basePointCents).toFixed(1)}`,
+        )
+        .join(" ")
+    : null;
+
+  const upperPoints = computed.map(
+    (c, i) => `${x(i).toFixed(1)},${y(c.adjustedUpperCents).toFixed(1)}`,
   );
-  const lowerPoints = [...entries]
+  const lowerPoints = [...computed]
     .reverse()
-    .map((e, revIdx) => {
-      const idx = entries.length - 1 - revIdx;
-      return `${x(idx).toFixed(1)},${y(e.lowerCents).toFixed(1)}`;
+    .map((c, revIdx) => {
+      const idx = computed.length - 1 - revIdx;
+      return `${x(idx).toFixed(1)},${y(c.adjustedLowerCents).toFixed(1)}`;
     });
   const bandPath = `M${upperPoints.join(" L")} L${lowerPoints.join(" L")} Z`;
 
-  const first = entries[0]!;
-  const last = entries[entries.length - 1]!;
-  const ariaLabel = `Wertverlauf von ${formatIsoDateDE(toDateKey(first.valuedAt))} (${formatCentsDE(first.medianCents)}) bis ${formatIsoDateDE(toDateKey(last.valuedAt))} (${formatCentsDE(last.medianCents)}).`;
+  const first = computed[0]!;
+  const last = computed[computed.length - 1]!;
+  const ariaLabel = `Wertverlauf von ${formatIsoDateDE(toDateKey(first.entry.valuedAt))} (${formatCentsDE(first.pointCents)}) bis ${formatIsoDateDE(toDateKey(last.entry.valuedAt))} (${formatCentsDE(last.pointCents)}).`;
 
   return (
     <div className="space-y-3 border-t border-[var(--border)] pt-3">
@@ -102,15 +170,38 @@ export function PropertyValuationHistoryChart({
         className="h-auto w-full"
       >
         <path d={bandPath} fill="var(--sky)" fillOpacity={0.14} />
+        {baseMedianPath && (
+          <path
+            d={baseMedianPath}
+            fill="none"
+            stroke="var(--text-secondary)"
+            strokeOpacity={0.55}
+            strokeWidth={1.25}
+            strokeDasharray="4 3"
+          />
+        )}
         <path
           d={medianPath}
           fill="none"
           stroke="var(--sky)"
           strokeWidth={2}
         />
-        {entries.map((entry, idx) => {
+        {computed.map(({ entry, pointCents }, idx) => {
           const cx = x(idx);
-          const cy = y(entry.medianCents);
+          const cy = y(pointCents);
+          if (entry.trigger === "adjustment") {
+            const r = 4.5;
+            const points = `${cx},${cy - r} ${cx + r},${cy} ${cx},${cy + r} ${cx - r},${cy}`;
+            return (
+              <polygon
+                key={entry.id}
+                points={points}
+                fill="var(--accent)"
+                stroke="var(--surface)"
+                strokeWidth={1.5}
+              />
+            );
+          }
           if (entry.source === "manual") {
             return (
               <circle
@@ -156,7 +247,7 @@ export function PropertyValuationHistoryChart({
           fill="var(--text-secondary)"
           className="tabular-nums"
         >
-          {formatIsoDateDE(toDateKey(first.valuedAt))}
+          {formatIsoDateDE(toDateKey(first.entry.valuedAt))}
         </text>
         <text
           x={WIDTH - PAD.right}
@@ -166,7 +257,7 @@ export function PropertyValuationHistoryChart({
           fill="var(--text-secondary)"
           className="tabular-nums"
         >
-          {formatIsoDateDE(toDateKey(last.valuedAt))}
+          {formatIsoDateDE(toDateKey(last.entry.valuedAt))}
         </text>
       </svg>
 
@@ -192,46 +283,70 @@ function HistoryTable({
               <th className="px-2 py-1.5 font-medium">Datum</th>
               <th className="px-2 py-1.5 font-medium">Spanne</th>
               <th className="px-2 py-1.5 text-right font-medium">Median</th>
+              <th className="px-2 py-1.5 text-right font-medium">Korrektur</th>
               <th className="px-2 py-1.5 font-medium">Konfidenz</th>
               <th className="px-2 py-1.5 font-medium">Quelle</th>
               <th className="px-2 py-1.5 font-medium">Status</th>
             </tr>
           </thead>
           <tbody>
-            {[...entries].reverse().map((entry) => (
-              <tr key={entry.id} className="border-t border-[var(--border)]">
-                <td className="px-2 py-1.5">
-                  {formatIsoDateDE(toDateKey(entry.valuedAt))}
-                </td>
-                <td className="px-2 py-1.5 text-[var(--text-secondary)]">
-                  {entry.source === "manual"
-                    ? "–"
-                    : `${formatCentsDE(entry.lowerCents)} – ${formatCentsDE(entry.upperCents)}`}
-                </td>
-                <td className="px-2 py-1.5 text-right font-medium">
-                  {formatCentsDE(entry.medianCents)}
-                </td>
-                <td className="px-2 py-1.5">
-                  {entry.confidence
-                    ? VALUATION_CONFIDENCE_LABELS[entry.confidence]
-                    : "–"}
-                </td>
-                <td className="px-2 py-1.5">
-                  {entry.source === "manual"
-                    ? "Manuell"
-                    : entry.trigger === "auto"
-                      ? "ImmoAnalyse (Auto)"
-                      : "ImmoAnalyse (Manuell)"}
-                </td>
-                <td className="px-2 py-1.5 text-[var(--text-secondary)]">
-                  {entry.appliedAt !== null
-                    ? entry.previousValueCents !== null
-                      ? `übernommen (Vorwert ${formatCentsDE(entry.previousValueCents)})`
-                      : "übernommen"
-                    : "Vorschlag"}
-                </td>
-              </tr>
-            ))}
+            {[...entries].reverse().map((entry) => {
+              const adjusted = applyValuationAdjustmentToBounds(
+                {
+                  lowerCents: entry.lowerCents,
+                  medianCents: entry.medianCents,
+                  upperCents: entry.upperCents,
+                },
+                entry.adjustmentBps,
+              );
+              const pointCents =
+                entry.appliedAt !== null
+                  ? pickAppliedChoiceCents(adjusted, entry.appliedChoice)
+                  : adjusted.medianCents;
+              const adjTooltip = formatAdjustmentSummary(
+                parseValuationAdjustments(entry.adjustmentsJson),
+              );
+              return (
+                <tr key={entry.id} className="border-t border-[var(--border)]">
+                  <td className="px-2 py-1.5">
+                    {formatIsoDateDE(toDateKey(entry.valuedAt))}
+                  </td>
+                  <td className="px-2 py-1.5 text-[var(--text-secondary)]">
+                    {entry.source === "manual"
+                      ? "–"
+                      : `${formatCentsDE(adjusted.lowerCents)} – ${formatCentsDE(adjusted.upperCents)}`}
+                  </td>
+                  <td className="px-2 py-1.5 text-right font-medium">
+                    {formatCentsDE(pointCents)}
+                  </td>
+                  <td
+                    className="px-2 py-1.5 text-right text-[var(--text-secondary)]"
+                    title={adjTooltip || undefined}
+                  >
+                    {entry.adjustmentBps === 0
+                      ? "–"
+                      : `${entry.adjustmentBps > 0 ? "+" : ""}${formatBpsDE(entry.adjustmentBps)}`}
+                  </td>
+                  <td className="px-2 py-1.5">
+                    {entry.confidence
+                      ? VALUATION_CONFIDENCE_LABELS[entry.confidence]
+                      : "–"}
+                  </td>
+                  <td className="px-2 py-1.5">
+                    {entry.source === "manual"
+                      ? "Manuell"
+                      : VALUATION_TRIGGER_LABELS[entry.trigger]}
+                  </td>
+                  <td className="px-2 py-1.5 text-[var(--text-secondary)]">
+                    {entry.appliedAt !== null
+                      ? entry.previousValueCents !== null
+                        ? `übernommen (Vorwert ${formatCentsDE(entry.previousValueCents)})`
+                        : "übernommen"
+                      : "Vorschlag"}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as dbModule from "@/db";
+import { properties } from "@/db/schema";
 import {
   createProperty,
   getPropertyById,
@@ -12,6 +14,7 @@ import {
   getLatestPendingSuggestion,
   getQuotaSnapshot,
   listValuationHistory,
+  saveValuationAdjustments,
   upsertQuotaSnapshot,
 } from "@/db/queries/property-valuations";
 import type {
@@ -415,5 +418,169 @@ describe("property-valuation-job", () => {
       14_000_000,
       15_000_000,
     ]);
+  });
+
+  it("auto-writes adjusted median with immoanalyse source and stores adjustment snapshot", async () => {
+    const prop = createTestProperty({ estimatedValueCents: 0 });
+    saveValuationAdjustments(prop.id, [{ label: "Fertighaus", bps: -1_000 }]);
+
+    const valuator = makeOkValuator(49_000_000);
+
+    const summary = await runAutoValuationJob({
+      now: new Date("2026-11-18T20:00:00Z"),
+      valuatorFactory: () => valuator,
+      env: { NODE_ENV: "test", IMMOANALYSE_API_KEY: "iap_test_dummy" },
+    });
+
+    expect(summary).toMatchObject({ status: "success", written: 1, historyOnly: 0 });
+    const updated = getPropertyById(prop.id)!;
+    expect(updated.estimatedValueCents).toBe(44_100_000);
+    expect(updated.estimatedValueSource).toBe("immoanalyse");
+
+    const history = listValuationHistory(prop.id);
+    const last = history[history.length - 1]!;
+    expect(last.lowerCents).toBe(46_000_000);
+    expect(last.medianCents).toBe(49_000_000);
+    expect(last.upperCents).toBe(52_000_000);
+    expect(last.adjustmentBps).toBe(-1_000);
+    expect(last.appliedChoice).toBe("median");
+    expect(last.adjustmentsJson).toBe('[{"label":"Fertighaus","bps":-1000}]');
+  });
+
+  it("avoids >40% deviation warning when adjustment brings median within range", async () => {
+    const propWithout = createTestProperty({ estimatedValueCents: 0 });
+    await runAutoValuationJob({
+      now: new Date("2026-11-18T20:00:00Z"),
+      valuatorFactory: () => makeOkValuator(28_000_000),
+      env: { NODE_ENV: "test", IMMOANALYSE_API_KEY: "iap_test_dummy" },
+    });
+
+    // Without adjustment: 45_000_000 vs 28_000_000 (+60.7%) -> held as history_only
+    const heldSummary = await runAutoValuationJob({
+      now: new Date("2026-12-01T20:00:00Z"),
+      valuatorFactory: () => makeOkValuator(45_000_000),
+      env: { NODE_ENV: "test", IMMOANALYSE_API_KEY: "iap_test_dummy" },
+    });
+    expect(heldSummary).toMatchObject({ written: 0, historyOnly: 1 });
+    expect(getPropertyById(propWithout.id)!.estimatedValueCents).toBe(28_000_000);
+    updateProperty(propWithout.id, { autoValuationInterval: "off" });
+
+    // Counter-check with -4000 bps adjustment -> 18_000_000 vs 16_800_000 -> written!
+    const propWith = createTestProperty({ estimatedValueCents: 0 });
+    await runAutoValuationJob({
+      now: new Date("2026-11-18T20:00:00Z"),
+      valuatorFactory: () => makeOkValuator(28_000_000),
+      env: { NODE_ENV: "test", IMMOANALYSE_API_KEY: "iap_test_dummy" },
+    });
+    saveValuationAdjustments(propWith.id, [{ label: "Fertighaus", bps: -4_000 }]);
+    const writtenSummary = await runAutoValuationJob({
+      now: new Date("2026-12-18T20:00:00Z"),
+      valuatorFactory: () => makeOkValuator(30_000_000),
+      env: { NODE_ENV: "test", IMMOANALYSE_API_KEY: "iap_test_dummy" },
+    });
+    expect(writtenSummary).toMatchObject({ written: 1, historyOnly: 0 });
+    expect(getPropertyById(propWith.id)!.estimatedValueCents).toBe(18_000_000);
+  });
+
+  it("uses concurrently updated adjustments during estimate() and reports effective decision in job summary", async () => {
+    const prop = createTestProperty({ estimatedValueCents: 0 });
+    await runAutoValuationJob({
+      now: new Date("2026-10-01T20:00:00Z"),
+      valuatorFactory: () => makeOkValuator(49_000_000),
+      env: { NODE_ENV: "test", IMMOANALYSE_API_KEY: "iap_test_dummy" },
+    });
+
+    const raceValuator: PropertyValuator = {
+      estimate: vi.fn(async (): Promise<ValuatorResult> => {
+        saveValuationAdjustments(prop.id, [{ label: "Fertighaus", bps: -2_000 }]);
+        return {
+          ok: true,
+          provider: "immoanalyse",
+          result: {
+            requestId: "req_race_2",
+            cached: false,
+            valuability: "valuable",
+            lowerCents: 46_000_000,
+            medianCents: 49_000_000,
+            upperCents: 52_000_000,
+            asOfDate: "2026-11-10",
+            confidence: "high",
+            confidenceScore: 80,
+            rationale: "Markt",
+            limitations: [],
+            factors: [],
+          },
+          quota: null,
+        };
+      }),
+    };
+
+    const summary = await runAutoValuationJob({
+      now: new Date("2026-11-18T20:00:00Z"),
+      valuatorFactory: () => raceValuator,
+      env: { NODE_ENV: "test", IMMOANALYSE_API_KEY: "iap_test_dummy" },
+    });
+
+    expect(summary).toMatchObject({ status: "success", written: 1, historyOnly: 0 });
+    const updated = getPropertyById(prop.id)!;
+    expect(updated.estimatedValueCents).toBe(39_200_000);
+    const history = listValuationHistory(prop.id);
+    const last = history[history.length - 1]!;
+    expect(last.adjustmentBps).toBe(-2_000);
+  });
+
+  it("downgrades auto-write to historyOnly when concurrent adjustments push deviation >40%", async () => {
+    const prop = createTestProperty({ estimatedValueCents: 35_000_000 });
+    dbModule
+      .getDb()
+      .update(properties)
+      .set({ estimatedValueSource: "immoanalyse" })
+      .where(eq(properties.id, prop.id))
+      .run();
+
+    // Base median 25_000_000 vs 35_000_000 is -28.6% (<= 40% -> pre-check says write).
+    // During estimate(), -5000 bps is saved (no_applied_entry -> property stays 35_000_000).
+    // In transaction: adjusted median 12_500_000 vs 35_000_000 is -64.3% (> 40% -> history_only).
+    const downgradeValuator: PropertyValuator = {
+      estimate: vi.fn(async (): Promise<ValuatorResult> => {
+        saveValuationAdjustments(prop.id, [{ label: "Fertighaus", bps: -5_000 }]);
+        return {
+          ok: true,
+          provider: "immoanalyse",
+          result: {
+            requestId: "req_race_downgrade",
+            cached: false,
+            valuability: "valuable",
+            lowerCents: 23_000_000,
+            medianCents: 25_000_000,
+            upperCents: 27_000_000,
+            asOfDate: "2026-11-10",
+            confidence: "high",
+            confidenceScore: 80,
+            rationale: "Markt",
+            limitations: [],
+            factors: [],
+          },
+          quota: null,
+        };
+      }),
+    };
+
+    const summary = await runAutoValuationJob({
+      now: new Date("2026-11-18T20:00:00Z"),
+      valuatorFactory: () => downgradeValuator,
+      env: { NODE_ENV: "test", IMMOANALYSE_API_KEY: "iap_test_dummy" },
+    });
+
+    expect(summary).toMatchObject({
+      status: "success",
+      processed: 1,
+      written: 0,
+      historyOnly: 1,
+    });
+    const after = getPropertyById(prop.id)!;
+    expect(after.estimatedValueCents).toBe(35_000_000);
+    expect(after.lastAutoValuationOutcome).toBe("history_only");
+    expect(getLatestPendingSuggestion(prop.id)?.medianCents).toBe(25_000_000);
   });
 });

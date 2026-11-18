@@ -81,6 +81,7 @@ export const properties = sqliteTable(
     })
       .notNull()
       .default("manual"),
+    valuationAdjustments: text("valuation_adjustments"),
     updatedAt: text("updated_at").notNull(),
   },
   (table) => [
@@ -396,10 +397,15 @@ export const propertyValuationHistory = sqliteTable(
       enum: ["valuable", "valuable_with_limitations"],
     }),
     source: text("source", { enum: ["manual", "immoanalyse"] }).notNull(),
-    trigger: text("trigger", { enum: ["auto", "manual"] }).notNull(),
+    trigger: text("trigger", { enum: ["auto", "manual", "adjustment"] }).notNull(),
     requestId: text("request_id"),
     appliedAt: text("applied_at"),
     previousValueCents: integer("previous_value_cents"),
+    adjustmentBps: integer("adjustment_bps").notNull().default(0),
+    adjustmentsJson: text("adjustments_json"),
+    appliedChoice: text("applied_choice", {
+      enum: ["lower", "median", "upper"],
+    }),
   },
   (table) => [
     index("property_valuation_history_property_valued_idx").on(
@@ -417,6 +423,10 @@ export const propertyValuationHistory = sqliteTable(
     check(
       "property_valuation_history_confidence_score_range",
       sql`${table.confidenceScore} IS NULL OR (${table.confidenceScore} >= 0 AND ${table.confidenceScore} <= 100)`,
+    ),
+    check(
+      "property_valuation_history_adjustment_bps_range",
+      sql`${table.adjustmentBps} >= -5000 AND ${table.adjustmentBps} <= 5000`,
     ),
   ],
 );

@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, isNotNull, ne } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   properties,
@@ -18,6 +18,17 @@ import {
   type PropertyValuation,
   type ValuationWarning,
 } from "@/lib/domain/property-valuation";
+import {
+  applyValuationAdjustment,
+  parseValuationAdjustments,
+  serializeValuationAdjustments,
+  sumAdjustmentBps,
+  type ValuationAdjustment,
+} from "@/lib/domain/property-valuation-adjustments";
+import {
+  planAdjustmentRecompute,
+  type PlanAdjustmentRecomputeResult,
+} from "@/lib/domain/valuation-adjustment-recompute";
 import type { ValuationChoice } from "@/lib/domain/valuation-adoption";
 import {
   decideValuationWrite,
@@ -34,6 +45,22 @@ export class ValuationHistoryNotFoundError extends Error {
   constructor(message = "Bewertungseintrag nicht gefunden.") {
     super(message);
     this.name = "ValuationHistoryNotFoundError";
+  }
+}
+
+export class PropertyNotFoundError extends Error {
+  constructor(message = "Immobilie nicht gefunden.") {
+    super(message);
+    this.name = "PropertyNotFoundError";
+  }
+}
+
+export class ValuationValueConflictError extends Error {
+  readonly currentValueCents: number;
+  constructor(currentValueCents: number) {
+    super("Der Objektwert hat sich zwischenzeitlich geändert.");
+    this.name = "ValuationValueConflictError";
+    this.currentValueCents = currentValueCents;
   }
 }
 
@@ -104,6 +131,7 @@ export function recordValuationOutcome(
         id: properties.id,
         estimatedValueCents: properties.estimatedValueCents,
         estimatedValueSource: properties.estimatedValueSource,
+        valuationAdjustments: properties.valuationAdjustments,
       })
       .from(properties)
       .where(eq(properties.id, input.propertyId))
@@ -116,10 +144,19 @@ export function recordValuationOutcome(
     let historyId: string | null = null;
     let effectiveDecision = input.decision;
     let effectiveOutcome = input.outcome;
+    const currentAdjustments = parseValuationAdjustments(
+      current.valuationAdjustments,
+    );
+    const adjustmentBps = sumAdjustmentBps(currentAdjustments);
+    const adjustmentsJson = serializeValuationAdjustments(currentAdjustments);
+    const adjustedMedianCents =
+      input.valuation !== null
+        ? applyValuationAdjustment(input.valuation.medianCents, adjustmentBps)
+        : null;
 
-    if (input.valuation !== null) {
+    if (input.valuation !== null && adjustedMedianCents !== null) {
       const deviationBps = computeValuationDeviationBps(
-        input.valuation.medianCents,
+        adjustedMedianCents,
         current.estimatedValueCents,
       );
       const freshWarnings: ValuationWarning[] =
@@ -162,13 +199,16 @@ export function recordValuationOutcome(
           requestId: input.valuation.requestId,
           appliedAt: isWrite ? input.nowIso : null,
           previousValueCents: isWrite ? current.estimatedValueCents : null,
+          adjustmentBps,
+          adjustmentsJson,
+          appliedChoice: isWrite ? "median" : null,
         })
         .run();
     }
 
     const patch: Partial<typeof properties.$inferInsert> = {};
-    if (isWrite && input.valuation !== null) {
-      patch.estimatedValueCents = input.valuation.medianCents;
+    if (isWrite && input.valuation !== null && adjustedMedianCents !== null) {
+      patch.estimatedValueCents = adjustedMedianCents;
       patch.estimatedValueAsOf = input.valuation.asOfDate;
       patch.estimatedValueSource = "immoanalyse";
       patch.updatedAt = input.nowIso;
@@ -242,7 +282,13 @@ export function adoptValuationHistoryEntry(
       throw new ValuationHistoryNotFoundError();
     }
 
-    const chosenCents = pickChoiceCents(entry, choice);
+    const currentAdjustments = parseValuationAdjustments(
+      current.valuationAdjustments,
+    );
+    const adjustmentBps = sumAdjustmentBps(currentAdjustments);
+    const adjustmentsJson = serializeValuationAdjustments(currentAdjustments);
+    const baseChosenCents = pickChoiceCents(entry, choice);
+    const chosenCents = applyValuationAdjustment(baseChosenCents, adjustmentBps);
     const asOf = entry.dataAsOf ?? toBerlinDateKey(entry.valuedAt);
 
     if (
@@ -275,6 +321,9 @@ export function adoptValuationHistoryEntry(
       .set({
         appliedAt: nowIso,
         previousValueCents: current.estimatedValueCents,
+        appliedChoice: choice,
+        adjustmentBps,
+        adjustmentsJson,
       })
       .where(eq(propertyValuationHistory.id, historyId))
       .run();
@@ -308,7 +357,12 @@ export function getLatestPendingSuggestion(
   const latest = db
     .select()
     .from(propertyValuationHistory)
-    .where(eq(propertyValuationHistory.propertyId, propertyId))
+    .where(
+      and(
+        eq(propertyValuationHistory.propertyId, propertyId),
+        ne(propertyValuationHistory.trigger, "adjustment"),
+      ),
+    )
     .orderBy(desc(propertyValuationHistory.valuedAt))
     .limit(1)
     .get();
@@ -320,6 +374,139 @@ export function getLatestPendingSuggestion(
     return latest;
   }
   return null;
+}
+
+export interface SaveValuationAdjustmentsResult {
+  property: PropertyRow;
+  adjustments: ValuationAdjustment[];
+  totalBps: number;
+  recompute: { fromCents: number; toCents: number } | null;
+  reason:
+    | Extract<PlanAdjustmentRecomputeResult, { action: "none" }>["reason"]
+    | null;
+}
+
+export function saveValuationAdjustments(
+  propertyId: string,
+  list: readonly ValuationAdjustment[],
+  options?: {
+    expectedEstimatedValueCents?: number;
+    nowIso?: string;
+  },
+): SaveValuationAdjustmentsResult {
+  const nowIso = options?.nowIso ?? new Date().toISOString();
+  const db = getDb();
+
+  return db.transaction((tx) => {
+    const current = tx
+      .select()
+      .from(properties)
+      .where(eq(properties.id, propertyId))
+      .get();
+
+    if (!current) {
+      throw new PropertyNotFoundError();
+    }
+
+    if (
+      options?.expectedEstimatedValueCents !== undefined &&
+      options.expectedEstimatedValueCents !== current.estimatedValueCents
+    ) {
+      throw new ValuationValueConflictError(current.estimatedValueCents);
+    }
+
+    const serialized = serializeValuationAdjustments(list);
+    const normalized = parseValuationAdjustments(serialized);
+    const newTotalBps = sumAdjustmentBps(normalized);
+
+    const [afterAdjustmentsWrite] = tx
+      .update(properties)
+      .set({
+        valuationAdjustments: serialized,
+        updatedAt: nowIso,
+      })
+      .where(eq(properties.id, propertyId))
+      .returning()
+      .all();
+
+    const latestApplied = tx
+      .select()
+      .from(propertyValuationHistory)
+      .where(
+        and(
+          eq(propertyValuationHistory.propertyId, propertyId),
+          eq(propertyValuationHistory.source, "immoanalyse"),
+          isNotNull(propertyValuationHistory.appliedAt),
+        ),
+      )
+      .orderBy(
+        desc(propertyValuationHistory.appliedAt),
+        desc(propertyValuationHistory.valuedAt),
+      )
+      .limit(1)
+      .get();
+
+    const plan = planAdjustmentRecompute({
+      currentSource: current.estimatedValueSource,
+      currentValueCents: current.estimatedValueCents,
+      appliedEntry: latestApplied ?? null,
+      newTotalBps,
+    });
+
+    if (plan.action === "recompute" && latestApplied) {
+      const [updatedProperty] = tx
+        .update(properties)
+        .set({
+          estimatedValueCents: plan.toCents,
+          estimatedValueSource: "immoanalyse",
+          estimatedValueAsOf:
+            latestApplied.dataAsOf ?? current.estimatedValueAsOf,
+          updatedAt: nowIso,
+        })
+        .where(eq(properties.id, propertyId))
+        .returning()
+        .all();
+
+      tx.insert(propertyValuationHistory)
+        .values({
+          id: crypto.randomUUID(),
+          propertyId,
+          valuedAt: nowIso,
+          dataAsOf: latestApplied.dataAsOf,
+          lowerCents: latestApplied.lowerCents,
+          medianCents: latestApplied.medianCents,
+          upperCents: latestApplied.upperCents,
+          confidence: latestApplied.confidence,
+          confidenceScore: latestApplied.confidenceScore,
+          valuability: latestApplied.valuability,
+          source: "immoanalyse",
+          trigger: "adjustment",
+          requestId: latestApplied.requestId,
+          appliedAt: nowIso,
+          previousValueCents: plan.fromCents,
+          adjustmentBps: newTotalBps,
+          adjustmentsJson: serialized,
+          appliedChoice: plan.choice,
+        })
+        .run();
+
+      return {
+        property: updatedProperty ?? afterAdjustmentsWrite ?? current,
+        adjustments: normalized,
+        totalBps: newTotalBps,
+        recompute: { fromCents: plan.fromCents, toCents: plan.toCents },
+        reason: null,
+      };
+    }
+
+    return {
+      property: afterAdjustmentsWrite ?? current,
+      adjustments: normalized,
+      totalBps: newTotalBps,
+      recompute: null,
+      reason: plan.action === "none" ? plan.reason : null,
+    };
+  });
 }
 
 export function getQuotaSnapshot(

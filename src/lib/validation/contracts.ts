@@ -235,6 +235,10 @@ export const propertyUpdateSchema = z
     estimatedValueSource: z.never({
       message: "estimatedValueSource darf nicht manuell gesetzt werden.",
     }),
+    valuationAdjustments: z.never({
+      message:
+        "valuationAdjustments dürfen nur über die Korrektur-Route geändert werden.",
+    }),
     purchaseDate: nullableOptionalIsoDate,
     purchasePriceCents: nonNegativeSafeInt.nullable().optional(),
     estimatedValueCents: nonNegativeSafeInt,
