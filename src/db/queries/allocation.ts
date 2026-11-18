@@ -468,6 +468,7 @@ function createPotInTransaction(db: DbInstance, input: PotCreateInput): PotRow {
         priority: maxPriority + 1,
         currentCents: linkState.currentCents,
         targetCents: input.targetCents,
+        targetDate: input.targetDate,
         ruleType: input.ruleType,
         fixedMonthlyCents: input.fixedMonthlyCents,
         remainderPercentage: input.remainderPercentage,
@@ -535,6 +536,10 @@ function updatePotInTransaction(
         patch.targetCents !== undefined
           ? patch.targetCents
           : existing.targetCents,
+      targetDate:
+        patch.targetDate !== undefined
+          ? patch.targetDate
+          : existing.targetDate,
       ruleType:
         patch.ruleType !== undefined ? patch.ruleType : existing.ruleType,
       fixedMonthlyCents:
@@ -588,6 +593,7 @@ function updatePotInTransaction(
         name: merged.name,
         currentCents: linkState.currentCents,
         targetCents: merged.targetCents,
+        targetDate: merged.targetDate,
         ruleType: merged.ruleType,
         fixedMonthlyCents: merged.fixedMonthlyCents,
         remainderPercentage: merged.remainderPercentage,

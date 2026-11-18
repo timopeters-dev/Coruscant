@@ -1,0 +1,1 @@
+ALTER TABLE `pots` ADD `target_date` text;

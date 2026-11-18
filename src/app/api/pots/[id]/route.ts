@@ -18,7 +18,11 @@ import {
   parseJsonBody,
   validationErrorResponse,
 } from "@/lib/api/http";
-import { potUpdateSchema } from "@/lib/validation/allocation";
+import { getTodayIsoDate } from "@/lib/domain/date";
+import {
+  potUpdateSchema,
+  validatePotTargetDateWindow,
+} from "@/lib/validation/allocation";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +62,25 @@ export async function PATCH(
 
   try {
     const { id } = await context.params;
+    const existing = getPotById(id);
+    if (!existing) {
+      return notFoundResponse("Topf nicht gefunden.");
+    }
+
+    if (
+      parsed.data.targetDate !== undefined &&
+      parsed.data.targetDate !== null &&
+      parsed.data.targetDate !== existing.targetDate
+    ) {
+      const dateError = validatePotTargetDateWindow(
+        parsed.data.targetDate,
+        getTodayIsoDate(),
+      );
+      if (dateError !== null) {
+        return badRequestResponse(dateError, { targetDate: dateError });
+      }
+    }
+
     const pot = updatePot(id, parsed.data);
     if (!pot) {
       return notFoundResponse("Topf nicht gefunden.");

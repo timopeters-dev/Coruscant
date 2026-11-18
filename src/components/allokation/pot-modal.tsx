@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -8,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import type { PotRow } from "@/db/queries/allocation";
 import type { FinancialContractRow, PropertyRow } from "@/db/queries/contracts";
+import { getTodayIsoDate } from "@/lib/domain/date";
 import {
   centsToEuroInputString,
   formatCentsDE,
@@ -32,6 +34,7 @@ interface FieldErrors {
   name?: string;
   currentEuro?: string;
   targetEuro?: string;
+  targetDate?: string;
   fixedMonthlyEuro?: string;
   remainderPercentage?: string;
   linkedPropertyId?: string;
@@ -93,6 +96,17 @@ function PotModalInner({
       ? centsToEuroInputString(initialPot.targetCents)
       : "",
   );
+  const [targetDate, setTargetDate] = React.useState(
+    initialPot?.targetDate ?? "",
+  );
+  const [targetDateTouched, setTargetDateTouched] = React.useState(
+    Boolean(initialPot?.targetDate),
+  );
+  const [deadlineOpen, setDeadlineOpen] = React.useState(
+    Boolean(initialPot?.targetDate),
+  );
+  const [prefilledFromContractName, setPrefilledFromContractName] =
+    React.useState<string | null>(null);
   const [fixedMonthlyEuro, setFixedMonthlyEuro] = React.useState(
     initialPot?.fixedMonthlyCents !== null &&
       initialPot?.fixedMonthlyCents !== undefined
@@ -284,6 +298,13 @@ function PotModalInner({
         : "/api/pots";
       const method = isEditing ? "PATCH" : "POST";
 
+      const nextTargetDate =
+        targetEuro.trim().length > 0 && targetDate.trim().length > 0
+          ? targetDate.trim()
+          : null;
+      const includeTargetDate =
+        !isEditing || nextTargetDate !== (initialPot?.targetDate ?? null);
+
       const response = await fetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
@@ -299,6 +320,7 @@ function PotModalInner({
               }
             : null,
           targetCents,
+          ...(includeTargetDate ? { targetDate: nextTargetDate } : {}),
           fixedMonthlyCents,
           remainderPercentage: parsedPct,
           linkedPropertyId: linkedPropertyId || null,
@@ -313,10 +335,14 @@ function PotModalInner({
       };
 
       if (!response.ok) {
+        if (payload.fieldErrors?.targetDate) {
+          setDeadlineOpen(true);
+        }
         setErrors({
           name: payload.fieldErrors?.name,
           currentEuro: payload.fieldErrors?.currentCents,
           targetEuro: payload.fieldErrors?.targetCents,
+          targetDate: payload.fieldErrors?.targetDate,
           fixedMonthlyEuro: payload.fieldErrors?.fixedMonthlyCents,
           remainderPercentage: payload.fieldErrors?.remainderPercentage,
           linkedPropertyId: payload.fieldErrors?.linkedPropertyId,
@@ -415,7 +441,14 @@ function PotModalInner({
               id="pot-target"
               inputMode="decimal"
               value={targetEuro}
-              onChange={(e) => setTargetEuro(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                setTargetEuro(next);
+                if (next.trim().length === 0) {
+                  setTargetDate("");
+                  setPrefilledFromContractName(null);
+                }
+              }}
               placeholder="z. B. 10.000,00"
               className="tabular-nums"
               hasError={Boolean(errors.targetEuro)}
@@ -501,7 +534,28 @@ function PotModalInner({
             <Select
               id="pot-contract"
               value={linkedContractId}
-              onChange={(e) => setLinkedContractId(e.target.value)}
+              onChange={(e) => {
+                const nextContractId = e.target.value;
+                setLinkedContractId(nextContractId);
+                if (
+                  nextContractId &&
+                  targetEuro.trim().length > 0 &&
+                  !targetDateTouched &&
+                  targetDate.trim().length === 0
+                ) {
+                  const matched = contracts.find(
+                    (c) => c.id === nextContractId,
+                  );
+                  if (
+                    matched?.milestoneDate &&
+                    matched.milestoneDate >= getTodayIsoDate()
+                  ) {
+                    setTargetDate(matched.milestoneDate);
+                    setPrefilledFromContractName(matched.name);
+                    setDeadlineOpen(true);
+                  }
+                }
+              }}
               hasError={Boolean(errors.linkedContractId)}
             >
               <option value="">Keine Verknüpfung</option>
@@ -517,6 +571,58 @@ function PotModalInner({
               </p>
             ) : null}
           </div>
+        </div>
+
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]/40 px-3 py-2.5">
+          <button
+            type="button"
+            onClick={() => setDeadlineOpen((prev) => !prev)}
+            className="flex w-full items-center justify-between text-left text-xs font-medium text-[var(--text-primary)]"
+          >
+            <span>Zieltermin (optional)</span>
+            {deadlineOpen ? (
+              <ChevronDown className="h-4 w-4 text-[var(--text-secondary)]" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-[var(--text-secondary)]" />
+            )}
+          </button>
+
+          {deadlineOpen ? (
+            <div className="mt-2.5 space-y-1.5">
+              {targetEuro.trim().length === 0 ? (
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Erst Zielbetrag setzen
+                </p>
+              ) : (
+                <>
+                  <Label htmlFor="pot-target-date">Zieldatum</Label>
+                  <Input
+                    id="pot-target-date"
+                    type="date"
+                    value={targetDate}
+                    onChange={(e) => {
+                      setTargetDate(e.target.value);
+                      setTargetDateTouched(true);
+                      setPrefilledFromContractName(null);
+                    }}
+                    className="tabular-nums"
+                    hasError={Boolean(errors.targetDate)}
+                  />
+                  {prefilledFromContractName ? (
+                    <p className="text-xs text-[var(--text-secondary)]">
+                      Aus Vertrag „{prefilledFromContractName}“ übernommen –
+                      anpassbar.
+                    </p>
+                  ) : null}
+                  {errors.targetDate ? (
+                    <p className="text-xs text-[var(--rose)]">
+                      {errors.targetDate}
+                    </p>
+                  ) : null}
+                </>
+              )}
+            </div>
+          ) : null}
         </div>
 
         <div className="space-y-1.5">

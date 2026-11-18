@@ -34,7 +34,14 @@ import {
   type VariableExpenseBasis,
 } from "@/lib/domain/cashflow";
 import type { HouseholdSourceStatus } from "@/lib/integrations/household-dummy";
+import { getTodayIsoDate } from "@/lib/domain/date";
 import { formatCentsDE } from "@/lib/domain/money";
+import {
+  evaluatePotDeadlines,
+  type PotDeadlineEvaluation,
+  type PotDeadlineStatus,
+} from "@/lib/domain/pot-deadline";
+import { applyPendingTransfers, type PotLinkOption } from "@/lib/domain/pot-sync";
 import type { PotRuleType } from "@/lib/domain/waterfall";
 import type {
   AllocationSettings,
@@ -43,7 +50,6 @@ import type {
 import { cn } from "@/lib/utils";
 import { AllocateModal } from "./allocate-modal";
 import { CashflowItemModal } from "./cashflow-item-modal";
-import type { PotLinkOption } from "@/lib/domain/pot-sync";
 import { PotModal } from "./pot-modal";
 
 interface HouseholdWorkspaceData {
@@ -181,6 +187,21 @@ export function AllokationWorkspace({
     derivedContractItems,
     includeContractItems,
   ]);
+
+  const deadlineEvalByPotId = React.useMemo(() => {
+    const pendingMap = new Map<string, number>(
+      Object.entries(pendingTransferCentsByPotId),
+    );
+    const effectivePots = applyPendingTransfers(pots, pendingMap);
+    const evals = evaluatePotDeadlines({
+      pots: effectivePots,
+      monthlySurplusCents: consolidatedSummary.monthlySurplusCents,
+      todayIsoDate: getTodayIsoDate(),
+    });
+    return new Map<string, PotDeadlineEvaluation>(
+      evals.map((item) => [item.potId, item]),
+    );
+  }, [pots, pendingTransferCentsByPotId, consolidatedSummary.monthlySurplusCents]);
 
   async function persistSettings(
     patch: Partial<AllocationSettings>,
@@ -1302,6 +1323,122 @@ export function AllokationWorkspace({
                         />
                       </div>
                     ) : null}
+
+                    {(() => {
+                      const deadlineEval = deadlineEvalByPotId.get(pot.id);
+                      if (!deadlineEval) {
+                        return null;
+                      }
+                      const badgeMeta: Record<
+                        PotDeadlineStatus,
+                        { label: string; className: string }
+                      > = {
+                        reached: {
+                          label: "Erreicht",
+                          className:
+                            "border-[var(--emerald)]/40 text-[var(--emerald)]",
+                        },
+                        on_track: {
+                          label: "Im Plan",
+                          className:
+                            "border-[var(--border)] text-[var(--text-secondary)]",
+                        },
+                        tight: {
+                          label: "Knapp",
+                          className:
+                            "border-[var(--amber)]/40 text-[var(--amber)]",
+                        },
+                        at_risk: {
+                          label: "Nicht erreichbar",
+                          className:
+                            "border-[var(--rose)]/40 text-[var(--rose)]",
+                        },
+                        overdue: {
+                          label: "Termin verstrichen",
+                          className:
+                            "border-[var(--border)] text-[var(--text-secondary)]",
+                        },
+                      };
+                      const badge = badgeMeta[deadlineEval.status];
+                      const formatYm = (ym: string) => {
+                        const [y, m] = ym.split("-");
+                        return `${m}/${y}`;
+                      };
+
+                      return (
+                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-[var(--border)] px-3 py-2 text-xs">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[var(--text-secondary)]">
+                            <StatusBadge variant="modeled" />
+                            <span className="tabular-nums font-medium text-[var(--text-primary)]">
+                              Termin {formatYm(deadlineEval.targetMonth)}
+                            </span>
+                            {deadlineEval.status !== "reached" ? (
+                              <>
+                                <span>·</span>
+                                <span className="tabular-nums">
+                                  {deadlineEval.requiredIsOneTime
+                                    ? `Soll: ${formatCentsDE(deadlineEval.requiredMonthlyCents)} einmalig`
+                                    : `Soll ${formatCentsDE(deadlineEval.requiredMonthlyCents)}/Monat`}
+                                </span>
+                                {deadlineEval.plannedMonthlyCents !== null ? (
+                                  <>
+                                    <span>·</span>
+                                    <span className="tabular-nums">
+                                      Ist Ø{" "}
+                                      {formatCentsDE(
+                                        deadlineEval.plannedMonthlyCents,
+                                      )}
+                                      /Monat
+                                    </span>
+                                  </>
+                                ) : null}
+                              </>
+                            ) : null}
+                            {deadlineEval.status === "at_risk" ? (
+                              <>
+                                <span>·</span>
+                                <span className="tabular-nums text-[var(--rose)]">
+                                  Fehlbetrag zum Termin{" "}
+                                  {formatCentsDE(
+                                    deadlineEval.shortfallAtDeadlineCents,
+                                  )}
+                                </span>
+                                <span>·</span>
+                                <span className="tabular-nums">
+                                  {deadlineEval.expectedReachMonth
+                                    ? `voraussichtlich erreicht ${formatYm(deadlineEval.expectedReachMonth)}`
+                                    : "nicht innerhalb von 40 Jahren"}
+                                </span>
+                              </>
+                            ) : null}
+                            {deadlineEval.status === "overdue" &&
+                            deadlineEval.shortfallNowCents > 0 ? (
+                              <>
+                                <span>·</span>
+                                <span className="tabular-nums text-[var(--rose)]">
+                                  Fehlbetrag{" "}
+                                  {formatCentsDE(deadlineEval.shortfallNowCents)}
+                                </span>
+                              </>
+                            ) : null}
+                            {pot.externalLinkKind === "position" ? (
+                              <>
+                                <span>·</span>
+                                <span>ohne Kursentwicklung</span>
+                              </>
+                            ) : null}
+                          </div>
+                          <span
+                            className={cn(
+                              "inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium",
+                              badge.className,
+                            )}
+                          >
+                            {badge.label}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
               );

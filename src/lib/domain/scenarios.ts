@@ -17,6 +17,7 @@ import {
   roundHalfUpBigInt,
 } from "./money";
 import { calculateWaterfallSuggestion, type DomainPot } from "./waterfall";
+import { simulateMonthlyWaterfall } from "./waterfall-simulation";
 
 export const MAX_SCENARIO_MONTHS = 480;
 export const DEFAULT_CASHFLOW_HORIZON_MONTHS = 360;
@@ -616,65 +617,6 @@ export interface CashflowChangeResult {
   pots: PotFillComparison[];
 }
 
-interface FillRun {
-  fillMonthIndex: Map<string, number>;
-  deficitMonths: number;
-}
-
-function runFill(
-  pots: readonly DomainPot[],
-  horizon: number,
-  surplusAt: (month: number) => number,
-  stopWhenAllFilledAlso: (filled: ReadonlyMap<string, number>) => boolean,
-): FillRun {
-  const current = new Map<string, number>(
-    pots.map((pot) => [pot.id, pot.currentCents]),
-  );
-  const fillMonthIndex = new Map<string, number>();
-  for (const pot of pots) {
-    if (pot.targetCents !== null && pot.currentCents >= pot.targetCents) {
-      fillMonthIndex.set(pot.id, 0);
-    }
-  }
-  let deficitMonths = 0;
-
-  for (let t = 1; t <= horizon; t += 1) {
-    const surplus = surplusAt(t);
-    if (surplus < 0) {
-      deficitMonths += 1;
-    }
-    const working = pots.map((pot) => ({
-      ...pot,
-      currentCents: current.get(pot.id) ?? 0,
-    }));
-    const plan = calculateWaterfallSuggestion(working, Math.max(0, surplus), {
-      mode: "monthly",
-    });
-    for (const s of plan.suggestions) {
-      const next = (current.get(s.potId) ?? 0) + s.allocatedCents;
-      current.set(s.potId, assertSafeInteger(next, "potCurrentCents"));
-      if (
-        s.targetCents !== null &&
-        next >= s.targetCents &&
-        !fillMonthIndex.has(s.potId)
-      ) {
-        fillMonthIndex.set(s.potId, t);
-      }
-    }
-    if (stopWhenAllFilledAlso(fillMonthIndex)) {
-      // Keep counting deficit months for the remaining horizon cheaply.
-      for (let rest = t + 1; rest <= horizon; rest += 1) {
-        if (surplusAt(rest) < 0) {
-          deficitMonths += 1;
-        }
-      }
-      break;
-    }
-  }
-
-  return { fillMonthIndex, deficitMonths };
-}
-
 export function simulateCashflowChange(
   input: CashflowChangeInput,
 ): CashflowChangeResult {
@@ -727,8 +669,12 @@ export function simulateCashflowChange(
   // Run both with a shared stop condition evaluated after both are complete:
   // runs are independent; early stop per run is safe because filled months
   // never change once set.
-  const baseline = runFill(pots, horizon, baselineSurplus, allFilled);
-  const scenario = runFill(pots, horizon, scenarioSurplus, allFilled);
+  const baseline = simulateMonthlyWaterfall(pots, horizon, baselineSurplus, {
+    stopWhen: ({ fillMonthIndex }) => allFilled(fillMonthIndex),
+  });
+  const scenario = simulateMonthlyWaterfall(pots, horizon, scenarioSurplus, {
+    stopWhen: ({ fillMonthIndex }) => allFilled(fillMonthIndex),
+  });
 
   const comparisons: PotFillComparison[] = pots.map((pot) => {
     const hasTarget = pot.targetCents !== null;

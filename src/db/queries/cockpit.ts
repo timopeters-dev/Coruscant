@@ -8,6 +8,7 @@ import {
 } from "@/db/queries/external-snapshots";
 import { listPots } from "@/db/queries/allocation";
 import { listContracts, listProperties } from "@/db/queries/contracts";
+import { loadPlanningBase } from "@/db/queries/planning-base";
 import {
   type BalanceBarBreakdown,
   type BalanceSummary,
@@ -21,6 +22,10 @@ import {
   selectUpcomingActiveMilestones,
 } from "@/lib/domain/cockpit";
 import { computePotSyncPlan } from "@/lib/domain/pot-sync";
+import {
+  evaluatePotDeadlines,
+  summarizeDeadlineRisks,
+} from "@/lib/domain/pot-deadline";
 import { projectContractBalance } from "@/lib/domain/contracts";
 import { getTodayIsoDate } from "@/lib/domain/date";
 import { evaluateSnapshotFreshness } from "@/lib/domain/external-sync";
@@ -31,6 +36,7 @@ export interface CockpitPageData {
   balance: BalanceSummary;
   barBreakdown: BalanceBarBreakdown;
   milestones: ActiveMilestonesResult;
+  potDeadlines: ReturnType<typeof summarizeDeadlineRisks>;
   topPots: PotProgressItem[];
   latestSnapshot: ExternalSnapshotRow | null;
   activeContractsCount: number;
@@ -90,6 +96,14 @@ export function loadCockpitData(
 
   const barBreakdown = calculateBalanceBarBreakdown(balance);
   const milestones = selectUpcomingActiveMilestones(contracts, asOfDate, 5);
+  const planningBase = loadPlanningBase();
+  const potDeadlines = summarizeDeadlineRisks(
+    evaluatePotDeadlines({
+      pots: planningBase.pots,
+      monthlySurplusCents: planningBase.consolidated.monthlySurplusCents,
+      todayIsoDate: asOfDate,
+    }),
+  );
   const topPots = selectTopPotProgress(pots, 3);
 
   let activeContractsCount = 0;
@@ -118,6 +132,7 @@ export function loadCockpitData(
     balance,
     barBreakdown,
     milestones,
+    potDeadlines,
     topPots,
     latestSnapshot,
     activeContractsCount,

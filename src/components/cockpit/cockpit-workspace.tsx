@@ -248,7 +248,16 @@ export function CockpitWorkspace({ data }: CockpitWorkspaceProps) {
     runSync,
   ]);
 
-  const { balance, barBreakdown, milestones, topPots, latestSnapshot } = data;
+  const {
+    balance,
+    barBreakdown,
+    milestones,
+    potDeadlines,
+    topPots,
+    latestSnapshot,
+  } = data;
+  const totalDeadlineIssues =
+    potDeadlines.atRiskCount + potDeadlines.overdueCount;
   const netWorthClass =
     balance.netWorthCents >= 0
       ? "text-[var(--emerald)]"
@@ -515,6 +524,37 @@ export function CockpitWorkspace({ data }: CockpitWorkspaceProps) {
                 ))}
               </ul>
             )}
+
+            {totalDeadlineIssues > 0 && potDeadlines.worst ? (
+              <Link
+                href="/allokation"
+                className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-[var(--amber)]/45 bg-[var(--amber)]/5 px-3.5 py-2.5 text-xs transition-colors hover:bg-[var(--amber)]/10"
+              >
+                <div className="flex flex-wrap items-center gap-2 text-[var(--text-primary)]">
+                  <StatusBadge variant="modeled" />
+                  <span className="tabular-nums">
+                    Topf „{potDeadlines.worst.potName}“: Termin{" "}
+                    {`${potDeadlines.worst.targetMonth.slice(5, 7)}/${potDeadlines.worst.targetMonth.slice(0, 4)}`}{" "}
+                    {potDeadlines.worst.status === "overdue"
+                      ? "verstrichen"
+                      : "voraussichtlich nicht erreichbar"}{" "}
+                    · Fehlbetrag{" "}
+                    {formatCentsDE(
+                      potDeadlines.worst.status === "overdue"
+                        ? potDeadlines.worst.shortfallNowCents
+                        : potDeadlines.worst.shortfallAtDeadlineCents,
+                    )}
+                    {totalDeadlineIssues > 1
+                      ? ` (+${totalDeadlineIssues - 1} weitere)`
+                      : ""}
+                  </span>
+                </div>
+                <ArrowRight
+                  className="h-3.5 w-3.5 shrink-0 text-[var(--amber)]"
+                  aria-hidden="true"
+                />
+              </Link>
+            ) : null}
           </CardContent>
         </Card>
 

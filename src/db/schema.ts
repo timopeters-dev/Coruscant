@@ -167,6 +167,8 @@ export const pots = sqliteTable(
     priority: integer("priority").notNull(),
     currentCents: integer("current_cents").notNull().default(0),
     targetCents: integer("target_cents"),
+    /** Optionaler Zieltermin (YYYY-MM-DD); nur zusammen mit targetCents (zod). */
+    targetDate: text("target_date"),
     ruleType: text("rule_type", {
       enum: ["fill_to_target", "fixed_monthly", "percentage_of_remainder"],
     }).notNull(),

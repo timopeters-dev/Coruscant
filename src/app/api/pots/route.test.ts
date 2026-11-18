@@ -3,6 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import * as dbModule from "@/db";
+import { pots as potsTable } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { addMonthsToIsoDate, getTodayIsoDate } from "@/lib/domain/date";
 import { POST as createContract } from "@/app/api/contracts/route";
 import { POST as createProperty } from "@/app/api/properties/route";
 import {
@@ -544,5 +547,218 @@ describe("/api/pots CRUD, percentage guard, reorder, and atomic allocation", () 
       }),
     );
     expect(fullPctPot.status).toBe(201);
+  });
+
+  it("validates and persists targetDate on POST and PATCH", async () => {
+    const today = getTodayIsoDate();
+    const future = addMonthsToIsoDate(today, 12);
+    const tooFar = addMonthsToIsoDate(today, 481);
+
+    // POST valid targetDate
+    const createdRes = await createPot(
+      new Request("http://localhost/api/pots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Topf Musterziel",
+          ruleType: "fill_to_target",
+          targetCents: 500_000,
+          targetDate: future,
+        }),
+      }),
+    );
+    expect(createdRes.status).toBe(201);
+    const { pot: created } = (await createdRes.json()) as {
+      pot: { id: string; targetDate: string | null };
+    };
+    expect(created.targetDate).toBe(future);
+
+    // POST past date -> 400 fieldErrors.targetDate
+    const pastRes = await createPot(
+      new Request("http://localhost/api/pots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Topf Vergangenheit",
+          ruleType: "fill_to_target",
+          targetCents: 100_000,
+          targetDate: "2020-01-01",
+        }),
+      }),
+    );
+    expect(pastRes.status).toBe(400);
+    const pastJson = (await pastRes.json()) as {
+      fieldErrors?: Record<string, string>;
+    };
+    expect(pastJson.fieldErrors?.targetDate).toBeTruthy();
+
+    // POST without targetCents -> 400
+    const noTargetRes = await createPot(
+      new Request("http://localhost/api/pots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Topf Ohne Ziel",
+          ruleType: "fixed_monthly",
+          fixedMonthlyCents: 10_000,
+          targetDate: future,
+        }),
+      }),
+    );
+    expect(noTargetRes.status).toBe(400);
+
+    // POST invalid date -> 400
+    const badDateRes = await createPot(
+      new Request("http://localhost/api/pots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Topf Ungültiges Datum",
+          ruleType: "fill_to_target",
+          targetCents: 100_000,
+          targetDate: "2027-02-29",
+        }),
+      }),
+    );
+    expect(badDateRes.status).toBe(400);
+
+    // POST > 40 years -> 400
+    const tooFarRes = await createPot(
+      new Request("http://localhost/api/pots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Topf Zu Weit",
+          ruleType: "fill_to_target",
+          targetCents: 100_000,
+          targetDate: tooFar,
+        }),
+      }),
+    );
+    expect(tooFarRes.status).toBe(400);
+
+    // PATCH past date in body -> 400
+    const patchPastRes = await patchPotById(
+      new Request(`http://localhost/api/pots/${created.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetDate: "2020-01-01" }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    expect(patchPastRes.status).toBe(400);
+
+    // PATCH clearing targetDate -> 200
+    const clearDateRes = await patchPotById(
+      new Request(`http://localhost/api/pots/${created.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetDate: null }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    expect(clearDateRes.status).toBe(200);
+    const { pot: cleared } = (await clearDateRes.json()) as {
+      pot: { targetDate: string | null };
+    };
+    expect(cleared.targetDate).toBeNull();
+
+    // PATCH setting targetDate again -> 200
+    const setDateRes = await patchPotById(
+      new Request(`http://localhost/api/pots/${created.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetDate: future }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    expect(setDateRes.status).toBe(200);
+
+    // PATCH targetCents: null while targetDate exists -> 400 fieldErrors.targetDate
+    const dropTargetRes = await patchPotById(
+      new Request(`http://localhost/api/pots/${created.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ruleType: "fixed_monthly",
+          fixedMonthlyCents: 10_000,
+          targetCents: null,
+        }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    expect(dropTargetRes.status).toBe(400);
+    const dropTargetJson = (await dropTargetRes.json()) as {
+      fieldErrors?: Record<string, string>;
+    };
+    expect(dropTargetJson.fieldErrors?.targetDate).toBeTruthy();
+
+    // Existing past targetDate in DB does not block PATCHing name
+    dbModule
+      .getDb()
+      .update(potsTable)
+      .set({ targetDate: "2020-05-01" })
+      .where(eq(potsTable.id, created.id))
+      .run();
+    const renameRes = await patchPotById(
+      new Request(`http://localhost/api/pots/${created.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Topf Umbenannt" }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    expect(renameRes.status).toBe(200);
+    const { pot: renamed } = (await renameRes.json()) as {
+      pot: { name: string; targetDate: string | null };
+    };
+    expect(renamed.name).toBe("Topf Umbenannt");
+    expect(renamed.targetDate).toBe("2020-05-01");
+
+    // Full-payload PATCH with unchanged expired targetDate -> 200 (UI edit flow)
+    const fullPayloadExpiredRes = await patchPotById(
+      new Request(`http://localhost/api/pots/${created.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Topf Umbenannt 2",
+          targetCents: 500_000,
+          targetDate: "2020-05-01",
+        }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    expect(fullPayloadExpiredRes.status).toBe(200);
+    const { pot: fullPayloadExpired } = (await fullPayloadExpiredRes.json()) as {
+      pot: { name: string; targetDate: string | null };
+    };
+    expect(fullPayloadExpired.name).toBe("Topf Umbenannt 2");
+    expect(fullPayloadExpired.targetDate).toBe("2020-05-01");
+
+    // Changing an expired targetDate to another past date -> 400
+    const changeToOtherPastRes = await patchPotById(
+      new Request(`http://localhost/api/pots/${created.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetDate: "2020-06-01" }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    expect(changeToOtherPastRes.status).toBe(400);
+    const changeToOtherPastJson = (await changeToOtherPastRes.json()) as {
+      fieldErrors?: Record<string, string>;
+    };
+    expect(changeToOtherPastJson.fieldErrors?.targetDate).toBeTruthy();
+
+    // PATCH unknown ID -> 404
+    const notFoundRes = await patchPotById(
+      new Request("http://localhost/api/pots/non-existent-id", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Egal" }),
+      }),
+      { params: Promise.resolve({ id: "non-existent-id" }) },
+    );
+    expect(notFoundRes.status).toBe(404);
   });
 });

@@ -105,6 +105,7 @@ function seed(options: { withPositions?: boolean } = {}) {
     ruleType: "fill_to_target",
     currentCents: 300_000,
     targetCents: 600_000,
+    targetDate: null,
     fixedMonthlyCents: null,
     remainderPercentage: null,
     linkedContractId: null,

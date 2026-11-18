@@ -393,3 +393,22 @@ describe("calculateWaterfallSuggestion with calibrated (synced) and virtual pots
     expect(plan.unallocatedCents).toBe(0);
   });
 });
+
+describe("waterfall regression: targetDate does not alter allocation order or amounts", () => {
+  it("produces identical results with and without targetDate for monthly and one_time modes", () => {
+    const base = makePots();
+    const withDeadlines = base.map((pot, idx) => ({
+      ...pot,
+      // Give the lowest-priority pot the earliest deadline.
+      targetDate: idx === base.length - 1 ? "2026-12-31" : "2030-01-01",
+    }));
+
+    expect(
+      calculateWaterfallSuggestion(withDeadlines, 65_000, { mode: "monthly" }),
+    ).toEqual(calculateWaterfallSuggestion(base, 65_000, { mode: "monthly" }));
+
+    expect(
+      calculateWaterfallSuggestion(withDeadlines, 65_000, { mode: "one_time" }),
+    ).toEqual(calculateWaterfallSuggestion(base, 65_000, { mode: "one_time" }));
+  });
+});

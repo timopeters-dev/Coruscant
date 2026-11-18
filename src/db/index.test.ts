@@ -427,6 +427,7 @@ describe("Database client and startup migrations", () => {
         .where(eq(pots.id, "pot-upgrade"))
         .get();
       expect(potRow?.linkedPropertyId).toBe("prop-upgrade");
+      expect(potRow?.targetDate).toBeNull();
 
       const docRow = upgradedClient.db
         .select()

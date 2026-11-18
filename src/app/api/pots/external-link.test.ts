@@ -391,4 +391,21 @@ describe("pots linked to finanz_cockpit accounts/positions", () => {
 
     expect(getPendingTransferCentsByPotId().get(id)).toBe(70_000);
   });
+
+  it("preserves targetDate when syncing a linked pot from snapshot", async () => {
+    seedSnapshot("2026-11-17T07:00:00.000Z", "2026-11-17T06:00:00.000Z");
+    const linked = await create({
+      name: "Topf Musterziel Gekoppelt",
+      ruleType: "fill_to_target",
+      targetCents: 500_000,
+      targetDate: "2028-12-31",
+      externalLink: { kind: "account", ref: "acc-giro" },
+    });
+    expect(linked.status).toBe(201);
+    const id = linked.json.pot!.id;
+
+    const nextSnap = seedSnapshot("2026-11-18T07:00:00.000Z", "2026-11-18T06:00:00.000Z");
+    applyPotSyncFromSnapshot(nextSnap);
+    expect(getPotRow(id)?.targetDate).toBe("2028-12-31");
+  });
 });

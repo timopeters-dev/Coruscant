@@ -15,7 +15,11 @@ import {
   parseJsonBody,
   validationErrorResponse,
 } from "@/lib/api/http";
-import { potCreateSchema } from "@/lib/validation/allocation";
+import { getTodayIsoDate } from "@/lib/domain/date";
+import {
+  potCreateSchema,
+  validatePotTargetDateWindow,
+} from "@/lib/validation/allocation";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +42,16 @@ export async function POST(request: Request): Promise<NextResponse> {
   const parsed = potCreateSchema.safeParse(body.data);
   if (!parsed.success) {
     return validationErrorResponse(parsed.error);
+  }
+
+  if (parsed.data.targetDate !== null) {
+    const dateError = validatePotTargetDateWindow(
+      parsed.data.targetDate,
+      getTodayIsoDate(),
+    );
+    if (dateError !== null) {
+      return badRequestResponse(dateError, { targetDate: dateError });
+    }
   }
 
   try {

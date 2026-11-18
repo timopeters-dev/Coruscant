@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { addMonthsToIsoDate, parseIsoDate } from "@/lib/domain/date";
+import { MAX_POT_DEADLINE_MONTHS } from "@/lib/domain/pot-deadline";
+import { nullableOptionalIsoDate } from "./contracts";
 
 const nonNegativeSafeInt = z
   .number()
@@ -88,6 +91,7 @@ const potBaseObject = z.object({
   name: z.string().trim().min(1, "Name ist erforderlich.").max(120),
   currentCents: nonNegativeSafeInt.default(0),
   targetCents: nonNegativeSafeInt.nullable().optional(),
+  targetDate: nullableOptionalIsoDate,
   ruleType: potRuleTypeSchema,
   fixedMonthlyCents: nonNegativeSafeInt.nullable().optional(),
   remainderPercentage: z
@@ -109,6 +113,7 @@ export interface NormalizedPotInput {
   name: string;
   currentCents: number;
   targetCents: number | null;
+  targetDate: string | null;
   ruleType: "fill_to_target" | "fixed_monthly" | "percentage_of_remainder";
   fixedMonthlyCents: number | null;
   remainderPercentage: number | null;
@@ -122,6 +127,7 @@ export function normalizePotPayload(input: PotBaseValues): NormalizedPotInput {
   const base = {
     name: input.name,
     currentCents: input.currentCents,
+    targetDate: input.targetDate ?? null,
     linkedContractId: input.linkedContractId ?? null,
     linkedPropertyId: input.linkedPropertyId ?? null,
     externalLink: input.externalLink ?? null,
@@ -192,14 +198,42 @@ export const potCreateSchema = potBaseObject
           "Für die Regel „% vom Rest“ ist ein Prozentwert (0–100) erforderlich.",
       });
     }
+    if (
+      data.targetDate !== null &&
+      data.targetDate !== undefined &&
+      (data.targetCents === null || data.targetCents === undefined)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["targetDate"],
+        message: "Ein Zieldatum ist nur zusammen mit einem Zielbetrag möglich.",
+      });
+    }
   })
   .transform(normalizePotPayload);
+
+export function validatePotTargetDateWindow(
+  targetDate: string,
+  todayIsoDate: string,
+): string | null {
+  parseIsoDate(targetDate, "targetDate");
+  parseIsoDate(todayIsoDate, "todayIsoDate");
+  if (targetDate < todayIsoDate) {
+    return "Das Zieldatum darf nicht in der Vergangenheit liegen.";
+  }
+  const maxDate = addMonthsToIsoDate(todayIsoDate, MAX_POT_DEADLINE_MONTHS);
+  if (targetDate > maxDate) {
+    return "Das Zieldatum darf höchstens 40 Jahre in der Zukunft liegen.";
+  }
+  return null;
+}
 
 export const potUpdateSchema = z
   .object({
     name: z.string().trim().min(1, "Name ist erforderlich.").max(120),
     currentCents: nonNegativeSafeInt,
     targetCents: nonNegativeSafeInt.nullable().optional(),
+    targetDate: nullableOptionalIsoDate,
     ruleType: potRuleTypeSchema,
     fixedMonthlyCents: nonNegativeSafeInt.nullable().optional(),
     remainderPercentage: z

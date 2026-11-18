@@ -7,11 +7,13 @@ import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { PotRow } from "@/db/queries/allocation";
+import { getTodayIsoDate } from "@/lib/domain/date";
 import {
   centsToEuroInputString,
   formatCentsDE,
   parseEuroInputToCents,
 } from "@/lib/domain/money";
+import { evaluatePotDeadlines } from "@/lib/domain/pot-deadline";
 import { applyPendingTransfers } from "@/lib/domain/pot-sync";
 import {
   calculateWaterfallSuggestion,
@@ -215,6 +217,19 @@ function AllocateModalInner({
     }
     return map;
   }, [validation.overTargetWarnings]);
+
+  const deadlineRisks = React.useMemo(() => {
+    const projectedPots = pots.map((pot) => ({
+      ...pot,
+      currentCents: validation.projectedByPotId[pot.id] ?? pot.currentCents,
+    }));
+    const evals = evaluatePotDeadlines({
+      pots: projectedPots,
+      monthlySurplusCents,
+      todayIsoDate: getTodayIsoDate(),
+    });
+    return evals.filter((item) => item.status === "at_risk");
+  }, [pots, validation.projectedByPotId, monthlySurplusCents]);
 
   let validationErrorMessage: string | null = null;
   if (parsedInputCents === null || parsedInputCents <= 0) {
@@ -512,6 +527,46 @@ function AllocateModalInner({
             </div>
           </div>
         </div>
+
+        {deadlineRisks.length > 0 ? (
+          <div className="rounded-lg border border-[var(--amber)]/40 bg-[var(--amber)]/5 px-3 py-2 text-xs text-[var(--text-primary)]">
+            {(() => {
+              const formatYm = (ym: string) => {
+                const [y, m] = ym.split("-");
+                return `${m}/${y}`;
+              };
+              if (deadlineRisks.length === 1) {
+                const risk = deadlineRisks[0]!;
+                return (
+                  <span className="tabular-nums">
+                    Mit dieser Verteilung ist der Termin von „{risk.potName}“ (
+                    {formatYm(risk.targetMonth)}) voraussichtlich nicht
+                    erreichbar – Fehlbetrag{" "}
+                    {formatCentsDE(risk.shortfallAtDeadlineCents)}.
+                  </span>
+                );
+              }
+              const listed = deadlineRisks
+                .slice(0, 3)
+                .map((r) => `„${r.potName}“ (${formatYm(r.targetMonth)})`)
+                .join(", ");
+              const extra =
+                deadlineRisks.length > 3
+                  ? ` +${deadlineRisks.length - 3} weitere`
+                  : "";
+              const maxShortfall = Math.max(
+                ...deadlineRisks.map((r) => r.shortfallAtDeadlineCents),
+              );
+              return (
+                <span className="tabular-nums">
+                  Mit dieser Verteilung sind die Termine von {listed}
+                  {extra} voraussichtlich nicht erreichbar – höchster Fehlbetrag{" "}
+                  {formatCentsDE(maxShortfall)}.
+                </span>
+              );
+            })()}
+          </div>
+        ) : null}
 
         {validationErrorMessage || submitError ? (
           <div className="rounded-lg border border-[var(--rose)]/35 bg-[var(--rose)]/10 px-3 py-2 text-xs text-[var(--rose)]">

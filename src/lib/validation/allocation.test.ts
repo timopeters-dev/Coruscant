@@ -6,6 +6,7 @@ import {
   potCreateSchema,
   potReorderSchema,
   potUpdateSchema,
+  validatePotTargetDateWindow,
 } from "./allocation";
 
 describe("cashflowCreateSchema & cashflowUpdateSchema", () => {
@@ -108,6 +109,7 @@ describe("potCreateSchema", () => {
       ruleType: "fill_to_target",
       currentCents: 100_000,
       targetCents: 500_000,
+      targetDate: null,
       fixedMonthlyCents: null,
       remainderPercentage: null,
       linkedPropertyId: null,
@@ -337,5 +339,63 @@ describe("potReorderSchema & potAllocateSchema", () => {
         ],
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("pot targetDate validation", () => {
+  it("accepts valid targetDate with targetCents and normalizes empty string to null", () => {
+    const parsed = potCreateSchema.parse({
+      name: "Topf Musterziel",
+      ruleType: "fill_to_target",
+      targetCents: 100_000,
+      targetDate: "2028-06-30",
+    });
+    expect(parsed.targetDate).toBe("2028-06-30");
+
+    const empty = potCreateSchema.parse({
+      name: "Topf Ohne Termin",
+      ruleType: "fixed_monthly",
+      fixedMonthlyCents: 10_000,
+      targetDate: "",
+    });
+    expect(empty.targetDate).toBeNull();
+  });
+
+  it("rejects invalid ISO dates", () => {
+    for (const badDate of ["2027-13-01", "2027-02-29", "morgen"]) {
+      const res = potCreateSchema.safeParse({
+        name: "Topf Musterziel",
+        ruleType: "fill_to_target",
+        targetCents: 100_000,
+        targetDate: badDate,
+      });
+      expect(res.success).toBe(false);
+    }
+  });
+
+  it("rejects targetDate without targetCents across all ruleTypes with issue on targetDate", () => {
+    const cases = [
+      { name: "T1", ruleType: "fill_to_target", targetDate: "2028-06-30" },
+      { name: "T2", ruleType: "fixed_monthly", fixedMonthlyCents: 10_000, targetDate: "2028-06-30" },
+      { name: "T3", ruleType: "percentage_of_remainder", remainderPercentage: 50, targetDate: "2028-06-30" },
+    ];
+    for (const c of cases) {
+      const res = potCreateSchema.safeParse(c);
+      expect(res.success).toBe(false);
+      if (!res.success) {
+        expect(res.error.issues.some((i) => i.path.includes("targetDate"))).toBe(true);
+      }
+    }
+  });
+
+  it("validates targetDate window (today .. +480 months)", () => {
+    expect(validatePotTargetDateWindow("2026-11-17", "2026-11-18")).toBe(
+      "Das Zieldatum darf nicht in der Vergangenheit liegen.",
+    );
+    expect(validatePotTargetDateWindow("2026-11-18", "2026-11-18")).toBeNull();
+    expect(validatePotTargetDateWindow("2066-11-18", "2026-11-18")).toBeNull();
+    expect(validatePotTargetDateWindow("2066-12-18", "2026-11-18")).toBe(
+      "Das Zieldatum darf höchstens 40 Jahre in der Zukunft liegen.",
+    );
   });
 });
