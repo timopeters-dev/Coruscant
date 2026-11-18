@@ -2,14 +2,8 @@
 
 import * as React from "react";
 import { useTheme } from "next-themes";
-import { Monitor, Moon, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const THEME_OPTIONS = [
-  { value: "light", label: "Hell", Icon: Sun },
-  { value: "dark", label: "Command Deck", Icon: Moon },
-  { value: "system", label: "System", Icon: Monitor },
-] as const;
+import { THEME_OPTIONS, resolveActiveTheme } from "@/components/shell-config";
 
 const emptySubscribe = () => () => {};
 
@@ -21,32 +15,32 @@ export function ThemeToggle() {
     () => false,
   );
 
-  const currentTheme = mounted ? (theme ?? "system") : "system";
+  const active = resolveActiveTheme(mounted, theme);
 
   return (
     <div
       role="group"
       aria-label="Farbschema wählen"
-      className="inline-flex items-center rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-0.5 print:hidden"
+      className="inline-flex shrink-0 items-center whitespace-nowrap rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-0.5 print:hidden"
     >
       {THEME_OPTIONS.map(({ value, label, Icon }) => {
-        const isActive = currentTheme === value;
+        const isActive = active === value;
         return (
           <button
             key={value}
             type="button"
             onClick={() => setTheme(value)}
             aria-pressed={isActive}
+            aria-label={label}
             title={label}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs font-medium transition-colors sm:px-2.5",
+              "inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors outline-hidden focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)] motion-reduce:transition-none",
               isActive
                 ? "bg-[var(--surface)] text-[var(--text-primary)] shadow-xs"
                 : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
             )}
           >
             <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-            <span className="hidden sm:inline">{label}</span>
           </button>
         );
       })}
