@@ -29,9 +29,7 @@ import type {
 import type { FinancialContractRow, PropertyRow } from "@/db/queries/contracts";
 import {
   calculateConsolidatedCashflow,
-  type CashflowFrequency,
   type DomainCashflowItem,
-  normalizeItemToMonthlyCents,
   type VariableExpenseBasis,
 } from "@/lib/domain/cashflow";
 import type { HouseholdSourceStatus } from "@/lib/integrations/household-dummy";
@@ -39,16 +37,27 @@ import { getTodayIsoDate } from "@/lib/domain/date";
 import { formatCentsDE } from "@/lib/domain/money";
 import {
   evaluatePotDeadlines,
+  summarizeDeadlineRisks,
   type PotDeadlineEvaluation,
 } from "@/lib/domain/pot-deadline";
+import {
+  buildPotProgressBar,
+  buildSurplusFlow,
+} from "@/lib/domain/surplus-flow";
 import { POT_DEADLINE_BADGE_META } from "./deadline-labels";
 import { applyPendingTransfers, type PotLinkOption } from "@/lib/domain/pot-sync";
-import type { PotRuleType } from "@/lib/domain/waterfall";
+import {
+  calculateWaterfallSuggestion,
+  type PotRuleType,
+  type WaterfallPlan,
+} from "@/lib/domain/waterfall";
 import type { HouseholdSummary } from "@/lib/validation/external";
 import { cn } from "@/lib/utils";
 import { AllocateModal } from "./allocate-modal";
-import { CashflowItemModal } from "./cashflow-item-modal";
+import { LegacyPlanItems } from "./legacy-plan-items";
 import { PotModal } from "./pot-modal";
+import { PotProgressBar } from "./pot-progress-bar";
+import { SurplusFlowChart } from "./surplus-flow-chart";
 
 interface HouseholdWorkspaceData {
   household: HouseholdSummary | null;
@@ -76,12 +85,6 @@ interface AllokationWorkspaceProps {
   initialSettings: AllocationSettingsState;
   householdData: HouseholdWorkspaceData;
 }
-
-const FREQUENCY_LABELS: Record<CashflowFrequency, string> = {
-  monthly: "monatlich",
-  quarterly: "quartalsweise",
-  yearly: "jährlich",
-};
 
 function getPotRuleLabel(pot: PotRow): string {
   const ruleLabels: Record<PotRuleType, string> = {
@@ -132,10 +135,6 @@ export function AllokationWorkspace({
   const [breakdownOpen, setBreakdownOpen] = React.useState(false);
   const [isSyncingBridge, setIsSyncingBridge] = React.useState(false);
 
-  const [cashflowModalOpen, setCashflowModalOpen] = React.useState(false);
-  const [editingCashflowItem, setEditingCashflowItem] =
-    React.useState<CashflowItemRow | null>(null);
-
   const [potModalOpen, setPotModalOpen] = React.useState(false);
   const [editingPot, setEditingPot] = React.useState<PotRow | null>(null);
 
@@ -144,9 +143,6 @@ export function AllokationWorkspace({
     number | null
   >(null);
 
-  const [confirmDeleteCashflowId, setConfirmDeleteCashflowId] = React.useState<
-    string | null
-  >(null);
   const [confirmDeletePotId, setConfirmDeletePotId] = React.useState<
     string | null
   >(null);
@@ -194,11 +190,16 @@ export function AllokationWorkspace({
     includePropertyItems,
   ]);
 
+  const effectivePots = React.useMemo(
+    () =>
+      applyPendingTransfers(
+        pots,
+        new Map<string, number>(Object.entries(pendingTransferCentsByPotId)),
+      ),
+    [pots, pendingTransferCentsByPotId],
+  );
+
   const deadlineEvalByPotId = React.useMemo(() => {
-    const pendingMap = new Map<string, number>(
-      Object.entries(pendingTransferCentsByPotId),
-    );
-    const effectivePots = applyPendingTransfers(pots, pendingMap);
     const evals = evaluatePotDeadlines({
       pots: effectivePots,
       monthlySurplusCents: consolidatedSummary.monthlySurplusCents,
@@ -207,7 +208,53 @@ export function AllokationWorkspace({
     return new Map<string, PotDeadlineEvaluation>(
       evals.map((item) => [item.potId, item]),
     );
-  }, [pots, pendingTransferCentsByPotId, consolidatedSummary.monthlySurplusCents]);
+  }, [effectivePots, consolidatedSummary.monthlySurplusCents]);
+
+  const deadlineRisk = React.useMemo(
+    () => summarizeDeadlineRisks([...deadlineEvalByPotId.values()]),
+    [deadlineEvalByPotId],
+  );
+
+  // Eine Quelle für „Vorschlag dieses Monats“ (Diagramm, Topf-Balken).
+  const monthlyPlan = React.useMemo<WaterfallPlan | null>(() => {
+    if (effectivePots.length === 0) return null;
+    try {
+      return calculateWaterfallSuggestion(
+        effectivePots,
+        Math.max(0, consolidatedSummary.monthlySurplusCents),
+        { mode: "monthly" },
+      );
+    } catch {
+      return null;
+    }
+  }, [effectivePots, consolidatedSummary.monthlySurplusCents]);
+
+  const potsConfigInvalid = pots.length > 0 && monthlyPlan === null;
+
+  const surplusFlow = React.useMemo(
+    () =>
+      buildSurplusFlow({
+        summary: consolidatedSummary,
+        isDummy: householdData.isDummy,
+        plan: monthlyPlan,
+      }),
+    [consolidatedSummary, householdData.isDummy, monthlyPlan],
+  );
+
+  const allocatedByPotId = React.useMemo(
+    () =>
+      new Map<string, number>(
+        (monthlyPlan?.suggestions ?? []).map((s) => [s.potId, s.allocatedCents]),
+      ),
+    [monthlyPlan],
+  );
+
+  const variableLabel =
+    variableBasis === "budget"
+      ? "Plan-Budget"
+      : variableBasis === "avg_3m"
+        ? "Ø 3M"
+        : "Ø 6M";
 
   async function persistSettings(
     patch: Partial<AllocationSettingsState>,
@@ -286,47 +333,6 @@ export function AllokationWorkspace({
     }
   }
 
-  async function handleToggleCashflowActive(item: CashflowItemRow) {
-    setBusyId(item.id);
-    setActionError(null);
-    try {
-      const response = await fetch(`/api/cashflow-items/${item.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ active: !item.active }),
-      });
-      if (!response.ok) {
-        setActionError("Status der Position konnte nicht geändert werden.");
-        return;
-      }
-      router.refresh();
-    } catch {
-      setActionError("Netzwerkfehler beim Aktualisieren der Position.");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function handleDeleteCashflowItem(id: string) {
-    setBusyId(id);
-    setActionError(null);
-    try {
-      const response = await fetch(`/api/cashflow-items/${id}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) {
-        setActionError("Position konnte nicht gelöscht werden.");
-        return;
-      }
-      setConfirmDeleteCashflowId(null);
-      router.refresh();
-    } catch {
-      setActionError("Netzwerkfehler beim Löschen der Position.");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
   async function handleMovePot(index: number, direction: -1 | 1) {
     const targetIndex = index + direction;
     if (targetIndex < 0 || targetIndex >= pots.length) {
@@ -389,22 +395,12 @@ export function AllokationWorkspace({
             Cashflow &amp; Wasserfall
           </h1>
           <p className="text-sm text-[var(--text-secondary)]">
-            Gemeinschaftskonto-Basis (finanz_cockpit), optionale Plan-Posten und
-            priorisierte Ziel-Töpfe.
+            Gemeinschaftskonto-Basis (finanz_cockpit), Verträge und priorisierte
+            Ziel-Töpfe.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setEditingCashflowItem(null);
-              setCashflowModalOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Plan-Posten
-          </Button>
           <Button
             variant="secondary"
             onClick={() => {
@@ -462,8 +458,8 @@ export function AllokationWorkspace({
                   Markiere in <code className="font-mono">finanz_cockpit</code>{" "}
                   ein Konto als Gemeinschaftskonto (
                   <code className="font-mono">scope = household</code>) und
-                  starte einen Sync. Optionale Plan-Posten, Verträge und
-                  Ziel-Töpfe bleiben bereits vollständig nutzbar.
+                  starte einen Sync. Verträge, Objekte und Ziel-Töpfe
+                  bleiben bereits nutzbar.
                 </p>
               </div>
               <Button
@@ -490,7 +486,7 @@ export function AllokationWorkspace({
                 <CardTitle className="text-base">
                   Haushalts-Überschuss (3-Konten-Modell)
                 </CardTitle>
-                <StatusBadge variant="modeled" detail="Nur Plan-Posten" />
+                <StatusBadge variant="modeled" detail="Ohne Gemeinschaftskonto" />
               </div>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-3">
@@ -504,7 +500,7 @@ export function AllokationWorkspace({
               </div>
               <div className="space-y-1">
                 <p className="text-xs text-[var(--text-secondary)]">
-                  Ausgaben (Plan-Posten &amp; Verträge)
+                  Ausgaben (Verträge &amp; Objekte)
                 </p>
                 <p className="tabular-nums text-xl font-semibold text-[var(--rose)]">
                   {formatCentsDE(consolidatedSummary.totalOutflowCents)}
@@ -615,7 +611,7 @@ export function AllokationWorkspace({
             </div>
             <div className="space-y-1">
               <p className="text-xs text-[var(--text-secondary)]">
-                Ausgaben (Fixkosten, Variable &amp; Plan-Posten)
+                Ausgaben (Fixkosten &amp; Variable)
               </p>
               <p className="tabular-nums text-xl font-semibold text-[var(--rose)]">
                 {formatCentsDE(consolidatedSummary.totalOutflowCents)}
@@ -646,6 +642,26 @@ export function AllokationWorkspace({
           </CardContent>
         </Card>
       )}
+
+      <LegacyPlanItems
+        items={manualItems}
+        summary={consolidatedSummary}
+        onChanged={() => router.refresh()}
+      />
+
+      <SurplusFlowChart
+        flow={surplusFlow}
+        plan={monthlyPlan}
+        isDummy={householdData.isDummy}
+        hasHouseholdData={consolidatedSummary.hasHouseholdData}
+        variableLabel={variableLabel}
+        deadlineRisk={deadlineRisk}
+        potsConfigInvalid={potsConfigInvalid}
+        onCreatePot={() => {
+          setEditingPot(null);
+          setPotModalOpen(true);
+        }}
+      />
 
       {/* Sektion: Gemeinschaftskonto-Basis (falls Snapshot oder Dev-Vorschau vorhanden) */}
       {householdData.household ? (
@@ -682,45 +698,6 @@ export function AllokationWorkspace({
                 Sync
               </Button>
             ) : null}
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Card>
-              <CardContent className="space-y-1 py-4">
-                <p className="text-xs text-[var(--text-secondary)]">
-                  Wiederkehrende Einnahmen (Gehälter)
-                </p>
-                <p className="tabular-nums text-base font-semibold text-[var(--emerald)]">
-                  +{formatCentsDE(consolidatedSummary.calibratedInflowCents)}
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="space-y-1 py-4">
-                <p className="text-xs text-[var(--text-secondary)]">
-                  Erkannte Fixkosten
-                </p>
-                <p className="tabular-nums text-base font-semibold text-[var(--rose)]">
-                  −{formatCentsDE(consolidatedSummary.calibratedFixedOutflowCents)}
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="space-y-1 py-4">
-                <p className="text-xs text-[var(--text-secondary)]">
-                  Variable Alltagskosten (
-                  {variableBasis === "budget"
-                    ? "Plan-Budget"
-                    : variableBasis === "avg_3m"
-                      ? "Ø 3M"
-                      : "Ø 6M"}
-                  )
-                </p>
-                <p className="tabular-nums text-base font-semibold text-[var(--rose)]">
-                  −{formatCentsDE(consolidatedSummary.variableOutflowCents)}
-                </p>
-              </CardContent>
-            </Card>
           </div>
 
           {householdData.household.categoriesBreakdown.length > 0 ? (
@@ -834,170 +811,20 @@ export function AllokationWorkspace({
         </section>
       ) : null}
 
-      {/* Sektion 1: Optionale Plan-Posten (Modelliert) */}
+      {/* Sektion: Verträge & Objekte im Überschuss */}
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-semibold tracking-tight text-[var(--text-primary)]">
-              Optionale Plan-Posten
+              Verträge &amp; Objekte im Überschuss
             </h2>
             <StatusBadge variant="modeled" />
           </div>
           <span className="text-xs text-[var(--text-secondary)]">
-            <span className="tabular-nums">{manualItems.length}</span> manuell ·{" "}
             <span className="tabular-nums">{derivedContractItems.length}</span>{" "}
             Verträge
           </span>
         </div>
-
-        {manualItems.length === 0 ? (
-          <Card className="border-dashed border-[var(--border-sub)]">
-            <CardContent className="flex flex-col items-center justify-between gap-3 py-8 text-center sm:flex-row sm:text-left">
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-[var(--text-primary)]">
-                  Noch keine optionalen Plan-Posten
-                </p>
-                <p className="text-xs text-[var(--text-secondary)]">
-                  Erfasse bei Bedarf zusätzliche geplante Einnahmen oder
-                  Ausgaben (z. B. künftige Kosten oder Sonderposten), die nicht
-                  im Gemeinschaftskonto enthalten sind.
-                </p>
-              </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setEditingCashflowItem(null);
-                  setCashflowModalOpen(true);
-                }}
-              >
-                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                Ersten Plan-Posten anlegen
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-2">
-            {manualItems.map((item) => {
-              const monthlyCents = normalizeItemToMonthlyCents(
-                item.amountCents,
-                item.frequency,
-              );
-              const isConfirming = confirmDeleteCashflowId === item.id;
-
-              return (
-                <Card
-                  key={item.id}
-                  className={cn(
-                    "border-dashed border-[var(--border-sub)] transition-opacity",
-                    !item.active && "opacity-60",
-                  )}
-                >
-                  <CardContent className="flex flex-col gap-3 py-3.5 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="truncate text-sm font-medium text-[var(--text-primary)]">
-                          {item.name}
-                        </span>
-                        <StatusBadge variant="modeled" />
-                        <Badge
-                          variant="outline"
-                          className={
-                            item.direction === "inflow"
-                              ? "border-[var(--emerald)]/35 bg-[var(--emerald)]/10 text-[var(--emerald)]"
-                              : "border-[var(--rose)]/35 bg-[var(--rose)]/10 text-[var(--rose)]"
-                          }
-                        >
-                          {item.direction === "inflow" ? "Einnahme" : "Ausgabe"}
-                        </Badge>
-                        {!item.active ? (
-                          <Badge variant="secondary">Inaktiv</Badge>
-                        ) : null}
-                      </div>
-                      <p className="text-xs text-[var(--text-secondary)]">
-                        Original:{" "}
-                        <span className="tabular-nums">
-                          {formatCentsDE(item.amountCents)}
-                        </span>{" "}
-                        ({FREQUENCY_LABELS[item.frequency]})
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
-                      <div className="text-right">
-                        <div
-                          className={cn(
-                            "tabular-nums text-sm font-semibold",
-                            item.direction === "inflow"
-                              ? "text-[var(--emerald)]"
-                              : "text-[var(--rose)]",
-                          )}
-                        >
-                          {item.direction === "inflow" ? "+" : "−"}
-                          {formatCentsDE(monthlyCents)}
-                        </div>
-                        <div className="text-[11px] text-[var(--text-secondary)]">
-                          pro Monat
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={busyId === item.id}
-                          onClick={() => handleToggleCashflowActive(item)}
-                        >
-                          {item.active ? "Deaktivieren" : "Aktivieren"}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`${item.name} bearbeiten`}
-                          onClick={() => {
-                            setEditingCashflowItem(item);
-                            setCashflowModalOpen(true);
-                          }}
-                        >
-                          <Pencil className="h-4 w-4" aria-hidden="true" />
-                        </Button>
-                        {isConfirming ? (
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              disabled={busyId === item.id}
-                              className="border-[var(--rose)]/40 text-[var(--rose)]"
-                              onClick={() => handleDeleteCashflowItem(item.id)}
-                            >
-                              Bestätigen
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setConfirmDeleteCashflowId(null)}
-                            >
-                              Abbruch
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`${item.name} löschen`}
-                            onClick={() => setConfirmDeleteCashflowId(item.id)}
-                          >
-                            <Trash2 className="h-4 w-4" aria-hidden="true" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
 
         {/* Verknüpfte Coruscant-Vertragsraten (Live-Sync, schreibgeschützt) */}
         <div className="space-y-2 rounded-xl border border-dashed border-[var(--border-sub)] bg-[var(--surface-elevated)]/60 p-4">
@@ -1101,8 +928,7 @@ export function AllokationWorkspace({
               Abgeleitet aus vermieteten Objekten inkl. verknüpfter
               Haushalts-Kreditraten (ohne Doppelzählung bei aktiven
               Vertragsraten). Falls Miete oder Rate bereits im Gemeinschaftskonto
-              oder als manueller Posten erfasst sind, bitte entsprechend
-              deaktivieren.
+              erfasst sind, bitte entsprechend deaktivieren.
             </p>
             <div className="divide-y divide-[var(--border)]">
               {derivedPropertyItems.map((item) => (
@@ -1404,19 +1230,15 @@ export function AllokationWorkspace({
                       </div>
                     </div>
 
-                    {progressPct !== null ? (
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-elevated)]">
-                        <div
-                          className={cn(
-                            "h-full rounded-full transition-all",
-                            targetReached
-                              ? "bg-[var(--emerald)]"
-                              : "bg-[var(--accent)]",
-                          )}
-                          style={{ width: `${progressPct}%` }}
-                        />
-                      </div>
-                    ) : null}
+                    <PotProgressBar
+                      bar={buildPotProgressBar({
+                        currentCents: pot.currentCents,
+                        pendingCents: pendingTransferCentsByPotId[pot.id] ?? 0,
+                        allocatedCents: allocatedByPotId.get(pot.id) ?? 0,
+                        targetCents: pot.targetCents,
+                      })}
+                      deadlineStatus={deadlineEvalByPotId.get(pot.id)?.status}
+                    />
 
                     {(() => {
                       const deadlineEval = deadlineEvalByPotId.get(pot.id);
@@ -1553,13 +1375,6 @@ export function AllokationWorkspace({
       </section>
 
       {/* Modals */}
-      <CashflowItemModal
-        open={cashflowModalOpen}
-        onOpenChange={setCashflowModalOpen}
-        initialItem={editingCashflowItem}
-        onSaved={() => router.refresh()}
-      />
-
       <PotModal
         open={potModalOpen}
         onOpenChange={setPotModalOpen}
