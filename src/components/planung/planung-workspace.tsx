@@ -8,6 +8,7 @@ import {
 import type { InvestmentContext } from "@/lib/domain/investment-context";
 import type { DomainPot } from "@/lib/domain/waterfall";
 import { InvestmentCoachCard } from "./investment-coach-card";
+import { PurchaseCalculatorCard } from "./purchase-calculator-card";
 
 interface PlanungWorkspaceProps {
   asOfDate: string;
@@ -48,6 +49,7 @@ export function PlanungWorkspace({
         pots={pots}
         startMonth={startMonth}
       />
+      <PurchaseCalculatorCard />
       <InvestmentCoachCard context={coachContext} refLabels={coachRefLabels} />
     </div>
   );

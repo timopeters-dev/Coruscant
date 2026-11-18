@@ -8,6 +8,7 @@ import {
   parseEuroInputToCents,
   parsePercentInputToBps,
 } from "@/lib/domain/money";
+import { parseIntegerInput } from "./purchase-calculator-state";
 
 interface SliderFieldProps {
   id: string;
@@ -17,7 +18,7 @@ interface SliderFieldProps {
   max: number;
   step: number;
   onChange: (value: number) => void;
-  kind: "euro" | "percent";
+  kind: "euro" | "percent" | "years";
   hint?: string;
 }
 
@@ -36,8 +37,18 @@ export function SliderField({
   kind,
   hint,
 }: SliderFieldProps) {
-  const format = kind === "euro" ? centsToEuroInputString : bpsToPercentInputString;
-  const parse = kind === "euro" ? parseEuroInputToCents : parsePercentInputToBps;
+  const format =
+    kind === "euro"
+      ? centsToEuroInputString
+      : kind === "percent"
+        ? bpsToPercentInputString
+        : (v: number) => String(v);
+  const parse =
+    kind === "euro"
+      ? parseEuroInputToCents
+      : kind === "percent"
+        ? parsePercentInputToBps
+        : parseIntegerInput;
   // Keep the user's draft while typing (even if invalid or still incomplete,
   // e.g. "-"). Fall back to the formatted value once the value was changed
   // from outside (slider) and no longer matches what the draft parses to.
@@ -69,7 +80,7 @@ export function SliderField({
         <div className="relative w-32 shrink-0">
           <Input
             aria-label={`${label} (Eingabe)`}
-            inputMode="decimal"
+            inputMode={kind === "years" ? "numeric" : "decimal"}
             value={text}
             hasError={invalid}
             className="pr-7 text-right tabular-nums"
@@ -83,7 +94,7 @@ export function SliderField({
             }}
           />
           <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[var(--text-secondary)]">
-            {kind === "euro" ? "€" : "%"}
+            {kind === "euro" ? "€" : kind === "percent" ? "%" : "J."}
           </span>
         </div>
       </div>

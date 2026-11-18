@@ -39,8 +39,8 @@ import { formatCentsDE } from "@/lib/domain/money";
 import {
   evaluatePotDeadlines,
   type PotDeadlineEvaluation,
-  type PotDeadlineStatus,
 } from "@/lib/domain/pot-deadline";
+import { POT_DEADLINE_BADGE_META } from "./deadline-labels";
 import { applyPendingTransfers, type PotLinkOption } from "@/lib/domain/pot-sync";
 import type { PotRuleType } from "@/lib/domain/waterfall";
 import type {
@@ -1329,37 +1329,7 @@ export function AllokationWorkspace({
                       if (!deadlineEval) {
                         return null;
                       }
-                      const badgeMeta: Record<
-                        PotDeadlineStatus,
-                        { label: string; className: string }
-                      > = {
-                        reached: {
-                          label: "Erreicht",
-                          className:
-                            "border-[var(--emerald)]/40 text-[var(--emerald)]",
-                        },
-                        on_track: {
-                          label: "Im Plan",
-                          className:
-                            "border-[var(--border)] text-[var(--text-secondary)]",
-                        },
-                        tight: {
-                          label: "Knapp",
-                          className:
-                            "border-[var(--amber)]/40 text-[var(--amber)]",
-                        },
-                        at_risk: {
-                          label: "Nicht erreichbar",
-                          className:
-                            "border-[var(--rose)]/40 text-[var(--rose)]",
-                        },
-                        overdue: {
-                          label: "Termin verstrichen",
-                          className:
-                            "border-[var(--border)] text-[var(--text-secondary)]",
-                        },
-                      };
-                      const badge = badgeMeta[deadlineEval.status];
+                      const badge = POT_DEADLINE_BADGE_META[deadlineEval.status];
                       const formatYm = (ym: string) => {
                         const [y, m] = ym.split("-");
                         return `${m}/${y}`;
