@@ -1,16 +1,16 @@
 ---
-description: Setzt einen geplanten Slice aus tasks/ vollständig um und führt alle Pflicht-Checks aus
+description: Setzt einen geplanten Slice aus ../docs/tasks/coruscant/ vollständig um und führt alle Pflicht-Checks aus
 ---
 
 Lies zuerst `AGENTS.md`, `docs/SPEC.md` und `docs/DESIGN-SYSTEM.md`.
 
-Finde und lies anschließend die angegebene Plan-Datei unter `tasks/` (wenn der Nutzer z. B. `task 3` oder `3` angibt, suche nach `tasks/plan-slice-3.md` bzw. dem passenden Dateinamen in `tasks/`).
+Finde und lies anschließend die angegebene Plan-Datei unter `../docs/tasks/coruscant/` (wenn der Nutzer z. B. `task 3` oder `3` angibt, suche nach `../docs/tasks/coruscant/plan-slice-3.md` bzw. dem passenden Dateinamen in `../docs/tasks/coruscant/`).
 
 Deine Aufgaben (Agent Hydrogen):
 1. **Git-Branch prüfen:**
    - Prüfe `git branch --show-current`. Entwickle niemals direkt auf `main` oder `dev` – erstelle falls nötig einen passenden Branch (z. B. `feature/slice-<nr>`) von `dev`.
 2. **Plan strikt umsetzen:**
-   - Arbeite alle Schritte aus dem Plan in `tasks/` vollständig und sauber ab.
+   - Arbeite alle Schritte aus dem Plan in `../docs/tasks/coruscant/` vollständig und sauber ab.
    - Halte die Architektur-Grenzen ein: Reine Domänen-Logik in `src/lib/domain/` (ohne Next.js-/React-/HTTP-/DB-Imports), SQLite-Zugriffe nur über Drizzle in `src/db/`, Validierung über `zod`.
    - Nutze strikte Integer-Cent- (`amountCents`) und Basispunkt-Arithmetik (`interestRateBps`) ohne `float`.
    - Beachte `docs/DESIGN-SYSTEM.md` (`tabular-nums`, Light/Dark-Tokens, klare Kennzeichnung von *Geeicht* vs. *Modelliert* vs. *KI-Vorschlag*).

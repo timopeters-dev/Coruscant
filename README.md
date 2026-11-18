@@ -2,7 +2,7 @@
 
 Local-First Finanz-, Vertrags-, Dokumenten- und Strategie-Cockpit für den gemeinsamen Haushalt – entwickelt als übergeordneter Hub mit Integration des persönlichen [`finanz_cockpit`](../finanz_cockpit) über eine schlanke Summary-Bridge.
 
-Siehe [docs/SPEC.md](docs/SPEC.md) für die Gesamtspezifikation und [docs/V1-ROADMAP.md](docs/V1-ROADMAP.md) für die Slice-Planung.
+Siehe [docs/SPEC.md](docs/SPEC.md) für die Gesamtspezifikation und [../docs/roadmap/coruscant/V1-ROADMAP.md](../docs/roadmap/coruscant/V1-ROADMAP.md) für die Slice-Planung.
 
 ## Tech-Stack
 - **App & UI:** Next.js (App Router), React, TypeScript (`strict`), Tailwind CSS v4, `shadcn/ui`, Lucide Icons
@@ -25,7 +25,7 @@ pnpm dev                     # http://localhost:3000
 ```
 
 ## Entwicklungs-Workflow (Argon & Hydrogen)
-1. **Planen (Agent Argon):** `/plan-slice` mit dem Prompt aus `docs/V1-ROADMAP.md` → erzeugt `tasks/plan-slice-<nr>.md`.
+1. **Planen (Agent Argon):** `/plan-slice` mit dem Prompt aus `../docs/roadmap/coruscant/V1-ROADMAP.md` → erzeugt `../docs/tasks/coruscant/plan-slice-<nr>.md`.
 2. **Umsetzen (Agent Hydrogen):** Implementierung des Plans inkl. Unit-/Negativtests (`pnpm typecheck && pnpm lint && pnpm test`).
 3. **Review (Agent Argon):** `/review-slice` → prüft `git diff` gegen `AGENTS.md` und `docs/DESIGN-SYSTEM.md`.
 4. **Fix (Agent Hydrogen):** `/fix-review` → setzt Review-Befunde inkl. Regressionstests um.

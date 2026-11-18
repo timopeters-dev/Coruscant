@@ -1,11 +1,13 @@
 # AGENTS.md – Coruscant
 
+> Workspace-Regeln: [`../AGENTS.md`](../AGENTS.md) (kurz; `../docs/` nur für Planung/Brainstorming lesen).
+
 ## 1. Workflow & Pflicht-Checks
-- Lies vor neuen Features/Slices `docs/SPEC.md` und die aktuelle Roadmap (`docs/V1-ROADMAP.md`, etc.).
+- Lies vor neuen Features/Slices `docs/SPEC.md`. (Roadmap und Slice-Pläne liest nur `/plan-slice` bzw. der Plan, den dir der Nutzer nennt.)
 - Nutze ausschließlich `pnpm`. Eine Aufgabe ist erst fertig, wenn `pnpm typecheck`, `pnpm lint` und `pnpm test` mit 0 Fehlern durchlaufen.
 - **Argon / Hydrogen Entwicklungs-Workflow (`.agent/workflows/`):**
-  1. **Planen (Argon):** `/plan-slice` → Analyse + kurzes Tech-Lead-Interview → Plan unter `tasks/plan-slice-<nr>.md` speichern.
-  2. **Umsetzen (Hydrogen):** Implementierung gemäß Plan in `tasks/plan-slice-<nr>.md`.
+  1. **Planen (Argon):** `/plan-slice` → Analyse + kurzes Tech-Lead-Interview → Plan unter `../docs/tasks/coruscant/plan-slice-<nr>.md` speichern.
+  2. **Umsetzen (Hydrogen):** Implementierung gemäß Plan in `../docs/tasks/coruscant/plan-slice-<nr>.md`.
   3. **Review (Argon):** `/review-slice` → Kritisches Principal-Engineer-Review auf `git diff`.
   4. **Fix (Hydrogen):** `/fix-review` → Befunde inkl. Regressionstests beheben.
 - **Git-Workflow (`feature/*` → PR → `dev` → `main`):**

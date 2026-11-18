@@ -1,8 +1,8 @@
 ---
-description: Plant einen Vertical Slice im Interview-Modus und speichert den Plan unter tasks/
+description: Plant einen Vertical Slice im Interview-Modus und speichert den Plan unter ../docs/tasks/coruscant/
 ---
 
-Lies zuerst `AGENTS.md`, `docs/SPEC.md` und die relevante Roadmap (`docs/V1-ROADMAP.md` ff.) vollständig sowie die betroffenen bestehenden Dateien im Projekt.
+Lies zuerst `AGENTS.md`, `docs/SPEC.md` und die relevante Roadmap (`../docs/roadmap/coruscant/V1-ROADMAP.md` ff.) vollständig sowie die betroffenen bestehenden Dateien im Projekt.
 
 Deine Rolle ist die eines erfahrenen Principal Engineers und Product Architects (Agent Argon). Der Nutzer möchte den nächsten Vertical Slice planen.
 
@@ -17,4 +17,4 @@ Gehe strikt in diesen 3 Phasen vor (schreibe noch KEINEN Produktivcode):
    - Stelle dem Nutzer diese Fragen kompakt mit deiner konkreten Empfehlung und warte auf seine Antwort.
 
 3. **Plan-Speicherung:**
-   - Sobald der Nutzer geantwortet hat, erstelle einen detaillierten Implementierungsplan (inkl. konkreter Unit- und Negativ-Tests gemäß `AGENTS.md` §4) und speichere ihn unter `tasks/plan-slice-<nr>.md`.
+   - Sobald der Nutzer geantwortet hat, erstelle einen detaillierten Implementierungsplan (inkl. konkreter Unit- und Negativ-Tests gemäß `AGENTS.md` §4) und speichere ihn unter `../docs/tasks/coruscant/plan-slice-<nr>.md`.
