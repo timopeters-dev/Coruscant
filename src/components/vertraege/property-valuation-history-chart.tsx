@@ -1,5 +1,7 @@
 "use client";
 
+import * as React from "react";
+import { Trash2 } from "lucide-react";
 import { formatIsoDateDE } from "@/components/planung/format";
 import type { PropertyValuationHistoryRow } from "@/db/schema";
 import { formatBpsDE, formatCentsDE } from "@/lib/domain/money";
@@ -8,6 +10,7 @@ import {
   formatAdjustmentSummary,
   parseValuationAdjustments,
 } from "@/lib/domain/property-valuation-adjustments";
+import { Button } from "@/components/ui/button";
 import {
   VALUATION_CONFIDENCE_LABELS,
   VALUATION_TRIGGER_LABELS,
@@ -15,6 +18,8 @@ import {
 
 interface PropertyValuationHistoryChartProps {
   entries: readonly PropertyValuationHistoryRow[];
+  /** Löscht einen Verlaufseintrag; wirft bei Fehler (Meldung wird angezeigt). */
+  onDeleteEntry?: (historyId: string) => Promise<void>;
 }
 
 const WIDTH = 600;
@@ -48,6 +53,7 @@ function pickAppliedChoiceCents(
 
 export function PropertyValuationHistoryChart({
   entries,
+  onDeleteEntry,
 }: PropertyValuationHistoryChartProps) {
   if (entries.length === 0) {
     return null;
@@ -89,7 +95,7 @@ export function PropertyValuationHistoryChart({
           {formatIsoDateDE(toDateKey(only.entry.valuedAt))} (
           {formatCentsDE(only.pointCents)})
         </p>
-        <HistoryTable entries={entries} />
+        <HistoryList entries={entries} onDeleteEntry={onDeleteEntry} />
       </div>
     );
   }
@@ -261,95 +267,169 @@ export function PropertyValuationHistoryChart({
         </text>
       </svg>
 
-      <HistoryTable entries={entries} />
+      <HistoryList entries={entries} onDeleteEntry={onDeleteEntry} />
     </div>
   );
 }
 
-function HistoryTable({
+function describeSource(entry: PropertyValuationHistoryRow): string {
+  return entry.source === "manual"
+    ? "Manuell"
+    : VALUATION_TRIGGER_LABELS[entry.trigger];
+}
+
+function describeStatus(entry: PropertyValuationHistoryRow): string {
+  if (entry.appliedAt === null) {
+    return "Vorschlag";
+  }
+  return entry.previousValueCents !== null
+    ? `übernommen (Vorwert ${formatCentsDE(entry.previousValueCents)})`
+    : "übernommen";
+}
+
+function HistoryList({
   entries,
+  onDeleteEntry,
 }: {
   entries: readonly PropertyValuationHistoryRow[];
+  onDeleteEntry?: (historyId: string) => Promise<void>;
 }) {
+  const [confirmingId, setConfirmingId] = React.useState<string | null>(null);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [deleteError, setDeleteError] = React.useState<string | null>(null);
+
+  async function handleConfirmDelete(historyId: string) {
+    if (!onDeleteEntry) return;
+    setDeletingId(historyId);
+    setDeleteError(null);
+    try {
+      await onDeleteEntry(historyId);
+      setConfirmingId(null);
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error && error.message
+          ? error.message
+          : "Eintrag konnte nicht gelöscht werden.",
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <details className="text-xs">
       <summary className="cursor-pointer font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
         Verlaufstabelle anzeigen ({entries.length})
       </summary>
-      <div className="mt-2 overflow-x-auto">
-        <table className="w-full text-left text-xs tabular-nums">
-          <thead>
-            <tr className="bg-[var(--surface-elevated)] text-[var(--text-secondary)]">
-              <th className="px-2 py-1.5 font-medium">Datum</th>
-              <th className="px-2 py-1.5 font-medium">Spanne</th>
-              <th className="px-2 py-1.5 text-right font-medium">Median</th>
-              <th className="px-2 py-1.5 text-right font-medium">Korrektur</th>
-              <th className="px-2 py-1.5 font-medium">Konfidenz</th>
-              <th className="px-2 py-1.5 font-medium">Quelle</th>
-              <th className="px-2 py-1.5 font-medium">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[...entries].reverse().map((entry) => {
-              const adjusted = applyValuationAdjustmentToBounds(
-                {
-                  lowerCents: entry.lowerCents,
-                  medianCents: entry.medianCents,
-                  upperCents: entry.upperCents,
-                },
-                entry.adjustmentBps,
-              );
-              const pointCents =
-                entry.appliedAt !== null
-                  ? pickAppliedChoiceCents(adjusted, entry.appliedChoice)
-                  : adjusted.medianCents;
-              const adjTooltip = formatAdjustmentSummary(
-                parseValuationAdjustments(entry.adjustmentsJson),
-              );
-              return (
-                <tr key={entry.id} className="border-t border-[var(--border)]">
-                  <td className="px-2 py-1.5">
-                    {formatIsoDateDE(toDateKey(entry.valuedAt))}
-                  </td>
-                  <td className="px-2 py-1.5 text-[var(--text-secondary)]">
-                    {entry.source === "manual"
-                      ? "–"
-                      : `${formatCentsDE(adjusted.lowerCents)} – ${formatCentsDE(adjusted.upperCents)}`}
-                  </td>
-                  <td className="px-2 py-1.5 text-right font-medium">
-                    {formatCentsDE(pointCents)}
-                  </td>
-                  <td
-                    className="px-2 py-1.5 text-right text-[var(--text-secondary)]"
-                    title={adjTooltip || undefined}
+      {deleteError ? (
+        <p className="mt-2 text-[11px] text-[var(--rose)]">{deleteError}</p>
+      ) : null}
+      <ul className="mt-2 divide-y divide-[var(--border)] rounded-lg border border-[var(--border)]">
+        {[...entries].reverse().map((entry) => {
+          const adjusted = applyValuationAdjustmentToBounds(
+            {
+              lowerCents: entry.lowerCents,
+              medianCents: entry.medianCents,
+              upperCents: entry.upperCents,
+            },
+            entry.adjustmentBps,
+          );
+          const pointCents =
+            entry.appliedAt !== null
+              ? pickAppliedChoiceCents(adjusted, entry.appliedChoice)
+              : adjusted.medianCents;
+          const adjTooltip = formatAdjustmentSummary(
+            parseValuationAdjustments(entry.adjustmentsJson),
+          );
+          const meta: string[] = [describeSource(entry)];
+          if (entry.confidence) {
+            meta.push(`Konfidenz ${VALUATION_CONFIDENCE_LABELS[entry.confidence]}`);
+          }
+          const isConfirming = confirmingId === entry.id;
+          const isDeleting = deletingId === entry.id;
+          const dateLabel = formatIsoDateDE(toDateKey(entry.valuedAt));
+
+          return (
+            <li key={entry.id} className="px-2.5 py-2 tabular-nums">
+              <div className="flex items-start gap-2">
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                    <span className="font-medium text-[var(--text-primary)]">
+                      {dateLabel}
+                    </span>
+                    <span className="font-medium text-[var(--text-primary)]">
+                      {formatCentsDE(pointCents)}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-[11px] text-[var(--text-secondary)]">
+                    <span className="min-w-0">{meta.join(" · ")}</span>
+                    {entry.source !== "manual" ? (
+                      <span>
+                        {formatCentsDE(adjusted.lowerCents)} –{" "}
+                        {formatCentsDE(adjusted.upperCents)}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-[11px] text-[var(--text-secondary)]">
+                    <span className="min-w-0">{describeStatus(entry)}</span>
+                    {entry.adjustmentBps !== 0 ? (
+                      <span title={adjTooltip || undefined}>
+                        Korrektur {entry.adjustmentBps > 0 ? "+" : ""}
+                        {formatBpsDE(entry.adjustmentBps)}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                {onDeleteEntry && !isConfirming ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0 hover:text-[var(--rose)]"
+                    aria-label={`Eintrag vom ${dateLabel} löschen`}
+                    title="Eintrag löschen"
+                    disabled={deletingId !== null}
+                    onClick={() => {
+                      setDeleteError(null);
+                      setConfirmingId(entry.id);
+                    }}
                   >
-                    {entry.adjustmentBps === 0
-                      ? "–"
-                      : `${entry.adjustmentBps > 0 ? "+" : ""}${formatBpsDE(entry.adjustmentBps)}`}
-                  </td>
-                  <td className="px-2 py-1.5">
-                    {entry.confidence
-                      ? VALUATION_CONFIDENCE_LABELS[entry.confidence]
-                      : "–"}
-                  </td>
-                  <td className="px-2 py-1.5">
-                    {entry.source === "manual"
-                      ? "Manuell"
-                      : VALUATION_TRIGGER_LABELS[entry.trigger]}
-                  </td>
-                  <td className="px-2 py-1.5 text-[var(--text-secondary)]">
-                    {entry.appliedAt !== null
-                      ? entry.previousValueCents !== null
-                        ? `übernommen (Vorwert ${formatCentsDE(entry.previousValueCents)})`
-                        : "übernommen"
-                      : "Vorschlag"}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  </Button>
+                ) : null}
+              </div>
+              {isConfirming ? (
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-[var(--rose)]/40 bg-[var(--rose)]/10 px-2.5 py-1.5">
+                  <span className="text-[11px] text-[var(--text-primary)]">
+                    Eintrag löschen? Der aktuelle Objektwert bleibt unverändert.
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7"
+                      disabled={isDeleting}
+                      onClick={() => setConfirmingId(null)}
+                    >
+                      Abbrechen
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-7 bg-[var(--rose)] text-white"
+                      disabled={isDeleting}
+                      onClick={() => void handleConfirmDelete(entry.id)}
+                    >
+                      {isDeleting ? "Löscht…" : "Löschen"}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
     </details>
   );
 }

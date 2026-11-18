@@ -350,6 +350,31 @@ export function listValuationHistory(
     .reverse();
 }
 
+/**
+ * Entfernt genau einen Verlaufseintrag (z. B. versehentlich erfasster Wert).
+ * Der aktuelle Objektwert der Immobilie bleibt bewusst unverändert – er wird
+ * bei Bedarf separat im Objekt korrigiert.
+ */
+export function deleteValuationHistoryEntry(
+  propertyId: string,
+  historyId: string,
+): void {
+  const db = getDb();
+  const result = db
+    .delete(propertyValuationHistory)
+    .where(
+      and(
+        eq(propertyValuationHistory.id, historyId),
+        eq(propertyValuationHistory.propertyId, propertyId),
+      ),
+    )
+    .run();
+
+  if (result.changes === 0) {
+    throw new ValuationHistoryNotFoundError();
+  }
+}
+
 export function getLatestPendingSuggestion(
   propertyId: string,
 ): PropertyValuationHistoryRow | null {

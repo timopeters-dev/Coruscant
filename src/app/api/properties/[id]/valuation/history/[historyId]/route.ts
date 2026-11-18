@@ -1,0 +1,5 @@
+import { createValuationHistoryEntryDeleteHandler } from "./handlers";
+
+export const dynamic = "force-dynamic";
+
+export const DELETE = createValuationHistoryEntryDeleteHandler();

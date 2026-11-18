@@ -16,6 +16,7 @@ import {
   createValuationEstimateHandler,
   createValuationPreviewHandler,
 } from "./handlers";
+import { createValuationHistoryEntryDeleteHandler } from "./history/[historyId]/handlers";
 import { createValuationHistoryHandler } from "./history/handlers";
 
 const tempDirs: string[] = [];
@@ -505,5 +506,110 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
     expect(histAfterBody.pendingSuggestion).toBeNull();
     expect(histAfterBody.entries[0]?.appliedChoice).toBe("lower");
     expect(histAfterBody.entries[0]?.adjustmentBps).toBe(-1_000);
+  });
+
+  it("DELETE removes a single history entry, leaves property value untouched and rejects foreign/unknown ids", async () => {
+    const propA = createSampleProperty({ name: "Objekt A" });
+    const propB = createSampleProperty({ name: "Objekt B" });
+
+    updateProperty(propA.id, { estimatedValueCents: 31_000_000 });
+    updateProperty(propA.id, { estimatedValueCents: 3_100_000_000 });
+
+    const HISTORY = createValuationHistoryHandler();
+    const readEntries = async (id: string) => {
+      const res = await HISTORY(new Request("http://localhost"), {
+        params: Promise.resolve({ id }),
+      });
+      return ((await res.json()) as {
+        entries: Array<{ id: string; medianCents: number }>;
+      }).entries;
+    };
+
+    const before = await readEntries(propA.id);
+    expect(before).toHaveLength(2);
+    const typo = before.find((e) => e.medianCents === 3_100_000_000)!;
+
+    const DELETE = createValuationHistoryEntryDeleteHandler();
+
+    const foreignRes = await DELETE(
+      new Request("http://localhost", { method: "DELETE" }),
+      { params: Promise.resolve({ id: propB.id, historyId: typo.id }) },
+    );
+    expect(foreignRes.status).toBe(404);
+
+    const unknownRes = await DELETE(
+      new Request("http://localhost", { method: "DELETE" }),
+      { params: Promise.resolve({ id: propA.id, historyId: "does-not-exist" }) },
+    );
+    expect(unknownRes.status).toBe(404);
+
+    const okRes = await DELETE(
+      new Request("http://localhost", { method: "DELETE" }),
+      { params: Promise.resolve({ id: propA.id, historyId: typo.id }) },
+    );
+    expect(okRes.status).toBe(200);
+
+    const after = await readEntries(propA.id);
+    expect(after).toHaveLength(1);
+    expect(after[0]!.medianCents).toBe(31_000_000);
+    expect(getPropertyById(propA.id)!.estimatedValueCents).toBe(3_100_000_000);
+
+    const againRes = await DELETE(
+      new Request("http://localhost", { method: "DELETE" }),
+      { params: Promise.resolve({ id: propA.id, historyId: typo.id }) },
+    );
+    expect(againRes.status).toBe(404);
+  });
+
+  it("DELETE of a pending suggestion clears history.pendingSuggestion", async () => {
+    const prop = createSampleProperty();
+    const ESTIMATE = createValuationEstimateHandler(
+      () => ({
+        estimate: async () => ({
+          ok: true,
+          provider: "immoanalyse",
+          result: {
+            requestId: "req_delete",
+            cached: false,
+            valuability: "valuable",
+            lowerCents: 28_000_000,
+            medianCents: 32_000_000,
+            upperCents: 36_000_000,
+            asOfDate: "2026-11-10",
+            confidence: "high",
+            confidenceScore: 85,
+            rationale: "Gut",
+            limitations: [],
+            factors: [],
+          },
+          quota: null,
+        }),
+      }),
+      FIXED_NOW,
+    );
+    const estRes = await ESTIMATE(
+      new Request("http://localhost", { method: "POST", body: "{}" }),
+      { params: Promise.resolve({ id: prop.id }) },
+    );
+    const { historyId } = (await estRes.json()) as { historyId: string };
+
+    const DELETE = createValuationHistoryEntryDeleteHandler();
+    const delRes = await DELETE(
+      new Request("http://localhost", { method: "DELETE" }),
+      { params: Promise.resolve({ id: prop.id, historyId }) },
+    );
+    expect(delRes.status).toBe(200);
+
+    const HISTORY = createValuationHistoryHandler();
+    const histRes = await HISTORY(new Request("http://localhost"), {
+      params: Promise.resolve({ id: prop.id }),
+    });
+    const body = (await histRes.json()) as {
+      entries: unknown[];
+      pendingSuggestion: unknown;
+    };
+    expect(body.entries).toHaveLength(0);
+    expect(body.pendingSuggestion).toBeNull();
+    expect(getPropertyById(prop.id)!.estimatedValueCents).toBe(30_000_000);
   });
 });

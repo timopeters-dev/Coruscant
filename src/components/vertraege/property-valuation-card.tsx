@@ -432,6 +432,20 @@ export function PropertyValuationCard({
     };
   }, [property.id, property.updatedAt]);
 
+  async function handleDeleteHistoryEntry(historyId: string) {
+    const res = await fetch(
+      `/api/properties/${encodeURIComponent(property.id)}/valuation/history/${encodeURIComponent(historyId)}`,
+      { method: "DELETE" },
+    );
+    if (!res.ok && res.status !== 404) {
+      const body = (await res.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      throw new Error(body?.error ?? "Eintrag konnte nicht gelöscht werden.");
+    }
+    await loadAll();
+  }
+
   async function handleTogglePreview() {
     const nextOpen = !previewOpen;
     setPreviewOpen(nextOpen);
@@ -1378,7 +1392,10 @@ export function PropertyValuationCard({
         </div>
       ) : null}
 
-      <PropertyValuationHistoryChart entries={historyEntries} />
+      <PropertyValuationHistoryChart
+        entries={historyEntries}
+        onDeleteEntry={handleDeleteHistoryEntry}
+      />
     </div>
   );
 }
