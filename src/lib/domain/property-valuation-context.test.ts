@@ -13,6 +13,7 @@ function makeBaseInput(
   return {
     asOfDate: "2026-11-18",
     usage: "rented",
+    propertyType: "etw",
     postalCode: "12345",
     city: "Musterstadt",
     livingAreaSqm: 85,
@@ -54,7 +55,7 @@ describe("property-valuation-context", () => {
     const json = serializePropertyValuationContext(result.context);
     expect(json).toBe(
       `{
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "asOfMonth": "2026-11",
   "location": {
     "country": "DE",
@@ -63,6 +64,7 @@ describe("property-valuation-context", () => {
   },
   "object": {
     "usage": "rented",
+    "propertyType": "etw",
     "livingAreaSqm": 85,
     "plotAreaSqm": 240,
     "constructionYear": 1998,
@@ -122,6 +124,7 @@ describe("property-valuation-context", () => {
         "city",
         "object",
         "usage",
+        "propertyType",
         "livingAreaSqm",
         "plotAreaSqm",
         "constructionYear",
@@ -176,6 +179,24 @@ describe("property-valuation-context", () => {
 
     expect(
       buildPropertyValuationContext(makeBaseInput({ livingAreaSqm: 0 })),
+    ).toEqual({ ok: false, reason: "missing_living_area" });
+  });
+
+  it("returns missing_property_type when propertyType is null and checks PLZ -> area -> type order", () => {
+    expect(
+      buildPropertyValuationContext(makeBaseInput({ propertyType: null })),
+    ).toEqual({ ok: false, reason: "missing_property_type" });
+
+    expect(
+      buildPropertyValuationContext(
+        makeBaseInput({ postalCode: null, livingAreaSqm: null, propertyType: null }),
+      ),
+    ).toEqual({ ok: false, reason: "missing_postal_code" });
+
+    expect(
+      buildPropertyValuationContext(
+        makeBaseInput({ livingAreaSqm: null, propertyType: null }),
+      ),
     ).toEqual({ ok: false, reason: "missing_living_area" });
   });
 

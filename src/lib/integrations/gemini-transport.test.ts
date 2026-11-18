@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildGeminiEndpoints,
   createGeminiJsonClient,
-  extractGroundingFromGeminiResponse,
   extractTextFromGeminiResponse,
   stripMarkdownCodeFences,
 } from "./gemini-transport";
@@ -82,7 +81,6 @@ describe("gemini-transport", () => {
       ok: true,
       json: { a: 1 },
       model: "m1",
-      grounding: { sources: [], webSearchQueries: [] },
     });
   });
 
@@ -112,64 +110,6 @@ describe("gemini-transport", () => {
         ],
       }),
     ).toBe('{"a":1}');
-  });
-
-  it("extractGroundingFromGeminiResponse filtert https, dedupliziert, kappt bei 8 und liefert bei Fehlen leer", () => {
-    expect(extractGroundingFromGeminiResponse(null)).toEqual({
-      sources: [],
-      webSearchQueries: [],
-    });
-    expect(extractGroundingFromGeminiResponse({ candidates: [{}] })).toEqual({
-      sources: [],
-      webSearchQueries: [],
-    });
-
-    const chunks = [
-      { web: { uri: "http://insecure.example.com", title: "HTTP" } },
-      { web: { uri: "javascript:alert(1)", title: "XSS" } },
-      { web: { uri: "https://a.example.com/1", title: "  Quelle A  " } },
-      { web: { uri: "https://a.example.com/1", title: "Duplikat A" } },
-      { web: { uri: "https://b.example.com/2" } },
-      ...Array.from({ length: 10 }, (_, idx) => ({
-        web: { uri: `https://c${idx}.example.com`, title: `C${idx}` },
-      })),
-    ];
-
-    const extracted = extractGroundingFromGeminiResponse({
-      candidates: [
-        {
-          groundingMetadata: {
-            groundingChunks: chunks,
-            webSearchQueries: [
-              "  12345 Musterstadt  ",
-              "12345 Musterstadt",
-              "q2",
-              "q3",
-              "q4",
-              "q5",
-              "q6",
-            ],
-          },
-        },
-      ],
-    });
-
-    expect(extracted.sources).toHaveLength(8);
-    expect(extracted.sources[0]).toEqual({
-      uri: "https://a.example.com/1",
-      title: "Quelle A",
-    });
-    expect(extracted.sources[1]).toEqual({
-      uri: "https://b.example.com/2",
-      title: "b.example.com",
-    });
-    expect(extracted.webSearchQueries).toEqual([
-      "12345 Musterstadt",
-      "q2",
-      "q3",
-      "q4",
-      "q5",
-    ]);
   });
 
   it("parst JSON mit erklärendem Text davor/danach (Codeblock oder geschweifte Klammern)", async () => {

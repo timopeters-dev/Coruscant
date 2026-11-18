@@ -1,10 +1,12 @@
 import { z } from "zod";
+import { AUTO_VALUATION_INTERVALS } from "@/lib/domain/auto-valuation-schedule";
 import { getTodayIsoDate, parseIsoDate } from "@/lib/domain/date";
 import {
   MAX_RENOVATIONS,
   RENOVATION_KINDS,
   type Renovation,
 } from "@/lib/domain/property-renovations";
+import { PROPERTY_TYPES } from "@/lib/domain/property-types";
 import { PROPERTY_PURCHASE_LIMITS } from "@/lib/domain/property-purchase-defaults";
 import { validateRentalProfile } from "@/lib/domain/rental";
 
@@ -50,6 +52,13 @@ export const nullableOptionalIsoDate = z.preprocess(
 );
 
 export const propertyUsageSchema = z.enum(["owner_occupied", "rented"]);
+export const propertyTypeSchema = z.enum(PROPERTY_TYPES);
+export const autoValuationIntervalSchema = z.enum(AUTO_VALUATION_INTERVALS);
+
+const nullableOptionalPropertyType = z.preprocess(
+  emptyStringToNull,
+  propertyTypeSchema.nullable().optional(),
+);
 
 export const PROPERTY_ENERGY_CLASSES = [
   "A+",
@@ -193,6 +202,8 @@ export const propertyCreateSchema = z
   .object({
     name: z.string().trim().min(1, "Name ist erforderlich.").max(120),
     usage: propertyUsageSchema.default("owner_occupied"),
+    propertyType: nullableOptionalPropertyType,
+    autoValuationInterval: autoValuationIntervalSchema.optional(),
     purchaseDate: nullableOptionalIsoDate,
     purchasePriceCents: nonNegativeSafeInt.nullable().optional(),
     estimatedValueCents: nonNegativeSafeInt,
@@ -219,6 +230,11 @@ export const propertyUpdateSchema = z
   .object({
     name: z.string().trim().min(1, "Name ist erforderlich.").max(120),
     usage: propertyUsageSchema,
+    propertyType: nullableOptionalPropertyType,
+    autoValuationInterval: autoValuationIntervalSchema,
+    estimatedValueSource: z.never({
+      message: "estimatedValueSource darf nicht manuell gesetzt werden.",
+    }),
     purchaseDate: nullableOptionalIsoDate,
     purchasePriceCents: nonNegativeSafeInt.nullable().optional(),
     estimatedValueCents: nonNegativeSafeInt,

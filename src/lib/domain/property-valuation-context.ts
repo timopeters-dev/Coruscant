@@ -11,6 +11,7 @@ import {
   type Renovation,
   type RenovationKind,
 } from "./property-renovations";
+import type { PropertyType } from "./property-types";
 
 export type PropertyValuationEnergyClass =
   | "A+"
@@ -26,6 +27,7 @@ export type PropertyValuationEnergyClass =
 export interface PropertyValuationContextInput {
   asOfDate: string;
   usage: PropertyUsage;
+  propertyType: PropertyType | null;
   postalCode: string | null;
   city: string | null;
   livingAreaSqm: number | null;
@@ -41,7 +43,7 @@ export interface PropertyValuationContextInput {
 }
 
 export interface PropertyValuationContext {
-  schemaVersion: 1;
+  schemaVersion: 2;
   asOfMonth: string;
   location: {
     country: "DE";
@@ -50,6 +52,7 @@ export interface PropertyValuationContext {
   };
   object: {
     usage: PropertyUsage;
+    propertyType: PropertyType;
     livingAreaSqm: number;
     plotAreaSqm: number | null;
     constructionYear: number | null;
@@ -64,7 +67,8 @@ export interface PropertyValuationContext {
 
 export type ValuationContextUnavailableReason =
   | "missing_postal_code"
-  | "missing_living_area";
+  | "missing_living_area"
+  | "missing_property_type";
 
 export type BuildValuationContextResult =
   | { ok: true; context: PropertyValuationContext }
@@ -130,6 +134,10 @@ export function buildPropertyValuationContext(
     return { ok: false, reason: "missing_living_area" };
   }
 
+  if (input.propertyType == null) {
+    return { ok: false, reason: "missing_property_type" };
+  }
+
   const livingAreaSqm = assertNonNegativeInteger(
     input.livingAreaSqm,
     "livingAreaSqm",
@@ -177,7 +185,7 @@ export function buildPropertyValuationContext(
   }
 
   const context: PropertyValuationContext = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     asOfMonth,
     location: {
       country: "DE",
@@ -186,6 +194,7 @@ export function buildPropertyValuationContext(
     },
     object: {
       usage: input.usage,
+      propertyType: input.propertyType,
       livingAreaSqm,
       plotAreaSqm,
       constructionYear,
@@ -207,6 +216,7 @@ function collectStringValues(context: PropertyValuationContext): string[] {
     context.location.country,
     context.location.postalCode,
     context.object.usage,
+    context.object.propertyType,
   ];
   if (context.location.city != null) {
     values.push(context.location.city);

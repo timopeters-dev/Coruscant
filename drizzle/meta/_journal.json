@@ -71,6 +71,13 @@
       "when": 1795001009919,
       "tag": "0009_demonic_pride",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1795006331238,
+      "tag": "0010_yummy_invisible_woman",
+      "breakpoints": true
     }
   ]
 }

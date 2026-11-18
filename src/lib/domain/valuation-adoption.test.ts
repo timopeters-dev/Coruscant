@@ -1,159 +1,134 @@
 import { describe, expect, it } from "vitest";
-import type { PropertyValuation } from "./property-valuation";
 import {
-  buildAdoptionPatch,
+  buildAdoptionRequest,
+  getSelectedValuationCents,
   INITIAL_VALUATION_ADOPTION_STATE,
   valuationAdoptionReducer,
 } from "./valuation-adoption";
 
-const sampleValuation: PropertyValuation = {
-  lowerCents: 28_000_000,
-  medianCents: 32_000_000,
-  upperCents: 36_000_000,
-  pricePerSqmMedianCents: 320_000,
-  asOfDate: "2026-10-15",
-  rationale: "Marktbericht Musterstadt",
-  factors: [],
-  confidence: "medium",
-  sources: [{ uri: "https://example.com", title: "Quelle" }],
-  searchQueries: [],
-};
+const H1 = "11111111-1111-4111-8111-111111111111";
+const H2 = "22222222-2222-4222-8222-222222222222";
 
 describe("valuation-adoption", () => {
-  it("transitions from suggested to confirming via requestAdopt and only produces patch on confirm", () => {
+  it("transitions from suggested to confirming and only produces request on confirm", () => {
     const suggested = valuationAdoptionReducer(
       INITIAL_VALUATION_ADOPTION_STATE,
-      { type: "suggest" },
+      { type: "suggest", historyId: H1 },
     );
-    expect(suggested).toEqual({ phase: "suggested", choice: "median" });
-    expect(
-      buildAdoptionPatch(
-        suggested,
-        { type: "requestAdopt" },
-        sampleValuation,
-        "2026-11-18",
-      ),
-    ).toBeNull();
+    expect(suggested).toEqual({
+      phase: "suggested",
+      historyId: H1,
+      choice: "median",
+    });
+    expect(buildAdoptionRequest(suggested, { type: "requestAdopt" })).toBeNull();
 
     const confirming = valuationAdoptionReducer(suggested, {
       type: "requestAdopt",
     });
-    expect(confirming).toEqual({ phase: "confirming", choice: "median" });
+    expect(confirming).toEqual({
+      phase: "confirming",
+      historyId: H1,
+      choice: "median",
+    });
 
-    const patch = buildAdoptionPatch(
-      confirming,
-      { type: "confirm" },
-      sampleValuation,
-      "2026-11-18",
-    );
-    expect(patch).toEqual({
-      estimatedValueCents: 32_000_000,
-      estimatedValueAsOf: "2026-11-18",
+    expect(buildAdoptionRequest(confirming, { type: "confirm" })).toEqual({
+      historyId: H1,
+      choice: "median",
     });
 
     const submitting = valuationAdoptionReducer(confirming, {
       type: "confirm",
     });
-    expect(submitting).toEqual({ phase: "submitting", choice: "median" });
-    expect(
-      buildAdoptionPatch(
-        submitting,
-        { type: "confirm" },
-        sampleValuation,
-        "2026-11-18",
-      ),
-    ).toBeNull();
+    expect(submitting).toEqual({
+      phase: "submitting",
+      historyId: H1,
+      choice: "median",
+    });
+    expect(buildAdoptionRequest(submitting, { type: "confirm" })).toBeNull();
   });
 
-  it("returns null patch in idle, suggested, submitting, and after cancel", () => {
+  it("returns null request in idle, suggested, submitting, and after cancel", () => {
     const idle = INITIAL_VALUATION_ADOPTION_STATE;
-    expect(
-      buildAdoptionPatch(idle, { type: "confirm" }, sampleValuation, "2026-11-18"),
-    ).toBeNull();
+    expect(buildAdoptionRequest(idle, { type: "confirm" })).toBeNull();
 
-    const suggested = valuationAdoptionReducer(idle, { type: "suggest" });
-    expect(
-      buildAdoptionPatch(
-        suggested,
-        { type: "confirm" },
-        sampleValuation,
-        "2026-11-18",
-      ),
-    ).toBeNull();
+    const suggested = valuationAdoptionReducer(idle, {
+      type: "suggest",
+      historyId: H1,
+    });
+    expect(buildAdoptionRequest(suggested, { type: "confirm" })).toBeNull();
 
     const confirming = valuationAdoptionReducer(suggested, {
       type: "requestAdopt",
     });
     const cancelled = valuationAdoptionReducer(confirming, { type: "cancel" });
-    expect(cancelled).toEqual({ phase: "suggested", choice: "median" });
-    expect(
-      buildAdoptionPatch(
-        cancelled,
-        { type: "confirm" },
-        sampleValuation,
-        "2026-11-18",
-      ),
-    ).toBeNull();
+    expect(cancelled).toEqual({
+      phase: "suggested",
+      historyId: H1,
+      choice: "median",
+    });
+    expect(buildAdoptionRequest(cancelled, { type: "confirm" })).toBeNull();
   });
 
-  it("uses chosen upper bound in patch when choose('upper') is followed by confirm", () => {
+  it("uses chosen upper bound in request when choose('upper') is followed by confirm", () => {
     let state = valuationAdoptionReducer(INITIAL_VALUATION_ADOPTION_STATE, {
       type: "suggest",
+      historyId: H1,
     });
     state = valuationAdoptionReducer(state, { type: "choose", choice: "upper" });
     state = valuationAdoptionReducer(state, { type: "requestAdopt" });
 
-    const patch = buildAdoptionPatch(
-      state,
-      { type: "confirm" },
-      sampleValuation,
-      "2026-11-18",
-    );
-    expect(patch).toEqual({
-      estimatedValueCents: 36_000_000,
-      estimatedValueAsOf: "2026-11-18",
+    expect(buildAdoptionRequest(state, { type: "confirm" })).toEqual({
+      historyId: H1,
+      choice: "upper",
     });
+    expect(
+      getSelectedValuationCents(
+        {
+          lowerCents: 28_000_000,
+          medianCents: 32_000_000,
+          upperCents: 36_000_000,
+        },
+        "upper",
+      ),
+    ).toBe(36_000_000);
   });
 
-  it("resets to suggested/median on new suggest during confirming without producing a patch", () => {
+  it("resets to suggested/median on new suggest during confirming", () => {
     let state = valuationAdoptionReducer(INITIAL_VALUATION_ADOPTION_STATE, {
       type: "suggest",
+      historyId: H1,
     });
     state = valuationAdoptionReducer(state, { type: "choose", choice: "lower" });
     state = valuationAdoptionReducer(state, { type: "requestAdopt" });
 
-    expect(
-      buildAdoptionPatch(state, { type: "suggest" }, sampleValuation, "2026-11-18"),
-    ).toBeNull();
-
-    state = valuationAdoptionReducer(state, { type: "suggest" });
-    expect(state).toEqual({ phase: "suggested", choice: "median" });
+    const next = valuationAdoptionReducer(state, {
+      type: "suggest",
+      historyId: H2,
+    });
+    expect(next).toEqual({
+      phase: "suggested",
+      historyId: H2,
+      choice: "median",
+    });
+    expect(buildAdoptionRequest(next, { type: "confirm" })).toBeNull();
   });
 
-  it("uses passed today as estimatedValueAsOf instead of valuation.asOfDate", () => {
+  it("returns to confirming on failed and idle on done", () => {
     let state = valuationAdoptionReducer(INITIAL_VALUATION_ADOPTION_STATE, {
       type: "suggest",
+      historyId: H1,
     });
     state = valuationAdoptionReducer(state, { type: "requestAdopt" });
-
-    const patch = buildAdoptionPatch(
-      state,
-      { type: "confirm" },
-      sampleValuation,
-      "2026-11-18",
-    );
-    expect(patch?.estimatedValueAsOf).toBe("2026-11-18");
-    expect(patch?.estimatedValueAsOf).not.toBe(sampleValuation.asOfDate);
-  });
-
-  it("resets to idle on reset action", () => {
-    let state = valuationAdoptionReducer(INITIAL_VALUATION_ADOPTION_STATE, {
-      type: "suggest",
+    state = valuationAdoptionReducer(state, { type: "confirm" });
+    state = valuationAdoptionReducer(state, { type: "failed" });
+    expect(state).toEqual({
+      phase: "confirming",
+      historyId: H1,
+      choice: "median",
     });
-    state = valuationAdoptionReducer(state, { type: "requestAdopt" });
-    expect(state.phase).toBe("confirming");
 
-    state = valuationAdoptionReducer(state, { type: "reset" });
-    expect(state).toEqual(INITIAL_VALUATION_ADOPTION_STATE);
+    state = valuationAdoptionReducer(state, { type: "confirm" });
+    state = valuationAdoptionReducer(state, { type: "done" });
+    expect(state).toEqual({ phase: "idle" });
   });
 });

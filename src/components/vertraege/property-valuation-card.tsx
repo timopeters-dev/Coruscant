@@ -1,27 +1,45 @@
 "use client";
 
 import * as React from "react";
+import { formatIsoDateDE } from "@/components/planung/format";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import type { PropertyRow } from "@/db/queries/contracts";
-import { getTodayIsoDate } from "@/lib/domain/date";
+import type { PropertyValuationHistoryRow } from "@/db/schema";
+import {
+  AUTO_VALUATION_INTERVALS,
+  estimateMonthlyCalls,
+  getNextDue,
+  type AutoValuationInterval,
+  type PlannedConsumptionSummary,
+  type QuotaEvaluation,
+  type QuotaSnapshot,
+} from "@/lib/domain/auto-valuation-schedule";
 import { formatBpsDE, formatCentsDE } from "@/lib/domain/money";
-import type {
-  PropertyValuation,
-  ValuationRejectReason,
-  ValuationWarning,
+import {
+  computeValuationDeviationBps,
+  isDeviationAboveThreshold,
+  type PropertyValuation,
+  type ValuationRejectReason,
+  type ValuationWarning,
 } from "@/lib/domain/property-valuation";
 import {
-  buildAdoptionPatch,
+  buildAdoptionRequest,
   getSelectedValuationCents,
   INITIAL_VALUATION_ADOPTION_STATE,
   valuationAdoptionReducer,
   type ValuationChoice,
 } from "@/lib/domain/valuation-adoption";
+import type { ValuatorErrorCode } from "@/lib/integrations/property-valuator";
 import {
+  AUTO_VALUATION_INTERVAL_LABELS,
+  AUTO_VALUATION_OUTCOME_LABELS,
   VALUATION_CONFIDENCE_LABELS,
+  VALUATION_ERROR_CODE_LABELS,
   VALUATION_REJECT_REASON_LABELS,
 } from "./labels";
+import { PropertyValuationHistoryChart } from "./property-valuation-history-chart";
 
 interface PropertyValuationCardProps {
   property: PropertyRow;
@@ -33,39 +51,64 @@ interface CardErrorState {
   message: string;
 }
 
+interface ValuationStatusResponse {
+  configured: boolean;
+  scheduler: {
+    running: boolean;
+    jobs: Array<{
+      jobId: string;
+      enabled: boolean;
+      lastStatus: string | null;
+      lastRunAt: string | null;
+      message: string;
+      nextSlotAt: string;
+    }>;
+  };
+  quota: {
+    snapshot: QuotaSnapshot | null;
+    evaluation: QuotaEvaluation;
+  };
+  plannedConsumption: PlannedConsumptionSummary;
+}
+
+interface PendingSuggestionView {
+  historyId: string;
+  lowerCents: number;
+  medianCents: number;
+  upperCents: number;
+  asOfDate: string;
+  valuedAtDate: string;
+  confidence: "low" | "medium" | "high" | null;
+  confidenceScore: number | null;
+  pricePerSqmMedianCents: number | null;
+  rationale: string | null;
+  limitations: string[];
+  factors: Array<{ label: string; effect: "up" | "down" | "neutral" }>;
+  cached: boolean;
+  warnings: ValuationWarning[];
+}
+
 function mapApiErrorToState(
   code: string | undefined,
   reason: string | undefined,
   fallbackError: string | undefined,
 ): CardErrorState {
-  if (code === "not_configured") {
-    return {
-      tone: "amber",
-      message: "KI nicht konfiguriert (GEMINI_API_KEY fehlt).",
-    };
-  }
-  if (code === "timeout" || code === "network_error" || code === "http_error") {
-    return {
-      tone: "rose",
-      message: fallbackError
-        ? `KI nicht erreichbar. Später erneut versuchen. (${fallbackError})`
-        : "KI nicht erreichbar. Später erneut versuchen.",
-    };
-  }
-  if (code === "invalid_payload") {
-    return {
-      tone: "rose",
-      message: "KI-Antwort war unbrauchbar.",
-    };
-  }
   if (code === "valuation_rejected" && reason) {
     const label =
       reason in VALUATION_REJECT_REASON_LABELS
         ? VALUATION_REJECT_REASON_LABELS[reason as ValuationRejectReason]
-        : "KI-Wertschätzung konnte nicht plausibilisiert werden.";
+        : "Wertschätzung konnte nicht plausibilisiert werden.";
+    return { tone: "amber", message: label };
+  }
+  if (code && code in VALUATION_ERROR_CODE_LABELS) {
+    const errCode = code as ValuatorErrorCode;
+    const tone =
+      errCode === "not_valuable" || errCode === "quota_exceeded"
+        ? "amber"
+        : "rose";
     return {
-      tone: "amber",
-      message: label,
+      tone,
+      message: VALUATION_ERROR_CODE_LABELS[errCode],
     };
   }
   return {
@@ -74,9 +117,41 @@ function mapApiErrorToState(
   };
 }
 
+const berlinDateFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/Berlin",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function toBerlinDateKeyClient(isoTimestamp: string): string {
+  return berlinDateFormatter.format(new Date(isoTimestamp));
+}
+
 function formatDeviationPercent(deviationBps: number): string {
   const sign = deviationBps >= 0 ? "+" : "−";
   return `${sign}${formatBpsDE(Math.abs(deviationBps))}`;
+}
+
+function mapHistoryToSuggestion(
+  row: PropertyValuationHistoryRow,
+): PendingSuggestionView {
+  return {
+    historyId: row.id,
+    lowerCents: row.lowerCents,
+    medianCents: row.medianCents,
+    upperCents: row.upperCents,
+    asOfDate: row.dataAsOf ?? toBerlinDateKeyClient(row.valuedAt),
+    valuedAtDate: toBerlinDateKeyClient(row.valuedAt),
+    confidence: row.confidence,
+    confidenceScore: row.confidenceScore,
+    pricePerSqmMedianCents: null,
+    rationale: null,
+    limitations: [],
+    factors: [],
+    cached: false,
+    warnings: [],
+  };
 }
 
 export function PropertyValuationCard({
@@ -91,18 +166,18 @@ export function PropertyValuationCard({
   >(null);
 
   const [isEstimating, setIsEstimating] = React.useState(false);
-  const [valuation, setValuation] = React.useState<PropertyValuation | null>(
-    null,
-  );
-  const [valuationContextJson, setValuationContextJson] = React.useState<
-    string | null
-  >(null);
-  const valuationContextJsonRef = React.useRef<string | null>(null);
+  const [isSavingInterval, setIsSavingInterval] = React.useState(false);
+  const [suggestion, setSuggestion] =
+    React.useState<PendingSuggestionView | null>(null);
+  const suggestionRef = React.useRef<PendingSuggestionView | null>(null);
   React.useEffect(() => {
-    valuationContextJsonRef.current = valuationContextJson;
-  }, [valuationContextJson]);
-  const [warnings, setWarnings] = React.useState<ValuationWarning[]>([]);
-  const [queriesOpen, setQueriesOpen] = React.useState(false);
+    suggestionRef.current = suggestion;
+  }, [suggestion]);
+  const [historyEntries, setHistoryEntries] = React.useState<
+    PropertyValuationHistoryRow[]
+  >([]);
+  const [statusData, setStatusData] =
+    React.useState<ValuationStatusResponse | null>(null);
   const [errorState, setErrorState] = React.useState<CardErrorState | null>(
     null,
   );
@@ -113,80 +188,129 @@ export function PropertyValuationCard({
     INITIAL_VALUATION_ADOPTION_STATE,
   );
 
-  const loadPreview = React.useCallback(async (): Promise<boolean> => {
-    setPreviewLoading(true);
+  const loadAll = React.useCallback(async () => {
     try {
-      const res = await fetch(
-        `/api/properties/${encodeURIComponent(property.id)}/valuation`,
-      );
-      const data = (await res.json()) as {
-        contextJson?: string;
+      const [previewRes, historyRes, statusRes] = await Promise.all([
+        fetch(`/api/properties/${encodeURIComponent(property.id)}/valuation`),
+        fetch(
+          `/api/properties/${encodeURIComponent(property.id)}/valuation/history`,
+        ),
+        fetch("/api/valuation/status"),
+      ]);
+
+      const previewBody = (await previewRes.json()) as {
+        requestJson?: string;
         usable?: boolean;
-        code?: string;
         error?: string;
       };
-      if (res.ok && data.usable && data.contextJson) {
-        setPreviewJson(data.contextJson);
+      if (previewRes.ok && previewBody.usable && previewBody.requestJson) {
+        setPreviewJson(previewBody.requestJson);
         setContextUnavailable(null);
-        return true;
+      } else {
+        setPreviewJson(null);
+        if (previewRes.status === 422) {
+          setContextUnavailable(
+            previewBody.error ??
+              "PLZ, Wohnfläche und Objekttyp pflegen, um eine Schätzung zu erhalten.",
+          );
+        }
       }
-      setPreviewJson(null);
-      if (res.status === 422) {
-        setContextUnavailable(
-          "PLZ und Wohnfläche im Objekt pflegen, um eine Schätzung zu erhalten.",
-        );
+
+      if (historyRes.ok) {
+        const histBody = (await historyRes.json()) as {
+          entries: PropertyValuationHistoryRow[];
+          pendingSuggestion: PropertyValuationHistoryRow | null;
+        };
+        setHistoryEntries(histBody.entries);
+        if (histBody.pendingSuggestion) {
+          if (
+            suggestionRef.current?.historyId === histBody.pendingSuggestion.id
+          ) {
+            // Keep rich details (rationale, limitations, cached) from just-run POST
+          } else {
+            const mapped = mapHistoryToSuggestion(histBody.pendingSuggestion);
+            setSuggestion(mapped);
+            dispatch({ type: "suggest", historyId: mapped.historyId });
+          }
+        } else {
+          setSuggestion(null);
+          dispatch({ type: "reset" });
+        }
       }
-      return false;
+
+      if (statusRes.ok) {
+        const sBody = (await statusRes.json()) as ValuationStatusResponse;
+        setStatusData(sBody);
+      }
     } catch {
-      return false;
-    } finally {
-      setPreviewLoading(false);
+      // Ignore transient load errors on mount
     }
   }, [property.id]);
 
   React.useEffect(() => {
     let cancelled = false;
-    async function checkAvailability() {
+    async function syncOnMount() {
       try {
-        const res = await fetch(
-          `/api/properties/${encodeURIComponent(property.id)}/valuation`,
-        );
-        const data = (await res.json()) as {
-          contextJson?: string;
+        const [previewRes, historyRes, statusRes] = await Promise.all([
+          fetch(`/api/properties/${encodeURIComponent(property.id)}/valuation`),
+          fetch(
+            `/api/properties/${encodeURIComponent(property.id)}/valuation/history`,
+          ),
+          fetch("/api/valuation/status"),
+        ]);
+        if (cancelled) return;
+
+        const previewBody = (await previewRes.json()) as {
+          requestJson?: string;
           usable?: boolean;
+          error?: string;
         };
         if (cancelled) return;
-        if (res.ok && data.usable && data.contextJson) {
-          setPreviewJson(data.contextJson);
+        if (previewRes.ok && previewBody.usable && previewBody.requestJson) {
+          setPreviewJson(previewBody.requestJson);
           setContextUnavailable(null);
-          if (
-            valuationContextJsonRef.current !== null &&
-            data.contextJson !== valuationContextJsonRef.current
-          ) {
-            setValuation(null);
-            setWarnings([]);
-            setValuationContextJson(null);
-            dispatch({ type: "reset" });
-          }
         } else {
           setPreviewJson(null);
-          if (valuationContextJsonRef.current !== null) {
-            setValuation(null);
-            setWarnings([]);
-            setValuationContextJson(null);
-            dispatch({ type: "reset" });
-          }
-          if (res.status === 422) {
+          if (previewRes.status === 422) {
             setContextUnavailable(
-              "PLZ und Wohnfläche im Objekt pflegen, um eine Schätzung zu erhalten.",
+              previewBody.error ??
+                "PLZ, Wohnfläche und Objekttyp pflegen, um eine Schätzung zu erhalten.",
             );
           }
         }
+
+        if (historyRes.ok) {
+          const histBody = (await historyRes.json()) as {
+            entries: PropertyValuationHistoryRow[];
+            pendingSuggestion: PropertyValuationHistoryRow | null;
+          };
+          if (cancelled) return;
+          setHistoryEntries(histBody.entries);
+          if (histBody.pendingSuggestion) {
+            if (
+              suggestionRef.current?.historyId !== histBody.pendingSuggestion.id
+            ) {
+              const mapped = mapHistoryToSuggestion(histBody.pendingSuggestion);
+              setSuggestion(mapped);
+              dispatch({ type: "suggest", historyId: mapped.historyId });
+            }
+          } else {
+            setSuggestion(null);
+            dispatch({ type: "reset" });
+          }
+        }
+
+        if (statusRes.ok) {
+          const sBody = (await statusRes.json()) as ValuationStatusResponse;
+          if (!cancelled) {
+            setStatusData(sBody);
+          }
+        }
       } catch {
-        // Ignore transient preview check errors on mount
+        // Ignore transient load errors on mount
       }
     }
-    void checkAvailability();
+    void syncOnMount();
     return () => {
       cancelled = true;
     };
@@ -196,7 +320,40 @@ export function PropertyValuationCard({
     const nextOpen = !previewOpen;
     setPreviewOpen(nextOpen);
     if (nextOpen && !previewJson && !contextUnavailable) {
-      await loadPreview();
+      setPreviewLoading(true);
+      await loadAll();
+      setPreviewLoading(false);
+    }
+  }
+
+  async function handleIntervalChange(nextInterval: AutoValuationInterval) {
+    setIsSavingInterval(true);
+    setErrorState(null);
+    try {
+      const res = await fetch(
+        `/api/properties/${encodeURIComponent(property.id)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ autoValuationInterval: nextInterval }),
+        },
+      );
+      if (!res.ok) {
+        setErrorState({
+          tone: "rose",
+          message: "Intervall konnte nicht gespeichert werden.",
+        });
+        return;
+      }
+      onMutated();
+      await loadAll();
+    } catch {
+      setErrorState({
+        tone: "rose",
+        message: "Intervall konnte nicht gespeichert werden.",
+      });
+    } finally {
+      setIsSavingInterval(false);
     }
   }
 
@@ -204,7 +361,6 @@ export function PropertyValuationCard({
     setIsEstimating(true);
     setErrorState(null);
     setAdoptedNotice(false);
-    setQueriesOpen(false);
     try {
       const res = await fetch(
         `/api/properties/${encodeURIComponent(property.id)}/valuation`,
@@ -217,16 +373,19 @@ export function PropertyValuationCard({
       const data = (await res.json()) as {
         valuation?: PropertyValuation;
         warnings?: ValuationWarning[];
-        contextJson?: string;
+        historyId?: string;
+        requestJson?: string;
+        cached?: boolean;
         code?: string;
         reason?: string;
         error?: string;
       };
 
-      if (!res.ok || !data.valuation) {
+      if (!res.ok || !data.valuation || !data.historyId) {
         if (data.code === "valuation_context_unavailable") {
           setContextUnavailable(
-            "PLZ und Wohnfläche im Objekt pflegen, um eine Schätzung zu erhalten.",
+            data.error ??
+              "PLZ, Wohnfläche und Objekttyp pflegen, um eine Schätzung zu erhalten.",
           );
         } else {
           setErrorState(
@@ -236,19 +395,33 @@ export function PropertyValuationCard({
         return;
       }
 
-      if (data.contextJson) {
-        setPreviewJson(data.contextJson);
-        setValuationContextJson(data.contextJson);
-      } else {
-        setValuationContextJson(previewJson);
+      if (data.requestJson) {
+        setPreviewJson(data.requestJson);
       }
-      setValuation(data.valuation);
-      setWarnings(data.warnings ?? []);
-      dispatch({ type: "suggest" });
+      const nextSuggestion: PendingSuggestionView = {
+        historyId: data.historyId,
+        lowerCents: data.valuation.lowerCents,
+        medianCents: data.valuation.medianCents,
+        upperCents: data.valuation.upperCents,
+        asOfDate: data.valuation.asOfDate,
+        valuedAtDate: toBerlinDateKeyClient(new Date().toISOString()),
+        confidence: data.valuation.confidence,
+        confidenceScore: data.valuation.confidenceScore,
+        pricePerSqmMedianCents: data.valuation.pricePerSqmMedianCents,
+        rationale: data.valuation.rationale,
+        limitations: data.valuation.limitations,
+        factors: data.valuation.factors,
+        cached: Boolean(data.cached),
+        warnings: data.warnings ?? [],
+      };
+      suggestionRef.current = nextSuggestion;
+      setSuggestion(nextSuggestion);
+      dispatch({ type: "suggest", historyId: data.historyId });
+      await loadAll();
     } catch {
       setErrorState({
         tone: "rose",
-        message: "KI nicht erreichbar. Später erneut versuchen.",
+        message: "ImmoAnalyse.Pro ist derzeit nicht erreichbar.",
       });
     } finally {
       setIsEstimating(false);
@@ -256,26 +429,19 @@ export function PropertyValuationCard({
   }
 
   async function handleConfirmAdopt() {
-    if (!valuation) return;
-    const today = getTodayIsoDate();
-    const patch = buildAdoptionPatch(
-      adoptionState,
-      { type: "confirm" },
-      valuation,
-      today,
-    );
-    if (!patch) return;
+    const reqBody = buildAdoptionRequest(adoptionState, { type: "confirm" });
+    if (!reqBody) return;
 
     dispatch({ type: "confirm" });
     setErrorState(null);
 
     try {
       const res = await fetch(
-        `/api/properties/${encodeURIComponent(property.id)}`,
+        `/api/properties/${encodeURIComponent(property.id)}/valuation/adopt`,
         {
-          method: "PATCH",
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(patch),
+          body: JSON.stringify(reqBody),
         },
       );
 
@@ -289,11 +455,11 @@ export function PropertyValuationCard({
       }
 
       dispatch({ type: "done" });
-      setValuation(null);
-      setValuationContextJson(null);
-      setWarnings([]);
+      suggestionRef.current = null;
+      setSuggestion(null);
       setAdoptedNotice(true);
       onMutated();
+      await loadAll();
     } catch {
       dispatch({ type: "failed" });
       setErrorState({
@@ -303,22 +469,69 @@ export function PropertyValuationCard({
     }
   }
 
-  const today = getTodayIsoDate();
-  const isBusy = isEstimating || adoptionState.phase === "submitting";
+  const isBusy =
+    isEstimating || isSavingInterval || adoptionState.phase === "submitting";
   const selectedCents =
-    valuation &&
+    suggestion &&
     (adoptionState.phase === "suggested" ||
       adoptionState.phase === "confirming" ||
       adoptionState.phase === "submitting")
-      ? getSelectedValuationCents(valuation, adoptionState.choice)
+      ? getSelectedValuationCents(suggestion, adoptionState.choice)
       : null;
 
+  const latestHistory =
+    historyEntries.length > 0
+      ? historyEntries[historyEntries.length - 1]
+      : null;
+
+  const schedulerJob = statusData?.scheduler.jobs[0] ?? null;
+  const quotaSnapshot = statusData?.quota.snapshot ?? null;
+  const quotaEval = statusData?.quota.evaluation ?? null;
+  const planned = statusData?.plannedConsumption ?? null;
+
+  const nextDue = getNextDue(
+    property.autoValuationInterval,
+    property.lastAutoValuationAt
+      ? toBerlinDateKeyClient(property.lastAutoValuationAt)
+      : null,
+  );
+
+  let nextRunText = "aus";
+  if (statusData && !statusData.configured) {
+    nextRunText = "nicht konfiguriert (IMMOANALYSE_API_KEY fehlt)";
+  } else if (schedulerJob && !schedulerJob.enabled) {
+    nextRunText = "pausiert: Dev ohne ENABLE_VALUATION_SCHEDULER";
+  } else if (quotaEval && !quotaEval.allowed) {
+    nextRunText = quotaEval.resetAt
+      ? `pausiert: Reserve geschützt bis ${formatIsoDateDE(toBerlinDateKeyClient(quotaEval.resetAt))}`
+      : "pausiert: Reserve geschützt";
+  } else if (nextDue !== null) {
+    nextRunText =
+      "dueNow" in nextDue
+        ? "bei nächstem Lauf"
+        : `ab ${formatIsoDateDE(nextDue.dueOn)}, 04:30`;
+  }
+
+  const deviationBps = suggestion
+    ? computeValuationDeviationBps(
+        suggestion.medianCents,
+        property.estimatedValueCents,
+      )
+    : null;
+  const showDeviationWarning = isDeviationAboveThreshold(deviationBps);
+
   return (
-    <div className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]/30 p-4 text-sm">
+    <div className="space-y-3 rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-elevated)]/30 p-4 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="space-y-0.5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-            KI-Wertschätzung (optional)
+          <div className="flex items-center gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+              Wertschätzung · ImmoAnalyse.Pro
+            </p>
+            <StatusBadge variant="modeled" />
+          </div>
+          <p className="text-[11px] text-[var(--text-secondary)]">
+            Wertindikation, kein Gutachten.
           </p>
           {adoptedNotice ? (
             <p className="text-xs font-medium text-[var(--emerald)]">
@@ -332,7 +545,7 @@ export function PropertyValuationCard({
             onClick={handleTogglePreview}
             className="text-xs text-[var(--text-secondary)] underline underline-offset-2 hover:text-[var(--text-primary)]"
           >
-            Was die KI sieht
+            Was der Dienst sieht
           </button>
           <Button
             type="button"
@@ -341,9 +554,99 @@ export function PropertyValuationCard({
             onClick={handleEstimate}
             disabled={isBusy || Boolean(contextUnavailable)}
           >
-            {isEstimating ? "Schätzt…" : "Wertspanne schätzen"}
+            {isEstimating ? "Schätzt…" : "Jetzt schätzen"}
           </Button>
         </div>
+      </div>
+
+      {/* Statuszeilen */}
+      <div className="grid gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 text-xs text-[var(--text-secondary)] tabular-nums">
+        <p>
+          <span className="font-medium text-[var(--text-primary)]">
+            Aktueller Wert:
+          </span>{" "}
+          {property.estimatedValueSource === "manual"
+            ? "manuell"
+            : property.estimatedValueAsOf
+              ? `aus ImmoAnalyse, Stand ${formatIsoDateDE(property.estimatedValueAsOf)}`
+              : "aus ImmoAnalyse"}
+        </p>
+        <p>
+          <span className="font-medium text-[var(--text-primary)]">
+            Letzte Schätzung:
+          </span>{" "}
+          {latestHistory
+            ? `${formatIsoDateDE(toBerlinDateKeyClient(latestHistory.valuedAt))} · ${formatCentsDE(latestHistory.medianCents)}`
+            : "noch keine"}
+          {property.lastAutoValuationOutcome
+            ? ` (${AUTO_VALUATION_OUTCOME_LABELS[property.lastAutoValuationOutcome]})`
+            : ""}
+        </p>
+        <p>
+          <span className="font-medium text-[var(--text-primary)]">
+            Nächste Schätzung:
+          </span>{" "}
+          {nextRunText}
+        </p>
+        <p>
+          <span className="font-medium text-[var(--text-primary)]">
+            Kontingent:
+          </span>{" "}
+          {quotaSnapshot
+            ? `${quotaSnapshot.remaining} von ${quotaSnapshot.limit} frei${
+                quotaSnapshot.resetAt
+                  ? ` · Reset ${formatIsoDateDE(quotaSnapshot.resetAt.slice(0, 10))}`
+                  : ""
+              }`
+            : "unbekannt (noch keine Abfrage)"}
+        </p>
+      </div>
+
+      {quotaSnapshot && quotaSnapshot.remaining === 0 ? (
+        <p className="rounded-lg border border-[var(--amber)]/40 bg-[var(--amber)]/10 px-3 py-2 text-xs text-[var(--amber)]">
+          Hinweis: Das API-Kontingent ist aktuell erschöpft (0 frei).
+        </p>
+      ) : null}
+
+      {/* Intervall & Verbrauchsrechnung */}
+      <div className="space-y-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <label
+            htmlFor={`auto-val-interval-${property.id}`}
+            className="text-xs font-medium text-[var(--text-secondary)]"
+          >
+            Automatische Aktualisierung
+          </label>
+          <Select
+            id={`auto-val-interval-${property.id}`}
+            value={property.autoValuationInterval}
+            onChange={(e) =>
+              void handleIntervalChange(
+                e.target.value as AutoValuationInterval,
+              )
+            }
+            disabled={isBusy}
+            className="w-44"
+          >
+            {AUTO_VALUATION_INTERVALS.map((interval) => (
+              <option key={interval} value={interval}>
+                {AUTO_VALUATION_INTERVAL_LABELS[interval]}
+              </option>
+            ))}
+          </Select>
+        </div>
+        {planned ? (
+          <p className="text-[11px] text-[var(--text-secondary)] tabular-nums">
+            ≈ {estimateMonthlyCalls(property.autoValuationInterval)}{" "}
+            Abfragen/Monat für dieses Objekt · alle Objekte zusammen bis zu{" "}
+            {planned.peakMonthly} von {planned.autoBudget} (3 Reserve)
+          </p>
+        ) : null}
+        {planned?.overBudget ? (
+          <p className="rounded-lg border border-[var(--amber)]/40 bg-[var(--amber)]/10 px-3 py-2 text-xs text-[var(--amber)]">
+            Mehr als das Auto-Budget, einzelne Läufe verschieben sich.
+          </p>
+        ) : null}
       </div>
 
       {contextUnavailable ? (
@@ -355,8 +658,8 @@ export function PropertyValuationCard({
       {previewOpen ? (
         <div className="space-y-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
           <p className="text-xs text-[var(--text-secondary)]">
-            Straße, Hausnummer, Name und Dokumente werden nicht gesendet. Die
-            Suche läuft über Google.
+            Straße, Hausnummer, Name, Ausstattungstext, Sanierungen und
+            Dokumente werden nicht gesendet.
           </p>
           {previewLoading ? (
             <p className="text-xs text-[var(--text-secondary)]">Lädt…</p>
@@ -384,196 +687,151 @@ export function PropertyValuationCard({
         </p>
       ) : null}
 
-      {valuation && adoptionState.phase !== "idle" ? (
+      {/* Offener Vorschlag */}
+      {suggestion && adoptionState.phase !== "idle" ? (
         <div className="space-y-3 rounded-xl border border-[var(--amber)]/50 bg-[var(--surface)] p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <StatusBadge variant="ai_suggestion" />
             <span className="text-xs text-[var(--text-secondary)] tabular-nums">
-              Marktdaten-Stand: {valuation.asOfDate} · Konfidenz:{" "}
-              {VALUATION_CONFIDENCE_LABELS[valuation.confidence]}
+              Stand: {formatIsoDateDE(suggestion.asOfDate)}
+              {suggestion.confidence
+                ? ` · Konfidenz: ${VALUATION_CONFIDENCE_LABELS[suggestion.confidence]}${
+                    suggestion.confidenceScore !== null
+                      ? ` (${suggestion.confidenceScore}/100)`
+                      : ""
+                  }`
+                : ""}
             </span>
           </div>
 
           <div>
-            <p className="tabular-nums text-base text-[var(--text-primary)]">
+            <p className="tabular-nums text-sm text-[var(--text-primary)]">
+              Auto-Schätzung vom {formatIsoDateDE(suggestion.valuedAtDate)}:{" "}
               <span className="text-[var(--text-secondary)]">
-                {formatCentsDE(valuation.lowerCents)}
+                {formatCentsDE(suggestion.lowerCents)}
               </span>
               {" – "}
               <strong className="font-semibold text-[var(--text-primary)]">
-                {formatCentsDE(valuation.medianCents)}
+                {formatCentsDE(suggestion.medianCents)}
               </strong>
               {" – "}
               <span className="text-[var(--text-secondary)]">
-                {formatCentsDE(valuation.upperCents)}
+                {formatCentsDE(suggestion.upperCents)}
               </span>
+              {deviationBps !== null
+                ? ` (${formatDeviationPercent(deviationBps)})`
+                : ""}
             </p>
             <p className="mt-0.5 text-xs text-[var(--text-secondary)] tabular-nums">
-              Median: {formatCentsDE(valuation.pricePerSqmMedianCents)} / m²
+              Aktueller Objektwert: {formatCentsDE(property.estimatedValueCents)}
+              {suggestion.pricePerSqmMedianCents !== null
+                ? ` · Median: ${formatCentsDE(suggestion.pricePerSqmMedianCents)} / m²`
+                : ""}
+              {suggestion.cached
+                ? " · aus Zwischenspeicher, nicht gezählt"
+                : ""}
             </p>
           </div>
 
-          {warnings.map((w, idx) => (
-            <p
-              key={idx}
-              className="rounded-lg border border-[var(--amber)]/40 bg-[var(--amber)]/10 px-3 py-2 text-xs text-[var(--amber)] tabular-nums"
-            >
-              Weicht um {formatDeviationPercent(w.deviationBps)} vom aktuellen
-              Objektwert ab. Bitte Quellen prüfen.
+          {showDeviationWarning && deviationBps !== null ? (
+            <p className="rounded-lg border border-[var(--amber)]/40 bg-[var(--amber)]/10 px-3 py-2 text-xs text-[var(--amber)] tabular-nums">
+              Hinweis: Abweichung vom aktuellen Objektwert beträgt{" "}
+              {formatDeviationPercent(deviationBps)} (&gt; ±40 %). Bitte
+              manuell prüfen.
             </p>
-          ))}
+          ) : null}
 
-          <p className="text-xs leading-relaxed text-[var(--text-primary)]">
-            {valuation.rationale}
-          </p>
+          {suggestion.rationale ? (
+            <p className="text-xs text-[var(--text-secondary)]">
+              {suggestion.rationale}
+            </p>
+          ) : null}
 
-          {valuation.factors.length > 0 ? (
-            <ul className="space-y-1 text-xs text-[var(--text-secondary)]">
-              {valuation.factors.map((factor, idx) => (
-                <li key={idx} className="flex items-center gap-1.5">
-                  <span aria-hidden="true" className="font-semibold">
-                    {factor.effect === "up"
-                      ? "↑"
-                      : factor.effect === "down"
-                        ? "↓"
-                        : "–"}
-                  </span>
-                  <span>{factor.label}</span>
-                </li>
+          {suggestion.limitations.length > 0 ? (
+            <ul className="list-disc space-y-0.5 pl-4 text-xs text-[var(--text-secondary)]">
+              {suggestion.limitations.map((item, idx) => (
+                <li key={idx}>{item}</li>
               ))}
             </ul>
           ) : null}
 
-          <div className="space-y-1 border-t border-[var(--border)]/60 pt-2">
-            <p className="text-[11px] font-medium text-[var(--text-secondary)]">
-              Quellen
-            </p>
-            <ul className="space-y-0.5 text-xs">
-              {valuation.sources.map((source) => (
-                <li key={source.uri}>
-                  <a
-                    href={source.uri}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[var(--accent)] underline underline-offset-2 hover:opacity-80"
-                  >
-                    {source.title}
-                  </a>
-                </li>
-              ))}
-            </ul>
-
-            {valuation.searchQueries.length > 0 ? (
-              <div className="pt-1">
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            {(
+              [
+                ["lower", "Untere"],
+                ["median", "Median"],
+                ["upper", "Obere"],
+              ] as Array<[ValuationChoice, string]>
+            ).map(([choiceKey, label]) => {
+              const active = adoptionState.choice === choiceKey;
+              return (
                 <button
+                  key={choiceKey}
                   type="button"
-                  onClick={() => setQueriesOpen((prev) => !prev)}
-                  className="text-[11px] text-[var(--text-secondary)] underline underline-offset-2 hover:text-[var(--text-primary)]"
+                  disabled={adoptionState.phase === "submitting"}
+                  onClick={() => dispatch({ type: "choose", choice: choiceKey })}
+                  className={`rounded-lg border px-2.5 py-1 text-xs font-medium tabular-nums transition-colors ${
+                    active
+                      ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
+                      : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  }`}
                 >
-                  {queriesOpen
-                    ? "Suchanfragen der KI ausblenden"
-                    : "Suchanfragen der KI"}
+                  {label} (
+                  {formatCentsDE(
+                    getSelectedValuationCents(suggestion, choiceKey),
+                  )}
+                  )
                 </button>
-                {queriesOpen ? (
-                  <ul className="mt-1 list-disc pl-4 text-[11px] text-[var(--text-secondary)]">
-                    {valuation.searchQueries.map((query) => (
-                      <li key={query}>{query}</li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
+              );
+            })}
+
+            {adoptionState.phase === "suggested" ? (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => dispatch({ type: "requestAdopt" })}
+                className="ml-auto"
+              >
+                Übernehmen
+              </Button>
             ) : null}
           </div>
 
-          <p className="text-[11px] text-[var(--text-secondary)]">
-            Orientierung, kein Gutachten. Für Finanzierung, Verkauf oder Steuer
-            ist ein Verkehrswertgutachten nötig.
-          </p>
-
-          <div className="space-y-2 border-t border-[var(--border)]/60 pt-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div
-                role="group"
-                aria-label="Schätzwert auswählen"
-                className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-0.5 text-xs"
-              >
-                {(
-                  [
-                    ["lower", "Untere"],
-                    ["median", "Median"],
-                    ["upper", "Obere"],
-                  ] as const satisfies readonly [ValuationChoice, string][]
-                ).map(([choiceKey, label]) => {
-                  const active = adoptionState.choice === choiceKey;
-                  return (
-                    <button
-                      key={choiceKey}
-                      type="button"
-                      disabled={adoptionState.phase === "submitting"}
-                      onClick={() =>
-                        dispatch({ type: "choose", choice: choiceKey })
-                      }
-                      className={`rounded-md px-2.5 py-1 transition-colors ${
-                        active
-                          ? "bg-[var(--surface)] font-medium text-[var(--text-primary)] shadow-xs"
-                          : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {adoptionState.phase === "suggested" ? (
+          {adoptionState.phase === "confirming" ||
+          adoptionState.phase === "submitting" ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--amber)]/40 bg-[var(--amber)]/10 px-3 py-2 text-xs">
+              <span className="text-[var(--text-primary)] tabular-nums">
+                Objektwert von {formatCentsDE(property.estimatedValueCents)} auf{" "}
+                {selectedCents !== null ? formatCentsDE(selectedCents) : "–"}{" "}
+                setzen, Stand {formatIsoDateDE(suggestion.asOfDate)}?
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={adoptionState.phase === "submitting"}
+                  onClick={() => dispatch({ type: "cancel" })}
+                >
+                  Abbrechen
+                </Button>
                 <Button
                   type="button"
                   size="sm"
-                  onClick={() => dispatch({ type: "requestAdopt" })}
+                  disabled={adoptionState.phase === "submitting"}
+                  onClick={handleConfirmAdopt}
                 >
-                  Wert übernehmen
+                  {adoptionState.phase === "submitting"
+                    ? "Speichert…"
+                    : "Bestätigen"}
                 </Button>
-              ) : null}
-            </div>
-
-            {adoptionState.phase === "confirming" ||
-            adoptionState.phase === "submitting" ? (
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--amber)]/40 bg-[var(--amber)]/10 px-3 py-2 text-xs">
-                <span className="tabular-nums text-[var(--text-primary)]">
-                  Objektwert von{" "}
-                  <strong>{formatCentsDE(property.estimatedValueCents)}</strong>{" "}
-                  auf{" "}
-                  <strong>
-                    {selectedCents != null ? formatCentsDE(selectedCents) : "–"}
-                  </strong>{" "}
-                  setzen, Stand {today}?
-                </span>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={handleConfirmAdopt}
-                    disabled={adoptionState.phase === "submitting"}
-                  >
-                    {adoptionState.phase === "submitting"
-                      ? "Speichert…"
-                      : "Bestätigen"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => dispatch({ type: "cancel" })}
-                    disabled={adoptionState.phase === "submitting"}
-                  >
-                    Abbrechen
-                  </Button>
-                </div>
               </div>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
+
+      <PropertyValuationHistoryChart entries={historyEntries} />
     </div>
   );
 }

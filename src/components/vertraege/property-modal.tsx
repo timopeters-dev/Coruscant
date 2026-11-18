@@ -13,6 +13,8 @@ import {
   parseEuroInputToCents,
 } from "@/lib/domain/money";
 import type { PropertyUsage } from "@/lib/domain/properties";
+import { PROPERTY_TYPES, type PropertyType } from "@/lib/domain/property-types";
+import { PROPERTY_TYPE_LABELS } from "./labels";
 import { PROPERTY_PURCHASE_LIMITS } from "@/lib/domain/property-purchase-defaults";
 import {
   MAX_RENOVATIONS,
@@ -125,6 +127,9 @@ function PropertyModalInner({
   const [name, setName] = React.useState(initialProperty?.name ?? "");
   const [usage, setUsage] = React.useState<PropertyUsage>(
     initialProperty?.usage ?? (activeDraft ? "rented" : "owner_occupied"),
+  );
+  const [propertyType, setPropertyType] = React.useState<PropertyType | "">(
+    initialProperty?.propertyType ?? "",
   );
   const [purchaseDate, setPurchaseDate] = React.useState(
     initialProperty?.purchaseDate ?? "",
@@ -410,15 +415,22 @@ function PropertyModalInner({
         : "/api/properties";
       const method = initialProperty ? "PATCH" : "POST";
 
+      const shouldSendEstimatedValue =
+        !initialProperty ||
+        estimatedCents !== initialProperty.estimatedValueCents;
+
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: trimmedName,
           usage,
+          propertyType: propertyType || null,
           purchaseDate: purchaseDate.trim() || null,
           purchasePriceCents,
-          estimatedValueCents: estimatedCents,
+          ...(shouldSendEstimatedValue
+            ? { estimatedValueCents: estimatedCents }
+            : {}),
           maintenanceReservePotId: maintenanceReservePotId || null,
           monthlyColdRentCents,
           monthlyNonRecoverableCostsCents,
@@ -563,6 +575,30 @@ function PropertyModalInner({
             </div>
 
             <div className="space-y-1.5">
+              <Label htmlFor="property-type">Objekttyp (optional)</Label>
+              <Select
+                id="property-type"
+                value={propertyType}
+                onChange={(e) =>
+                  setPropertyType(e.target.value as PropertyType | "")
+                }
+                disabled={isSubmitting}
+              >
+                <option value="">– Nicht festgelegt –</option>
+                {PROPERTY_TYPES.map((typeKey) => (
+                  <option key={typeKey} value={typeKey}>
+                    {PROPERTY_TYPE_LABELS[typeKey]}
+                  </option>
+                ))}
+              </Select>
+              <p className="text-[11px] text-[var(--text-secondary)]">
+                Nötig für die automatische Wertschätzung.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
               <Label htmlFor="property-purchase-date">
                 Kaufdatum (optional)
               </Label>
@@ -623,7 +659,11 @@ function PropertyModalInner({
                 <p className="text-xs text-[var(--rose)]">
                   {errors.estimatedValueEuro}
                 </p>
-              ) : null}
+              ) : (
+                <p className="text-[11px] text-[var(--text-secondary)]">
+                  Manuell gesetzte Werte überschreibt die Auto-Schätzung nicht.
+                </p>
+              )}
               <p className="text-xs text-[var(--text-secondary)] tabular-nums">
                 Stand: {initialProperty?.estimatedValueAsOf ?? "unbekannt"}. Bei
                 Änderung wird heute gesetzt.

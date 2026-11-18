@@ -1,8 +1,14 @@
-import type { ValuationModelOutput } from "@/lib/validation/property-valuation";
-import type { GeminiGroundingMetadata } from "./gemini-transport";
+import type { QuotaSnapshot } from "@/lib/domain/auto-valuation-schedule";
+import type { NormalizedValuationResult } from "@/lib/domain/property-valuation";
+import { createImmoAnalysePropertyValuator } from "./immoanalyse-property-valuator";
 
 export type ValuatorErrorCode =
   | "not_configured"
+  | "unauthorized"
+  | "quota_exceeded"
+  | "rate_limited"
+  | "not_valuable"
+  | "invalid_request"
   | "timeout"
   | "http_error"
   | "network_error"
@@ -11,17 +17,25 @@ export type ValuatorErrorCode =
 export type ValuatorResult =
   | {
       ok: true;
-      data: ValuationModelOutput;
-      grounding: GeminiGroundingMetadata;
-      model: string;
+      result: NormalizedValuationResult;
+      quota: QuotaSnapshot | null;
+      provider: "immoanalyse";
     }
   | {
       ok: false;
       code: ValuatorErrorCode;
       message: string;
       httpStatus?: number;
+      apiCode?: string;
+      quota?: QuotaSnapshot | null;
     };
 
 export interface PropertyValuator {
-  estimate(contextJson: string): Promise<ValuatorResult>;
+  estimate(requestJson: string): Promise<ValuatorResult>;
+}
+
+export function createDefaultPropertyValuator(
+  fallbackAsOfDate?: string,
+): PropertyValuator {
+  return createImmoAnalysePropertyValuator({ fallbackAsOfDate });
 }

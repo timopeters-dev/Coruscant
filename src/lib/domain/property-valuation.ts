@@ -1,9 +1,5 @@
 import { addMonthsToIsoDate, parseIsoDate } from "./date";
-import {
-  assertSafeInteger,
-  divRoundHalfUpSigned,
-  roundHalfUpBigInt,
-} from "./money";
+import { divRoundHalfUpSigned, roundHalfUpBigInt } from "./money";
 import type { PropertyValuationContext } from "./property-valuation-context";
 
 /** Plausibilitäts-Richtwerte für die Immobilien-Wertschätzung (Orientierung, kein Gutachten). */
@@ -15,25 +11,29 @@ export const DEVIATION_WARN_BPS = 4_000;
 
 export type ValuationFactorEffect = "up" | "down" | "neutral";
 export type ValuationConfidence = "low" | "medium" | "high";
+export type ValuationValuability =
+  | "valuable"
+  | "valuable_with_limitations"
+  | "not_reliably_valuable";
 
 export interface ValuationFactor {
   label: string;
   effect: ValuationFactorEffect;
 }
 
-export interface ValuationSource {
-  uri: string;
-  title: string;
-}
-
-export interface ValuationModelOutputInput {
-  lowerEur: number;
-  medianEur: number;
-  upperEur: number;
+export interface NormalizedValuationResult {
+  requestId: string;
+  cached: boolean;
+  valuability: ValuationValuability;
+  lowerCents: number | null;
+  medianCents: number | null;
+  upperCents: number | null;
   asOfDate: string;
-  rationale: string;
-  factors: ValuationFactor[];
   confidence: ValuationConfidence;
+  confidenceScore: number | null;
+  rationale: string;
+  limitations: string[];
+  factors: ValuationFactor[];
 }
 
 export interface PropertyValuation {
@@ -42,15 +42,18 @@ export interface PropertyValuation {
   upperCents: number;
   pricePerSqmMedianCents: number;
   asOfDate: string;
-  rationale: string;
-  factors: ValuationFactor[];
   confidence: ValuationConfidence;
-  sources: ValuationSource[];
-  searchQueries: string[];
+  confidenceScore: number | null;
+  valuability: Exclude<ValuationValuability, "not_reliably_valuable">;
+  rationale: string;
+  limitations: string[];
+  factors: ValuationFactor[];
+  requestId: string;
+  cached: boolean;
 }
 
 export type ValuationRejectReason =
-  | "ungrounded"
+  | "not_reliably_valuable"
   | "non_positive"
   | "bounds_order"
   | "price_per_sqm_out_of_range"
@@ -75,40 +78,52 @@ export type ValidatePropertyValuationResult =
     };
 
 export interface ValidatePropertyValuationInput {
-  rawOutput: ValuationModelOutputInput;
-  sources: ValuationSource[];
-  searchQueries: string[];
+  normalized: NormalizedValuationResult;
   context: PropertyValuationContext;
   currentValueCents: number;
   today: string;
 }
 
-function eurToCentsSafe(eur: number): number | null {
-  if (!Number.isSafeInteger(eur) || eur <= 0) {
+function isPositiveSafeCents(value: number | null): value is number {
+  return value !== null && Number.isSafeInteger(value) && value > 0;
+}
+
+export function computeValuationDeviationBps(
+  medianCents: number,
+  currentValueCents: number,
+): number | null {
+  if (!Number.isSafeInteger(currentValueCents) || currentValueCents <= 0) {
     return null;
   }
-  try {
-    return assertSafeInteger(eur * 100, "valuationEurCents");
-  } catch {
+  if (!Number.isSafeInteger(medianCents)) {
     return null;
   }
+  const diff = BigInt(medianCents) - BigInt(currentValueCents);
+  return divRoundHalfUpSigned(diff * 10_000n, BigInt(currentValueCents));
+}
+
+export function isDeviationAboveThreshold(deviationBps: number | null): boolean {
+  if (deviationBps === null) {
+    return false;
+  }
+  return Math.abs(deviationBps) > DEVIATION_WARN_BPS;
 }
 
 export function validatePropertyValuation(
   input: ValidatePropertyValuationInput,
 ): ValidatePropertyValuationResult {
-  const { rawOutput, sources, searchQueries, context, currentValueCents, today } =
-    input;
+  const { normalized, context, currentValueCents, today } = input;
 
-  if (sources.length === 0) {
-    return { ok: false, reason: "ungrounded" };
+  if (normalized.valuability === "not_reliably_valuable") {
+    return { ok: false, reason: "not_reliably_valuable" };
   }
 
-  const lowerCents = eurToCentsSafe(rawOutput.lowerEur);
-  const medianCents = eurToCentsSafe(rawOutput.medianEur);
-  const upperCents = eurToCentsSafe(rawOutput.upperEur);
-
-  if (lowerCents === null || medianCents === null || upperCents === null) {
+  const { lowerCents, medianCents, upperCents } = normalized;
+  if (
+    !isPositiveSafeCents(lowerCents) ||
+    !isPositiveSafeCents(medianCents) ||
+    !isPositiveSafeCents(upperCents)
+  ) {
     return { ok: false, reason: "non_positive" };
   }
 
@@ -138,32 +153,26 @@ export function validatePropertyValuation(
   }
 
   parseIsoDate(today, "today");
-  parseIsoDate(rawOutput.asOfDate, "asOfDate");
+  parseIsoDate(normalized.asOfDate, "asOfDate");
 
-  if (rawOutput.asOfDate > today) {
+  if (normalized.asOfDate > today) {
     return { ok: false, reason: "as_of_in_future" };
   }
 
-  if (addMonthsToIsoDate(rawOutput.asOfDate, MAX_AS_OF_AGE_MONTHS) < today) {
+  if (addMonthsToIsoDate(normalized.asOfDate, MAX_AS_OF_AGE_MONTHS) < today) {
     return { ok: false, reason: "as_of_too_old" };
   }
 
   const warnings: ValuationWarning[] = [];
-  if (currentValueCents > 0) {
-    const diff = BigInt(medianCents) - BigInt(currentValueCents);
-    const absDiff = diff < 0n ? -diff : diff;
-    if (
-      absDiff * 10_000n >
-      BigInt(currentValueCents) * BigInt(DEVIATION_WARN_BPS)
-    ) {
-      warnings.push({
-        code: "deviates_from_current",
-        deviationBps: divRoundHalfUpSigned(
-          diff * 10_000n,
-          BigInt(currentValueCents),
-        ),
-      });
-    }
+  const deviationBps = computeValuationDeviationBps(
+    medianCents,
+    currentValueCents,
+  );
+  if (deviationBps !== null && isDeviationAboveThreshold(deviationBps)) {
+    warnings.push({
+      code: "deviates_from_current",
+      deviationBps,
+    });
   }
 
   return {
@@ -173,12 +182,15 @@ export function validatePropertyValuation(
       medianCents,
       upperCents,
       pricePerSqmMedianCents,
-      asOfDate: rawOutput.asOfDate,
-      rationale: rawOutput.rationale,
-      factors: rawOutput.factors,
-      confidence: rawOutput.confidence,
-      sources,
-      searchQueries,
+      asOfDate: normalized.asOfDate,
+      confidence: normalized.confidence,
+      confidenceScore: normalized.confidenceScore,
+      valuability: normalized.valuability,
+      rationale: normalized.rationale,
+      limitations: normalized.limitations,
+      factors: normalized.factors,
+      requestId: normalized.requestId,
+      cached: normalized.cached,
     },
     warnings,
   };

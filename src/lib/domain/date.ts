@@ -205,3 +205,21 @@ export function addMonthsToIsoDate(isoDate: string, months: number): string {
   const targetDay = Math.min(day, daysInMonth(targetYear, targetMonth));
   return `${formatYearMonth(targetYear, targetMonth)}-${String(targetDay).padStart(2, "0")}`;
 }
+
+/**
+ * Adds a non-negative whole number of calendar days to a YYYY-MM-DD date.
+ */
+export function addDaysToIsoDate(isoDate: string, days: number): string {
+  const { year, month, day } = parseIsoDate(isoDate, "isoDate");
+  const safeDays = assertSafeInteger(days, "days");
+  if (safeDays < 0) {
+    throw new RangeError(
+      `days must be a non-negative integer, received: ${days}`,
+    );
+  }
+  const utc = new Date(Date.UTC(year, month - 1, day + safeDays));
+  const targetYear = utc.getUTCFullYear();
+  const targetMonth = String(utc.getUTCMonth() + 1).padStart(2, "0");
+  const targetDay = String(utc.getUTCDate()).padStart(2, "0");
+  return `${targetYear}-${targetMonth}-${targetDay}`;
+}

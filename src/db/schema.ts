@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   type AnySQLiteColumn,
   check,
+  index,
   integer,
   uniqueIndex,
   sqliteTable,
@@ -52,6 +53,34 @@ export const properties = sqliteTable(
     renovations: text("renovations"),
     features: text("features"),
     imagePath: text("image_path"),
+    propertyType: text("property_type", {
+      enum: [
+        "etw",
+        "efh",
+        "dhh",
+        "rh",
+        "reh",
+        "mfh",
+        "bungalow",
+        "villa",
+        "sonstiges",
+      ],
+    }),
+    autoValuationInterval: text("auto_valuation_interval", {
+      enum: ["off", "weekly", "biweekly", "monthly", "quarterly"],
+    })
+      .notNull()
+      .default("off"),
+    lastAutoValuationAt: text("last_auto_valuation_at"),
+    lastAutoValuationAttemptAt: text("last_auto_valuation_attempt_at"),
+    lastAutoValuationOutcome: text("last_auto_valuation_outcome", {
+      enum: ["written", "history_only", "not_valuable", "rejected", "error"],
+    }),
+    estimatedValueSource: text("estimated_value_source", {
+      enum: ["manual", "immoanalyse"],
+    })
+      .notNull()
+      .default("manual"),
     updatedAt: text("updated_at").notNull(),
   },
   (table) => [
@@ -349,6 +378,70 @@ export const externalSnapshots = sqliteTable(
   ],
 );
 
+export const propertyValuationHistory = sqliteTable(
+  "property_valuation_history",
+  {
+    id: text("id").primaryKey(),
+    propertyId: text("property_id")
+      .notNull()
+      .references(() => properties.id, { onDelete: "cascade" }),
+    valuedAt: text("valued_at").notNull(),
+    dataAsOf: text("data_as_of"),
+    lowerCents: integer("lower_cents").notNull(),
+    medianCents: integer("median_cents").notNull(),
+    upperCents: integer("upper_cents").notNull(),
+    confidence: text("confidence", { enum: ["low", "medium", "high"] }),
+    confidenceScore: integer("confidence_score"),
+    valuability: text("valuability", {
+      enum: ["valuable", "valuable_with_limitations"],
+    }),
+    source: text("source", { enum: ["manual", "immoanalyse"] }).notNull(),
+    trigger: text("trigger", { enum: ["auto", "manual"] }).notNull(),
+    requestId: text("request_id"),
+    appliedAt: text("applied_at"),
+    previousValueCents: integer("previous_value_cents"),
+  },
+  (table) => [
+    index("property_valuation_history_property_valued_idx").on(
+      table.propertyId,
+      table.valuedAt,
+    ),
+    check(
+      "property_valuation_history_lower_positive",
+      sql`${table.lowerCents} > 0`,
+    ),
+    check(
+      "property_valuation_history_bounds_order",
+      sql`${table.lowerCents} <= ${table.medianCents} AND ${table.medianCents} <= ${table.upperCents}`,
+    ),
+    check(
+      "property_valuation_history_confidence_score_range",
+      sql`${table.confidenceScore} IS NULL OR (${table.confidenceScore} >= 0 AND ${table.confidenceScore} <= 100)`,
+    ),
+  ],
+);
+
+export const valuationProviderQuota = sqliteTable(
+  "valuation_provider_quota",
+  {
+    provider: text("provider", { enum: ["immoanalyse"] }).primaryKey(),
+    limitCount: integer("limit_count").notNull(),
+    usedCount: integer("used_count").notNull(),
+    remainingCount: integer("remaining_count").notNull(),
+    resetAt: text("reset_at"),
+    tariff: text("tariff"),
+    observedAt: text("observed_at").notNull(),
+  },
+  (table) => [
+    check("valuation_provider_quota_limit_non_negative", sql`${table.limitCount} >= 0`),
+    check("valuation_provider_quota_used_non_negative", sql`${table.usedCount} >= 0`),
+    check(
+      "valuation_provider_quota_remaining_non_negative",
+      sql`${table.remainingCount} >= 0`,
+    ),
+  ],
+);
+
 export type AppMetaRow = typeof appMeta.$inferSelect;
 export type NewAppMetaRow = typeof appMeta.$inferInsert;
 
@@ -372,3 +465,13 @@ export type NewDocumentRow = typeof documents.$inferInsert;
 
 export type ExternalSnapshotRow = typeof externalSnapshots.$inferSelect;
 export type NewExternalSnapshotRow = typeof externalSnapshots.$inferInsert;
+
+export type PropertyValuationHistoryRow =
+  typeof propertyValuationHistory.$inferSelect;
+export type NewPropertyValuationHistoryRow =
+  typeof propertyValuationHistory.$inferInsert;
+
+export type ValuationProviderQuotaRow =
+  typeof valuationProviderQuota.$inferSelect;
+export type NewValuationProviderQuotaRow =
+  typeof valuationProviderQuota.$inferInsert;

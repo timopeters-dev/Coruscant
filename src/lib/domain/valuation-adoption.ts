@@ -1,15 +1,13 @@
-import type { PropertyValuation } from "./property-valuation";
-
 export type ValuationChoice = "lower" | "median" | "upper";
 
 export type ValuationAdoptionState =
   | { phase: "idle" }
-  | { phase: "suggested"; choice: ValuationChoice }
-  | { phase: "confirming"; choice: ValuationChoice }
-  | { phase: "submitting"; choice: ValuationChoice };
+  | { phase: "suggested"; historyId: string; choice: ValuationChoice }
+  | { phase: "confirming"; historyId: string; choice: ValuationChoice }
+  | { phase: "submitting"; historyId: string; choice: ValuationChoice };
 
 export type ValuationAdoptionAction =
-  | { type: "suggest" }
+  | { type: "suggest"; historyId: string }
   | { type: "choose"; choice: ValuationChoice }
   | { type: "requestAdopt" }
   | { type: "cancel" }
@@ -18,9 +16,9 @@ export type ValuationAdoptionAction =
   | { type: "failed" }
   | { type: "reset" };
 
-export interface ValuationAdoptionPatch {
-  estimatedValueCents: number;
-  estimatedValueAsOf: string;
+export interface ValuationAdoptionRequest {
+  historyId: string;
+  choice: ValuationChoice;
 }
 
 export const INITIAL_VALUATION_ADOPTION_STATE: ValuationAdoptionState = {
@@ -33,25 +31,45 @@ export function valuationAdoptionReducer(
 ): ValuationAdoptionState {
   switch (action.type) {
     case "suggest":
-      return { phase: "suggested", choice: "median" };
+      return {
+        phase: "suggested",
+        historyId: action.historyId,
+        choice: "median",
+      };
     case "choose":
       if (state.phase === "suggested" || state.phase === "confirming") {
-        return { phase: state.phase, choice: action.choice };
+        return {
+          phase: state.phase,
+          historyId: state.historyId,
+          choice: action.choice,
+        };
       }
       return state;
     case "requestAdopt":
       if (state.phase === "suggested") {
-        return { phase: "confirming", choice: state.choice };
+        return {
+          phase: "confirming",
+          historyId: state.historyId,
+          choice: state.choice,
+        };
       }
       return state;
     case "cancel":
       if (state.phase === "confirming") {
-        return { phase: "suggested", choice: state.choice };
+        return {
+          phase: "suggested",
+          historyId: state.historyId,
+          choice: state.choice,
+        };
       }
       return state;
     case "confirm":
       if (state.phase === "confirming") {
-        return { phase: "submitting", choice: state.choice };
+        return {
+          phase: "submitting",
+          historyId: state.historyId,
+          choice: state.choice,
+        };
       }
       return state;
     case "done":
@@ -61,7 +79,11 @@ export function valuationAdoptionReducer(
       return state;
     case "failed":
       if (state.phase === "submitting") {
-        return { phase: "confirming", choice: state.choice };
+        return {
+          phase: "confirming",
+          historyId: state.historyId,
+          choice: state.choice,
+        };
       }
       return state;
     case "reset":
@@ -70,30 +92,28 @@ export function valuationAdoptionReducer(
 }
 
 export function getSelectedValuationCents(
-  valuation: PropertyValuation,
+  bounds: { lowerCents: number; medianCents: number; upperCents: number },
   choice: ValuationChoice,
 ): number {
   switch (choice) {
     case "lower":
-      return valuation.lowerCents;
+      return bounds.lowerCents;
     case "median":
-      return valuation.medianCents;
+      return bounds.medianCents;
     case "upper":
-      return valuation.upperCents;
+      return bounds.upperCents;
   }
 }
 
-export function buildAdoptionPatch(
+export function buildAdoptionRequest(
   state: ValuationAdoptionState,
   action: ValuationAdoptionAction,
-  valuation: PropertyValuation,
-  today: string,
-): ValuationAdoptionPatch | null {
+): ValuationAdoptionRequest | null {
   if (state.phase !== "confirming" || action.type !== "confirm") {
     return null;
   }
   return {
-    estimatedValueCents: getSelectedValuationCents(valuation, state.choice),
-    estimatedValueAsOf: today,
+    historyId: state.historyId,
+    choice: state.choice,
   };
 }

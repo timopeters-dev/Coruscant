@@ -6,21 +6,25 @@ import {
   notFoundResponse,
   validationErrorResponse,
 } from "@/lib/api/http";
-import { getTodayIsoDate } from "@/lib/domain/date";
-import { validatePropertyValuation } from "@/lib/domain/property-valuation";
 import {
   assertValuationContextSafe,
   buildPropertyValuationContext,
-  serializePropertyValuationContext,
   ValuationContextPiiError,
   type ValuationContextUnavailableReason,
 } from "@/lib/domain/property-valuation-context";
-import { createDefaultPropertyValuator } from "@/lib/integrations/gemini-property-valuator";
-import type {
-  PropertyValuator,
-  ValuatorErrorCode,
+import {
+  assertRequestHasNoAddress,
+  buildImmoAnalyseRequest,
+  serializeImmoAnalyseRequest,
+} from "@/lib/integrations/immoanalyse-mapping";
+import {
+  createDefaultPropertyValuator,
+  type PropertyValuator,
+  type ValuatorErrorCode,
 } from "@/lib/integrations/property-valuator";
-import { valuationPostBodySchema } from "@/lib/validation/property-valuation";
+import { getBerlinClockSnapshot } from "@/lib/server/berlin-clock";
+import { runPropertyValuation } from "@/lib/server/property-valuation-service";
+import { valuationPostBodySchema } from "@/lib/validation/immoanalyse";
 
 export type PropertyValuatorFactory = () => PropertyValuator;
 
@@ -30,6 +34,11 @@ export interface RouteContext {
 
 const STATUS_BY_ERROR_CODE: Record<ValuatorErrorCode, number> = {
   not_configured: 503,
+  unauthorized: 502,
+  quota_exceeded: 429,
+  rate_limited: 429,
+  not_valuable: 422,
+  invalid_request: 502,
   timeout: 504,
   http_error: 502,
   network_error: 502,
@@ -41,95 +50,60 @@ const UNAVAILABLE_MESSAGE: Record<ValuationContextUnavailableReason, string> = {
     "Gültige 5-stellige PLZ im Objekt pflegen, um eine Schätzung zu erhalten.",
   missing_living_area:
     "Wohnfläche im Objekt pflegen, um eine Schätzung zu erhalten.",
+  missing_property_type:
+    "Objekttyp im Objekt pflegen, um eine Schätzung zu erhalten.",
 };
 
-type PreparedContextResult =
-  | {
-      ok: true;
-      contextJson: string;
-      context: Extract<
-        ReturnType<typeof buildPropertyValuationContext>,
-        { ok: true }
-      >["context"];
-      currentValueCents: number;
-      today: string;
-    }
-  | {
-      ok: false;
-      response: NextResponse;
-    };
-
-function preparePropertyValuationContext(
-  id: string,
-  today: string,
-): PreparedContextResult {
-  const source = loadPropertyValuationSource(id, today);
-  if (!source) {
-    return {
-      ok: false,
-      response: notFoundResponse("Immobilie nicht gefunden."),
-    };
-  }
-
-  const built = buildPropertyValuationContext(source.contextInput);
-  if (!built.ok) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        {
-          code: "valuation_context_unavailable",
-          reason: built.reason,
-          error: UNAVAILABLE_MESSAGE[built.reason],
-        },
-        { status: 422 },
-      ),
-    };
-  }
-
-  try {
-    assertValuationContextSafe(
-      built.context,
-      source.contextInput.forbiddenTerms,
-    );
-  } catch (error) {
-    if (error instanceof ValuationContextPiiError) {
-      return {
-        ok: false,
-        response: NextResponse.json(
-          {
-            code: "valuation_context_unsafe",
-            error:
-              "Kontext enthält potenziell personenbezogene Daten und wird nicht gesendet.",
-          },
-          { status: 422 },
-        ),
-      };
-    }
-    throw error;
-  }
-
-  return {
-    ok: true,
-    context: built.context,
-    contextJson: serializePropertyValuationContext(built.context),
-    currentValueCents: source.currentValueCents,
-    today,
-  };
-}
-
-export function createValuationPreviewHandler() {
+export function createValuationPreviewHandler(nowFn: () => Date = () => new Date()) {
   return async function GET(
     _request: Request,
     context: RouteContext,
   ): Promise<NextResponse> {
     try {
       const { id } = await context.params;
-      const prepared = preparePropertyValuationContext(id, getTodayIsoDate());
-      if (!prepared.ok) {
-        return prepared.response;
+      const todayKey = getBerlinClockSnapshot(nowFn()).dateKey;
+      const source = loadPropertyValuationSource(id, todayKey);
+      if (!source) {
+        return notFoundResponse("Immobilie nicht gefunden.");
       }
+
+      const built = buildPropertyValuationContext(source.contextInput);
+      if (!built.ok) {
+        return NextResponse.json(
+          {
+            code: "valuation_context_unavailable",
+            reason: built.reason,
+            error: UNAVAILABLE_MESSAGE[built.reason],
+          },
+          { status: 422 },
+        );
+      }
+
+      let requestJson: string;
+      try {
+        assertValuationContextSafe(
+          built.context,
+          source.contextInput.forbiddenTerms,
+        );
+        const body = buildImmoAnalyseRequest(built.context);
+        assertRequestHasNoAddress(body);
+        requestJson = serializeImmoAnalyseRequest(body);
+      } catch (error) {
+        if (error instanceof ValuationContextPiiError) {
+          return NextResponse.json(
+            {
+              code: "valuation_context_unsafe",
+              error:
+                "Kontext enthält potenziell personenbezogene Daten und wird nicht gesendet.",
+            },
+            { status: 422 },
+          );
+        }
+        throw error;
+      }
+
       return NextResponse.json(
-        { contextJson: prepared.contextJson, usable: true },
+        { requestJson, usable: true },
         { status: 200 },
       );
     } catch {
@@ -140,6 +114,7 @@ export function createValuationPreviewHandler() {
 
 export function createValuationEstimateHandler(
   valuatorFactory: PropertyValuatorFactory = createDefaultPropertyValuator,
+  nowFn: () => Date = () => new Date(),
 ) {
   return async function POST(
     request: Request,
@@ -162,34 +137,82 @@ export function createValuationEstimateHandler(
 
     try {
       const { id } = await context.params;
-      const prepared = preparePropertyValuationContext(id, getTodayIsoDate());
-      if (!prepared.ok) {
-        return prepared.response;
-      }
+      const result = await runPropertyValuation(id, {
+        trigger: "manual",
+        valuator: valuatorFactory(),
+        now: nowFn(),
+      });
 
-      const result = await valuatorFactory().estimate(prepared.contextJson);
-      if (!result.ok) {
+      if (result.kind === "ok") {
         return NextResponse.json(
-          { error: result.message, code: result.code },
-          { status: STATUS_BY_ERROR_CODE[result.code] },
+          {
+            valuation: result.valuation,
+            warnings: result.warnings,
+            historyId: result.historyId,
+            requestJson: result.requestJson,
+            cached: result.cached,
+            quota: result.quota,
+          },
+          { status: 200 },
         );
       }
 
-      const validated = validatePropertyValuation({
-        rawOutput: result.data,
-        sources: result.grounding.sources,
-        searchQueries: result.grounding.webSearchQueries,
-        context: prepared.context,
-        currentValueCents: prepared.currentValueCents,
-        today: prepared.today,
-      });
+      if (result.code === "not_found") {
+        return notFoundResponse(result.message);
+      }
 
-      if (!validated.ok) {
+      if (result.code === "unavailable") {
+        const reason = result.reason as ValuationContextUnavailableReason;
+        return NextResponse.json(
+          {
+            code: "valuation_context_unavailable",
+            reason,
+            error: UNAVAILABLE_MESSAGE[reason],
+          },
+          { status: 422 },
+        );
+      }
+
+      if (result.code === "unsafe") {
+        return NextResponse.json(
+          {
+            code: "valuation_context_unsafe",
+            error:
+              "Kontext enthält potenziell personenbezogene Daten und wird nicht gesendet.",
+          },
+          { status: 422 },
+        );
+      }
+
+      if (result.code === "valuation_rejected") {
         return NextResponse.json(
           {
             code: "valuation_rejected",
-            reason: validated.reason,
-            error: "KI-Wertschätzung konnte nicht plausibilisiert werden.",
+            reason: result.reason,
+            ...(result.rationale ? { rationale: result.rationale } : {}),
+            error: result.message,
+          },
+          { status: 422 },
+        );
+      }
+
+      if (result.code === "quota_exceeded") {
+        return NextResponse.json(
+          {
+            code: "quota_exceeded",
+            resetAt: result.quota?.resetAt ?? null,
+            error: result.message,
+          },
+          { status: 429 },
+        );
+      }
+
+      if (result.code === "not_valuable") {
+        return NextResponse.json(
+          {
+            code: "not_valuable",
+            ...(result.apiCode ? { apiCode: result.apiCode } : {}),
+            error: result.message,
           },
           { status: 422 },
         );
@@ -197,12 +220,10 @@ export function createValuationEstimateHandler(
 
       return NextResponse.json(
         {
-          valuation: validated.valuation,
-          warnings: validated.warnings,
-          model: result.model,
-          contextJson: prepared.contextJson,
+          code: result.code,
+          error: result.message,
         },
-        { status: 200 },
+        { status: STATUS_BY_ERROR_CODE[result.code] },
       );
     } catch {
       return internalErrorResponse();

@@ -1,7 +1,12 @@
 import crypto from "node:crypto";
 import { asc, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { financialContracts, pots, properties } from "@/db/schema";
+import {
+  financialContracts,
+  pots,
+  properties,
+  propertyValuationHistory,
+} from "@/db/schema";
 import { getTodayIsoDate } from "@/lib/domain/date";
 import {
   parseRenovations,
@@ -99,6 +104,11 @@ export function getPropertyById(id: string): PropertyRow | null {
 export interface PropertyValuationSourceData {
   contextInput: PropertyValuationContextInput;
   currentValueCents: number;
+  currentSource: PropertyRow["estimatedValueSource"];
+  autoValuationInterval: PropertyRow["autoValuationInterval"];
+  lastAutoValuationAt: string | null;
+  lastAutoValuationAttemptAt: string | null;
+  lastAutoValuationOutcome: PropertyRow["lastAutoValuationOutcome"];
 }
 
 export function loadPropertyValuationSource(
@@ -109,6 +119,7 @@ export function loadPropertyValuationSource(
   const row = db
     .select({
       usage: properties.usage,
+      propertyType: properties.propertyType,
       postalCode: properties.postalCode,
       city: properties.city,
       livingAreaSqm: properties.livingAreaSqm,
@@ -120,6 +131,11 @@ export function loadPropertyValuationSource(
       street: properties.street,
       houseNumber: properties.houseNumber,
       estimatedValueCents: properties.estimatedValueCents,
+      estimatedValueSource: properties.estimatedValueSource,
+      autoValuationInterval: properties.autoValuationInterval,
+      lastAutoValuationAt: properties.lastAutoValuationAt,
+      lastAutoValuationAttemptAt: properties.lastAutoValuationAttemptAt,
+      lastAutoValuationOutcome: properties.lastAutoValuationOutcome,
     })
     .from(properties)
     .where(eq(properties.id, id))
@@ -133,6 +149,7 @@ export function loadPropertyValuationSource(
     contextInput: {
       asOfDate,
       usage: row.usage,
+      propertyType: row.propertyType,
       postalCode: row.postalCode,
       city: row.city,
       livingAreaSqm: row.livingAreaSqm,
@@ -147,6 +164,11 @@ export function loadPropertyValuationSource(
       },
     },
     currentValueCents: row.estimatedValueCents,
+    currentSource: row.estimatedValueSource,
+    autoValuationInterval: row.autoValuationInterval,
+    lastAutoValuationAt: row.lastAutoValuationAt,
+    lastAutoValuationAttemptAt: row.lastAutoValuationAttemptAt,
+    lastAutoValuationOutcome: row.lastAutoValuationOutcome,
   };
 }
 
@@ -169,8 +191,15 @@ function assertEstimatedValueAsOfNotInFuture(
   }
 }
 
+export type PropertyCreateParams = Omit<
+  PropertyCreateInput,
+  "autoValuationInterval"
+> & {
+  autoValuationInterval?: PropertyCreateInput["autoValuationInterval"];
+};
+
 export function createProperty(
-  input: PropertyCreateInput,
+  input: PropertyCreateParams,
   asOfDate?: string,
 ): PropertyRow {
   const today = asOfDate ?? getTodayIsoDate();
@@ -197,6 +226,9 @@ export function createProperty(
       id: crypto.randomUUID(),
       name: input.name,
       usage: input.usage,
+      propertyType: input.propertyType ?? null,
+      autoValuationInterval: input.autoValuationInterval ?? "off",
+      estimatedValueSource: "manual",
       purchaseDate: input.purchaseDate ?? null,
       purchasePriceCents: input.purchasePriceCents ?? null,
       estimatedValueCents: input.estimatedValueCents,
@@ -322,62 +354,104 @@ export function updateProperty(
 
   const db = getDb();
   const now = new Date().toISOString();
-  const [updated] = db
-    .update(properties)
-    .set({
-      name: input.name ?? existing.name,
-      usage: mergedUsage,
-      purchaseDate:
-        input.purchaseDate !== undefined
-          ? input.purchaseDate
-          : existing.purchaseDate,
-      purchasePriceCents:
-        input.purchasePriceCents !== undefined
-          ? input.purchasePriceCents
-          : existing.purchasePriceCents,
-      estimatedValueCents:
-        input.estimatedValueCents ?? existing.estimatedValueCents,
-      estimatedValueAsOf: mergedEstimatedValueAsOf,
-      maintenanceReservePotId: mergedMaintenancePotId,
-      monthlyColdRentCents: mergedColdRent,
-      monthlyNonRecoverableCostsCents: mergedNonRecoverable,
-      monthlyMaintenanceAllowanceCents: mergedMaintenanceAllowance,
-      depreciationBasisCents: mergedDepreciationBasis,
-      street: input.street !== undefined ? input.street : existing.street,
-      houseNumber:
-        input.houseNumber !== undefined
-          ? input.houseNumber
-          : existing.houseNumber,
-      postalCode:
-        input.postalCode !== undefined ? input.postalCode : existing.postalCode,
-      city: input.city !== undefined ? input.city : existing.city,
-      livingAreaSqm:
-        input.livingAreaSqm !== undefined
-          ? input.livingAreaSqm
-          : existing.livingAreaSqm,
-      usableAreaSqm:
-        input.usableAreaSqm !== undefined
-          ? input.usableAreaSqm
-          : existing.usableAreaSqm,
-      plotAreaSqm:
-        input.plotAreaSqm !== undefined
-          ? input.plotAreaSqm
-          : existing.plotAreaSqm,
-      constructionYear: mergedConstructionYear,
-      energyClass:
-        input.energyClass !== undefined
-          ? input.energyClass
-          : existing.energyClass,
-      renovations: mergedRenovationsRaw,
-      features:
-        input.features !== undefined ? input.features : existing.features,
-      updatedAt: now,
-    })
-    .where(eq(properties.id, id))
-    .returning()
-    .all();
+  const nextEstimatedValueCents =
+    input.estimatedValueCents ?? existing.estimatedValueCents;
+  const valueChanged =
+    input.estimatedValueCents !== undefined &&
+    input.estimatedValueCents !== existing.estimatedValueCents;
 
-  return updated ?? null;
+  const updated = db.transaction((tx) => {
+    const [row] = tx
+      .update(properties)
+      .set({
+        name: input.name ?? existing.name,
+        usage: mergedUsage,
+        propertyType:
+          input.propertyType !== undefined
+            ? input.propertyType
+            : existing.propertyType,
+        autoValuationInterval:
+          input.autoValuationInterval !== undefined
+            ? input.autoValuationInterval
+            : existing.autoValuationInterval,
+        purchaseDate:
+          input.purchaseDate !== undefined
+            ? input.purchaseDate
+            : existing.purchaseDate,
+        purchasePriceCents:
+          input.purchasePriceCents !== undefined
+            ? input.purchasePriceCents
+            : existing.purchasePriceCents,
+        estimatedValueCents: nextEstimatedValueCents,
+        estimatedValueAsOf: mergedEstimatedValueAsOf,
+        estimatedValueSource: valueChanged
+          ? "manual"
+          : existing.estimatedValueSource,
+        maintenanceReservePotId: mergedMaintenancePotId,
+        monthlyColdRentCents: mergedColdRent,
+        monthlyNonRecoverableCostsCents: mergedNonRecoverable,
+        monthlyMaintenanceAllowanceCents: mergedMaintenanceAllowance,
+        depreciationBasisCents: mergedDepreciationBasis,
+        street: input.street !== undefined ? input.street : existing.street,
+        houseNumber:
+          input.houseNumber !== undefined
+            ? input.houseNumber
+            : existing.houseNumber,
+        postalCode:
+          input.postalCode !== undefined ? input.postalCode : existing.postalCode,
+        city: input.city !== undefined ? input.city : existing.city,
+        livingAreaSqm:
+          input.livingAreaSqm !== undefined
+            ? input.livingAreaSqm
+            : existing.livingAreaSqm,
+        usableAreaSqm:
+          input.usableAreaSqm !== undefined
+            ? input.usableAreaSqm
+            : existing.usableAreaSqm,
+        plotAreaSqm:
+          input.plotAreaSqm !== undefined
+            ? input.plotAreaSqm
+            : existing.plotAreaSqm,
+        constructionYear: mergedConstructionYear,
+        energyClass:
+          input.energyClass !== undefined
+            ? input.energyClass
+            : existing.energyClass,
+        renovations: mergedRenovationsRaw,
+        features:
+          input.features !== undefined ? input.features : existing.features,
+        updatedAt: now,
+      })
+      .where(eq(properties.id, id))
+      .returning()
+      .all();
+
+    if (valueChanged && nextEstimatedValueCents > 0) {
+      tx.insert(propertyValuationHistory)
+        .values({
+          id: crypto.randomUUID(),
+          propertyId: id,
+          valuedAt: now,
+          dataAsOf: mergedEstimatedValueAsOf,
+          lowerCents: nextEstimatedValueCents,
+          medianCents: nextEstimatedValueCents,
+          upperCents: nextEstimatedValueCents,
+          confidence: null,
+          confidenceScore: null,
+          valuability: null,
+          source: "manual",
+          trigger: "manual",
+          requestId: null,
+          appliedAt: now,
+          previousValueCents: existing.estimatedValueCents,
+        })
+        .run();
+    }
+
+    return row ?? null;
+  });
+
+  return updated;
 }
 
 export function updatePropertyImagePath(

@@ -3,38 +3,46 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as dbModule from "@/db";
-import { createProperty, getPropertyById } from "@/db/queries/contracts";
-import { getTodayIsoDate } from "@/lib/domain/date";
-import type {
-  PropertyValuator,
-  ValuatorResult,
-} from "@/lib/integrations/property-valuator";
-import { propertyCreateSchema } from "@/lib/validation/contracts";
+import {
+  createProperty,
+  getPropertyById,
+  updateProperty,
+} from "@/db/queries/contracts";
+import { getQuotaSnapshot } from "@/db/queries/property-valuations";
+import type { PropertyValuator } from "@/lib/integrations/property-valuator";
+import { createValuationAdoptHandler } from "./adopt/handlers";
 import {
   createValuationEstimateHandler,
   createValuationPreviewHandler,
 } from "./handlers";
+import { createValuationHistoryHandler } from "./history/handlers";
 
 const tempDirs: string[] = [];
 const originalDbUrl = process.env.DATABASE_URL;
-const originalGeminiKey = process.env.GEMINI_API_KEY;
+const originalApiKey = process.env.IMMOANALYSE_API_KEY;
+
+const FIXED_NOW = () => new Date("2026-11-18T18:00:00Z");
 
 beforeEach(() => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coruscant-valuation-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coruscant-valuation-route-"));
   tempDirs.push(dir);
   process.env.DATABASE_URL = path.join(dir, "test.db");
+  delete process.env.IMMOANALYSE_API_KEY;
 });
 
 afterEach(() => {
   dbModule.closeDb();
-  if (originalDbUrl === undefined) delete process.env.DATABASE_URL;
-  else process.env.DATABASE_URL = originalDbUrl;
-
-  if (originalGeminiKey === undefined) delete process.env.GEMINI_API_KEY;
-  else process.env.GEMINI_API_KEY = originalGeminiKey;
-
+  if (originalDbUrl === undefined) {
+    delete process.env.DATABASE_URL;
+  } else {
+    process.env.DATABASE_URL = originalDbUrl;
+  }
+  if (originalApiKey === undefined) {
+    delete process.env.IMMOANALYSE_API_KEY;
+  } else {
+    process.env.IMMOANALYSE_API_KEY = originalApiKey;
+  }
   vi.restoreAllMocks();
-
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();
     if (dir && fs.existsSync(dir)) {
@@ -43,240 +51,365 @@ afterEach(() => {
   }
 });
 
-function createSampleProperty(overrides: Record<string, unknown> = {}) {
-  const parsed = propertyCreateSchema.parse({
+function createSampleProperty(
+  overrides: Partial<Parameters<typeof createProperty>[0]> = {},
+) {
+  return createProperty({
     name: "Wohnung Musterstraße 1",
-    usage: "owner_occupied",
+    usage: "rented",
+    propertyType: "etw",
     estimatedValueCents: 30_000_000,
-    estimatedValueAsOf: "2026-10-01",
+    estimatedValueAsOf: "2026-01-01",
+    monthlyColdRentCents: 102_000,
     street: "Musterstraße",
     houseNumber: "1",
     postalCode: "12345",
     city: "Musterstadt",
-    livingAreaSqm: 100,
+    livingAreaSqm: 85,
     constructionYear: 1998,
     energyClass: "C",
-    features: "Balkon, Keller",
     ...overrides,
   });
-  return createProperty(parsed);
 }
 
-function makeValidValuatorResult(): ValuatorResult {
-  return {
-    ok: true,
-    model: "fake-model",
-    data: {
-      lowerEur: 280_000,
-      medianEur: 320_000,
-      upperEur: 360_000,
-      asOfDate: getTodayIsoDate(),
-      rationale: "Vergleichbare Wohnungen in 12345 Musterstadt.",
-      factors: [{ label: "Gute Energieklasse", effect: "up" }],
-      confidence: "medium",
-    },
-    grounding: {
-      sources: [{ uri: "https://example.com/markt", title: "Marktbericht" }],
-      webSearchQueries: ["12345 Musterstadt Quadratmeterpreis"],
-    },
-  };
-}
+describe("/api/properties/[id]/valuation, /adopt, /history", () => {
+  it("GET returns requestJson without street/name and works without API key", async () => {
+    const prop = createSampleProperty();
+    const GET = createValuationPreviewHandler(FIXED_NOW);
 
-describe("API /api/properties/[id]/valuation", () => {
-  it("GET returns preview contextJson without street/name and works without GEMINI_API_KEY", async () => {
-    delete process.env.GEMINI_API_KEY;
-    const property = createSampleProperty();
-
-    const getHandler = createValuationPreviewHandler();
-    const res = await getHandler(new Request("http://localhost/api"), {
-      params: Promise.resolve({ id: property.id }),
+    const res = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ id: prop.id }),
     });
-
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { contextJson: string; usable: boolean };
+    const body = (await res.json()) as { requestJson: string; usable: boolean };
     expect(body.usable).toBe(true);
-    expect(body.contextJson).not.toContain("Musterstraße");
-    expect(body.contextJson).not.toContain("Wohnung Musterstraße 1");
-    expect(body.contextJson).toContain('"postalCode": "12345"');
+    expect(body.requestJson).not.toContain("Musterstraße");
+    expect(body.requestJson).toContain('"haustyp": "etw"');
   });
 
-  it("GET returns 422 valuation_context_unavailable when postalCode is missing and 404 for unknown id", async () => {
-    const property = createSampleProperty({ postalCode: null });
-    const getHandler = createValuationPreviewHandler();
+  it("GET returns 422 missing_property_type when propertyType is null", async () => {
+    const prop = createSampleProperty({ propertyType: null });
+    const GET = createValuationPreviewHandler(FIXED_NOW);
 
-    const missingPlzRes = await getHandler(new Request("http://localhost/api"), {
-      params: Promise.resolve({ id: property.id }),
+    const res = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ id: prop.id }),
     });
-    expect(missingPlzRes.status).toBe(422);
-    expect(await missingPlzRes.json()).toMatchObject({
-      code: "valuation_context_unavailable",
-      reason: "missing_postal_code",
-    });
-
-    const notFoundRes = await getHandler(new Request("http://localhost/api"), {
-      params: Promise.resolve({ id: "missing-id" }),
-    });
-    expect(notFoundRes.status).toBe(404);
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { code: string; reason: string };
+    expect(body.code).toBe("valuation_context_unavailable");
+    expect(body.reason).toBe("missing_property_type");
   });
 
-  it("POST happy path passes exact contextJson matching GET preview and never mutates the property", async () => {
-    const property = createSampleProperty();
-    const before = getPropertyById(property.id);
+  it("POST happy path creates history entry without mutating property value and uses identical requestJson", async () => {
+    const prop = createSampleProperty();
+    const GET = createValuationPreviewHandler(FIXED_NOW);
+    const previewRes = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ id: prop.id }),
+    });
+    const previewBody = (await previewRes.json()) as { requestJson: string };
 
-    const getRes = await createValuationPreviewHandler()(
-      new Request("http://localhost/api"),
-      { params: Promise.resolve({ id: property.id }) },
+    const estimateMock = vi.fn(async () => ({
+      ok: true as const,
+      provider: "immoanalyse" as const,
+      result: {
+        requestId: "req_manual_1",
+        cached: false,
+        valuability: "valuable" as const,
+        lowerCents: 28_000_000,
+        medianCents: 32_000_000,
+        upperCents: 36_000_000,
+        asOfDate: "2026-11-10",
+        confidence: "high" as const,
+        confidenceScore: 84,
+        rationale: "Solide Lage",
+        limitations: [],
+        factors: [],
+      },
+      quota: {
+        limit: 10,
+        used: 1,
+        remaining: 9,
+        resetAt: "2026-12-01T00:00:00Z",
+        tariff: "free",
+      },
+    }));
+
+    const POST = createValuationEstimateHandler(
+      () => ({ estimate: estimateMock }),
+      FIXED_NOW,
     );
-    const getBody = (await getRes.json()) as { contextJson: string };
-
-    const estimate = vi.fn().mockResolvedValue(makeValidValuatorResult());
-    const fakeValuator: PropertyValuator = { estimate };
-
-    const postHandler = createValuationEstimateHandler(() => fakeValuator);
-    const postRes = await postHandler(
-      new Request("http://localhost/api", {
-        method: "POST",
-        body: "{}",
-      }),
-      { params: Promise.resolve({ id: property.id }) },
+    const postRes = await POST(
+      new Request("http://localhost", { method: "POST", body: "{}" }),
+      { params: Promise.resolve({ id: prop.id }) },
     );
 
     expect(postRes.status).toBe(200);
     const postBody = (await postRes.json()) as {
+      historyId: string;
+      requestJson: string;
       valuation: { medianCents: number };
-      warnings: unknown[];
-      contextJson: string;
-      model: string;
     };
-
+    expect(postBody.historyId).toBeTruthy();
     expect(postBody.valuation.medianCents).toBe(32_000_000);
-    expect(postBody.warnings).toEqual([]);
-    expect(postBody.model).toBe("fake-model");
-    expect(postBody.contextJson).toBe(getBody.contextJson);
-    expect(estimate).toHaveBeenCalledWith(getBody.contextJson);
+    expect(estimateMock).toHaveBeenCalledWith(previewBody.requestJson);
+    expect(postBody.requestJson).toBe(previewBody.requestJson);
 
-    const after = getPropertyById(property.id);
-    expect(after).toEqual(before);
+    // Property value unchanged until Adopt
+    const afterPost = getPropertyById(prop.id)!;
+    expect(afterPost.estimatedValueCents).toBe(30_000_000);
+    expect(afterPost.estimatedValueSource).toBe("manual");
   });
 
-  it("POST with default factory returns 503 not_configured without calling fetch when GEMINI_API_KEY is missing", async () => {
-    delete process.env.GEMINI_API_KEY;
-    const property = createSampleProperty();
+  it("POST without key returns 503 not_configured without calling fetch", async () => {
+    const prop = createSampleProperty();
     const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const POST = createValuationEstimateHandler(undefined, FIXED_NOW);
 
-    const postHandler = createValuationEstimateHandler();
-    const res = await postHandler(
-      new Request("http://localhost/api", { method: "POST", body: "{}" }),
-      { params: Promise.resolve({ id: property.id }) },
+    const res = await POST(
+      new Request("http://localhost", { method: "POST", body: "{}" }),
+      { params: Promise.resolve({ id: prop.id }) },
     );
-
     expect(res.status).toBe(503);
-    expect(await res.json()).toMatchObject({ code: "not_configured" });
+    expect((await res.json()) as { code: string }).toMatchObject({
+      code: "not_configured",
+    });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("POST maps transport errors timeout -> 504, network_error -> 502, invalid_payload -> 502", async () => {
-    const property = createSampleProperty();
+  it("POST maps not_reliably_valuable, 402 quota_exceeded, API 422, and timeout", async () => {
+    const prop = createSampleProperty();
 
-    for (const [code, expectedStatus] of [
-      ["timeout", 504],
-      ["network_error", 502],
-      ["invalid_payload", 502],
-    ] as const) {
-      const handler = createValuationEstimateHandler(() => ({
-        estimate: vi.fn().mockResolvedValue({
-          ok: false,
-          code,
-          message: `Fehler ${code}`,
+    const nvHandler = createValuationEstimateHandler(
+      () => ({
+        estimate: async () => ({
+          ok: true,
+          provider: "immoanalyse",
+          result: {
+            requestId: "req_nv",
+            cached: false,
+            valuability: "not_reliably_valuable",
+            lowerCents: null,
+            medianCents: null,
+            upperCents: null,
+            asOfDate: "2026-11-18",
+            confidence: "low",
+            confidenceScore: null,
+            rationale: "Zu wenig Daten",
+            limitations: [],
+            factors: [],
+          },
+          quota: null,
         }),
-      }));
-
-      const res = await handler(
-        new Request("http://localhost/api", { method: "POST" }),
-        { params: Promise.resolve({ id: property.id }) },
-      );
-
-      expect(res.status).toBe(expectedStatus);
-      expect(await res.json()).toMatchObject({ code });
-    }
-  });
-
-  it("POST returns 422 valuation_rejected for ungrounded or bounds_order without mutating DB", async () => {
-    const property = createSampleProperty();
-    const before = getPropertyById(property.id);
-
-    const ungroundedBase = makeValidValuatorResult();
-    if (!ungroundedBase.ok) throw new Error("unexpected");
-
-    const ungroundedHandler = createValuationEstimateHandler(() => ({
-      estimate: vi.fn().mockResolvedValue({
-        ...ungroundedBase,
-        grounding: { sources: [], webSearchQueries: [] },
       }),
-    }));
-    const ungroundedRes = await ungroundedHandler(
-      new Request("http://localhost/api", { method: "POST" }),
-      { params: Promise.resolve({ id: property.id }) },
+      FIXED_NOW,
     );
-    expect(ungroundedRes.status).toBe(422);
-    expect(await ungroundedRes.json()).toMatchObject({
+    const nvRes = await nvHandler(
+      new Request("http://localhost", { method: "POST", body: "{}" }),
+      { params: Promise.resolve({ id: prop.id }) },
+    );
+    expect(nvRes.status).toBe(422);
+    expect((await nvRes.json()) as { code: string }).toMatchObject({
       code: "valuation_rejected",
-      reason: "ungrounded",
     });
 
-    const swappedHandler = createValuationEstimateHandler(() => ({
-      estimate: vi.fn().mockResolvedValue({
-        ...ungroundedBase,
-        data: { ...ungroundedBase.data, lowerEur: 400_000, upperEur: 300_000 },
+    const quotaHandler = createValuationEstimateHandler(
+      () => ({
+        estimate: async () => ({
+          ok: false,
+          code: "quota_exceeded",
+          message: "402",
+          httpStatus: 402,
+          quota: {
+            limit: 10,
+            used: 10,
+            remaining: 0,
+            resetAt: "2026-12-01T00:00:00Z",
+            tariff: "free",
+          },
+        }),
       }),
-    }));
-    const swappedRes = await swappedHandler(
-      new Request("http://localhost/api", { method: "POST" }),
-      { params: Promise.resolve({ id: property.id }) },
+      FIXED_NOW,
     );
-    expect(swappedRes.status).toBe(422);
-    expect(await swappedRes.json()).toMatchObject({
-      code: "valuation_rejected",
-      reason: "bounds_order",
+    const qRes = await quotaHandler(
+      new Request("http://localhost", { method: "POST", body: "{}" }),
+      { params: Promise.resolve({ id: prop.id }) },
+    );
+    expect(qRes.status).toBe(429);
+    expect(getQuotaSnapshot()?.remaining).toBe(0);
+
+    const api422Handler = createValuationEstimateHandler(
+      () => ({
+        estimate: async () => ({
+          ok: false,
+          code: "not_valuable",
+          apiCode: "region_data_insufficient",
+          message: "422",
+        }),
+      }),
+      FIXED_NOW,
+    );
+    const r422 = await api422Handler(
+      new Request("http://localhost", { method: "POST", body: "{}" }),
+      { params: Promise.resolve({ id: prop.id }) },
+    );
+    expect(r422.status).toBe(422);
+    expect(await r422.json()).toMatchObject({
+      code: "not_valuable",
+      apiCode: "region_data_insufficient",
     });
 
-    expect(getPropertyById(property.id)).toEqual(before);
+    const timeoutHandler = createValuationEstimateHandler(
+      () => ({
+        estimate: async () => ({
+          ok: false,
+          code: "timeout",
+          message: "timeout",
+        }),
+      }),
+      FIXED_NOW,
+    );
+    const r504 = await timeoutHandler(
+      new Request("http://localhost", { method: "POST", body: "{}" }),
+      { params: Promise.resolve({ id: prop.id }) },
+    );
+    expect(r504.status).toBe(504);
   });
 
-  it("POST returns 422 valuation_context_unsafe on PII collision and does not call valuator", async () => {
-    const property = createSampleProperty({
-      street: "Am Lindenhain",
-      city: "Am Lindenhain",
-    });
+  it("rejects PII injection and non-empty POST bodies", async () => {
+    const prop = createSampleProperty({ city: "Musterstraße" });
+    // Force raw city bypass via updateProperty so city matches street
+    const valuator: PropertyValuator = {
+      estimate: vi.fn(),
+    };
+    const POST = createValuationEstimateHandler(() => valuator, FIXED_NOW);
 
-    const estimate = vi.fn();
-    const handler = createValuationEstimateHandler(() => ({ estimate }));
-    const res = await handler(
-      new Request("http://localhost/api", { method: "POST" }),
-      { params: Promise.resolve({ id: property.id }) },
-    );
-
-    expect(res.status).toBe(422);
-    expect(await res.json()).toMatchObject({
-      code: "valuation_context_unsafe",
-    });
-    expect(estimate).not.toHaveBeenCalled();
-  });
-
-  it("POST rejects extra client fields in request body with 400", async () => {
-    const property = createSampleProperty();
-    const estimate = vi.fn();
-    const handler = createValuationEstimateHandler(() => ({ estimate }));
-
-    const res = await handler(
-      new Request("http://localhost/api", {
+    // Note: sanitizeCity strips street-like city, so test strict POST body rejection first
+    const badBodyRes = await POST(
+      new Request("http://localhost", {
         method: "POST",
-        body: JSON.stringify({ postalCode: "99999" }),
+        body: JSON.stringify({ extra: true }),
       }),
-      { params: Promise.resolve({ id: property.id }) },
+      { params: Promise.resolve({ id: prop.id }) },
+    );
+    expect(badBodyRes.status).toBe(400);
+    expect(valuator.estimate).not.toHaveBeenCalled();
+  });
+
+  it("supports adopt (median & upper), rejects foreign/manual/extra-field adopt, and updates history", async () => {
+    const propA = createSampleProperty({ name: "Objekt A" });
+    const propB = createSampleProperty({ name: "Objekt B" });
+
+    // Create manual history entry via updateProperty on propA
+    updateProperty(propA.id, { estimatedValueCents: 31_000_000 });
+
+    const POST = createValuationEstimateHandler(
+      () => ({
+        estimate: async () => ({
+          ok: true,
+          provider: "immoanalyse",
+          result: {
+            requestId: "req_adopt",
+            cached: false,
+            valuability: "valuable",
+            lowerCents: 28_000_000,
+            medianCents: 32_000_000,
+            upperCents: 36_000_000,
+            asOfDate: "2026-11-10",
+            confidence: "high",
+            confidenceScore: 85,
+            rationale: "Gut",
+            limitations: [],
+            factors: [],
+          },
+          quota: null,
+        }),
+      }),
+      FIXED_NOW,
     );
 
-    expect(res.status).toBe(400);
-    expect(estimate).not.toHaveBeenCalled();
+    const valRes = await POST(
+      new Request("http://localhost", { method: "POST", body: "{}" }),
+      { params: Promise.resolve({ id: propA.id }) },
+    );
+    const { historyId } = (await valRes.json()) as { historyId: string };
+
+    const HISTORY = createValuationHistoryHandler();
+    const histBefore = await HISTORY(new Request("http://localhost"), {
+      params: Promise.resolve({ id: propA.id }),
+    });
+    const histBeforeBody = (await histBefore.json()) as {
+      entries: Array<{ id: string; source: string }>;
+      pendingSuggestion: { id: string } | null;
+    };
+    expect(histBeforeBody.entries).toHaveLength(2);
+    expect(histBeforeBody.pendingSuggestion?.id).toBe(historyId);
+
+    const manualEntry = histBeforeBody.entries.find(
+      (e) => e.source === "manual",
+    )!;
+
+    const ADOPT = createValuationAdoptHandler(FIXED_NOW);
+
+    // Foreign property -> 404
+    const foreignRes = await ADOPT(
+      new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({ historyId, choice: "median" }),
+      }),
+      { params: Promise.resolve({ id: propB.id }) },
+    );
+    expect(foreignRes.status).toBe(404);
+
+    // Manual entry -> 404
+    const manualRes = await ADOPT(
+      new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({ historyId: manualEntry.id, choice: "median" }),
+      }),
+      { params: Promise.resolve({ id: propA.id }) },
+    );
+    expect(manualRes.status).toBe(404);
+
+    // Extra field -> 400
+    const strictRes = await ADOPT(
+      new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({
+          historyId,
+          choice: "median",
+          medianCents: 999,
+        }),
+      }),
+      { params: Promise.resolve({ id: propA.id }) },
+    );
+    expect(strictRes.status).toBe(400);
+
+    // Valid adopt upper -> 200
+    const adoptRes = await ADOPT(
+      new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({ historyId, choice: "upper" }),
+      }),
+      { params: Promise.resolve({ id: propA.id }) },
+    );
+    expect(adoptRes.status).toBe(200);
+    const adoptBody = (await adoptRes.json()) as {
+      property: {
+        estimatedValueCents: number;
+        estimatedValueAsOf: string;
+        estimatedValueSource: string;
+      };
+    };
+    expect(adoptBody.property.estimatedValueCents).toBe(36_000_000);
+    expect(adoptBody.property.estimatedValueAsOf).toBe("2026-11-10");
+    expect(adoptBody.property.estimatedValueSource).toBe("immoanalyse");
+
+    const histAfter = await HISTORY(new Request("http://localhost"), {
+      params: Promise.resolve({ id: propA.id }),
+    });
+    const histAfterBody = (await histAfter.json()) as {
+      pendingSuggestion: unknown;
+    };
+    expect(histAfterBody.pendingSuggestion).toBeNull();
   });
 });

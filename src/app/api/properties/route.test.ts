@@ -765,4 +765,105 @@ describe("/api/properties CRUD & integrity", () => {
     };
     expect(clearedBody.property.renovations).toBeNull();
   });
+
+  it("persists propertyType and autoValuationInterval, rejects estimatedValueSource, and records manual history on value change", async () => {
+    const { listValuationHistory } = await import(
+      "@/db/queries/property-valuations"
+    );
+
+    const createRes = await createProperty(
+      new Request("http://localhost/api/properties", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Wohnung Musterstraße 1",
+          usage: "owner_occupied",
+          estimatedValueCents: 30_000_000,
+          propertyType: "etw",
+        }),
+      }),
+    );
+    expect(createRes.status).toBe(201);
+    const { property: created } = (await createRes.json()) as {
+      property: {
+        id: string;
+        propertyType: string | null;
+        autoValuationInterval: string;
+        estimatedValueSource: string;
+      };
+    };
+    expect(created.propertyType).toBe("etw");
+    expect(created.autoValuationInterval).toBe("off");
+    expect(created.estimatedValueSource).toBe("manual");
+
+    // Reject estimatedValueSource in PATCH
+    const badSourceRes = await patchPropertyById(
+      new Request(`http://localhost/api/properties/${created.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estimatedValueSource: "immoanalyse" }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    expect(badSourceRes.status).toBe(400);
+
+    // Reject invalid enum
+    const badEnumRes = await patchPropertyById(
+      new Request(`http://localhost/api/properties/${created.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoValuationInterval: "daily" }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    expect(badEnumRes.status).toBe(400);
+
+    // PATCH same value -> no history entry
+    const sameRes = await patchPropertyById(
+      new Request(`http://localhost/api/properties/${created.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          estimatedValueCents: 30_000_000,
+          autoValuationInterval: "monthly",
+        }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    expect(sameRes.status).toBe(200);
+    expect(listValuationHistory(created.id)).toHaveLength(0);
+
+    // PATCH changed value > 0 -> creates manual history entry
+    const changedRes = await patchPropertyById(
+      new Request(`http://localhost/api/properties/${created.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estimatedValueCents: 32_500_000 }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    expect(changedRes.status).toBe(200);
+    const history = listValuationHistory(created.id);
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({
+      source: "manual",
+      trigger: "manual",
+      lowerCents: 32_500_000,
+      medianCents: 32_500_000,
+      upperCents: 32_500_000,
+      previousValueCents: 30_000_000,
+    });
+
+    // PATCH value to 0 -> no new history entry (CHECK > 0)
+    const zeroRes = await patchPropertyById(
+      new Request(`http://localhost/api/properties/${created.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estimatedValueCents: 0 }),
+      }),
+      { params: Promise.resolve({ id: created.id }) },
+    );
+    expect(zeroRes.status).toBe(200);
+    expect(listValuationHistory(created.id)).toHaveLength(1);
+  });
 });

@@ -1,3 +1,4 @@
+import type { AutoValuationInterval } from "@/lib/domain/auto-valuation-schedule";
 import type {
   ContractCategory,
   ContractSphere,
@@ -6,10 +7,12 @@ import type {
 } from "@/lib/domain/contracts";
 import type { PropertyUsage } from "@/lib/domain/properties";
 import type { RenovationKind } from "@/lib/domain/property-renovations";
+import type { PropertyType } from "@/lib/domain/property-types";
 import type {
   ValuationConfidence,
   ValuationRejectReason,
 } from "@/lib/domain/property-valuation";
+import type { ValuatorErrorCode } from "@/lib/integrations/property-valuator";
 import {
   PROPERTY_ENERGY_CLASSES,
   type PropertyEnergyClass,
@@ -76,7 +79,8 @@ export const VALUATION_REJECT_REASON_LABELS: Record<
   ValuationRejectReason,
   string
 > = {
-  ungrounded: "Keine belegbaren Quellen gefunden. Kein Vorschlag.",
+  not_reliably_valuable:
+    "Objekt ist derzeit nicht zuverlässig automatisch bewertbar.",
   non_positive: "Ungültige Schätzwerte erhalten.",
   bounds_order: "Widersprüchliche Wertspanne erhalten.",
   price_per_sqm_out_of_range:
@@ -84,4 +88,51 @@ export const VALUATION_REJECT_REASON_LABELS: Record<
   spread_too_wide: "Spanne zu unsicher.",
   as_of_in_future: "Stand-Datum der Marktdaten liegt in der Zukunft.",
   as_of_too_old: "Marktdaten sind älter als 24 Monate.",
+};
+
+export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
+  etw: "Eigentumswohnung",
+  efh: "Einfamilienhaus",
+  dhh: "Doppelhaushälfte",
+  rh: "Reihenmittelhaus",
+  reh: "Reihenendhaus",
+  mfh: "Mehrfamilienhaus",
+  bungalow: "Bungalow",
+  villa: "Villa",
+  sonstiges: "Sonstiges",
+};
+
+export const AUTO_VALUATION_INTERVAL_LABELS: Record<
+  AutoValuationInterval,
+  string
+> = {
+  off: "Aus",
+  weekly: "Wöchentlich",
+  biweekly: "14-tägig",
+  monthly: "Monatlich",
+  quarterly: "Quartalsweise",
+};
+
+export const AUTO_VALUATION_OUTCOME_LABELS: Record<
+  "written" | "history_only" | "not_valuable" | "rejected" | "error",
+  string
+> = {
+  written: "Wert aktualisiert",
+  history_only: "Als Vorschlag gespeichert",
+  not_valuable: "Nicht bewertbar",
+  rejected: "Plausibilität abgelehnt",
+  error: "Fehler beim Abruf",
+};
+
+export const VALUATION_ERROR_CODE_LABELS: Record<ValuatorErrorCode, string> = {
+  not_configured: "ImmoAnalyse.Pro ist nicht konfiguriert (IMMOANALYSE_API_KEY fehlt).",
+  unauthorized: "ImmoAnalyse API-Key wurde abgelehnt (401).",
+  quota_exceeded: "Monatliches Kontingent erschöpft (402).",
+  rate_limited: "Zu viele Anfragen in kurzer Zeit (429). Bitte kurz warten.",
+  not_valuable: "Objekt konnte von ImmoAnalyse.Pro nicht bewertet werden.",
+  invalid_request: "Anfrage wurde vom Dienst als ungültig abgelehnt.",
+  timeout: "Zeitüberschreitung beim Warten auf ImmoAnalyse.Pro.",
+  http_error: "ImmoAnalyse.Pro meldet einen Serverfehler.",
+  network_error: "ImmoAnalyse.Pro ist derzeit nicht erreichbar.",
+  invalid_payload: "Antwort von ImmoAnalyse.Pro war nicht auswertbar.",
 };
