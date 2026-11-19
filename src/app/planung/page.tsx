@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { buildRefLabelMap, loadInvestmentContextInput } from "@/db/queries/coach";
 import { loadPlanningBase } from "@/db/queries/planning-base";
 import { loadRecommendationState } from "@/db/queries/recommendation";
+import { contractRecordToDomain } from "@/lib/domain/contracts";
 import {
   addMonthsToYearMonth,
   getTodayIsoDate,
@@ -16,6 +17,7 @@ import { isDevMode } from "@/lib/server/dev-mode";
 import { PlanungWorkspace } from "@/components/planung/planung-workspace";
 import {
   parsePlanningEntry,
+  parsePlanningLoanId,
   parsePlanningView,
   type LoanOption,
 } from "@/components/planung/planning-state";
@@ -26,6 +28,7 @@ interface PlanungPageProps {
   searchParams?: Promise<{
     frage?: string | string[];
     ansicht?: string | string[];
+    kredit?: string | string[];
   }>;
 }
 
@@ -46,12 +49,18 @@ export default async function PlanungPage({ searchParams }: PlanungPageProps) {
 
   const loanOptions: LoanOption[] = contracts
     .filter((c) => c.category === "loan" && c.status === "active")
-    .map((c) => ({
-      id: c.id,
-      name: c.name,
-      provider: c.provider,
-      defaults: buildPrepaymentDefaults(c, asOfDate),
-    }));
+    .map((c) => {
+      const domainContract = contractRecordToDomain(c);
+      return {
+        id: c.id,
+        name: c.name,
+        provider: c.provider,
+        defaults: buildPrepaymentDefaults(domainContract, asOfDate),
+        contract: domainContract,
+      };
+    });
+
+  const initialLoanId = parsePlanningLoanId(resolved.kredit, loanOptions);
 
   const pots: DomainPot[] = base.pots.map((p) => ({
     id: p.id,
@@ -83,6 +92,7 @@ export default async function PlanungPage({ searchParams }: PlanungPageProps) {
       <PlanungWorkspace
         initialEntry={initialEntry}
         initialView={initialView}
+        initialLoanId={initialLoanId}
         asOfDate={asOfDate}
         loanOptions={loanOptions}
         baseSurplusCents={consolidated.monthlySurplusCents}

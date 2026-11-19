@@ -15,11 +15,20 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import type { FinancialContractRow, PropertyRow } from "@/db/queries/contracts";
 import type { DocumentRow } from "@/db/queries/documents";
+import { formatWholeEuroDE } from "@/components/charts/chart-scale";
 import {
+  contractRecordToDomain,
   type ContractProjectionResult,
   type ContractStatus,
   getCalibrationAge,
 } from "@/lib/domain/contracts";
+import {
+  getLoanOptions,
+  remainingSpecialRepaymentCents,
+  repaymentBpsFromRate,
+  resolveRateCorridor,
+  type RateChangeScope,
+} from "@/lib/domain/loan-options";
 import { formatBpsDE, formatCentsDE } from "@/lib/domain/money";
 import { CalibrationStaleNotice } from "./calibration-stale-notice";
 import {
@@ -56,6 +65,12 @@ export function ContractDetailDrawer(props: ContractDetailDrawerProps) {
   );
 }
 
+const RATE_CHANGE_SCOPE_LABELS: Record<RateChangeScope, string> = {
+  term: "Laufzeit",
+  fixed_period: "je Zinsbindung",
+  per_year: "pro Jahr",
+};
+
 function ContractDetailDrawerInner({
   contract,
   projection,
@@ -79,6 +94,27 @@ function ContractDetailDrawerInner({
     contract.category,
     contract.repaymentType,
   );
+
+  const loanOptionsView = React.useMemo(() => {
+    if (!isLoan) return null;
+    const domain = contractRecordToDomain(contract);
+    const options = getLoanOptions(domain);
+    const allowance = remainingSpecialRepaymentCents(domain, asOfDate);
+    const corridor = resolveRateCorridor(domain, asOfDate);
+    const minEquivBps =
+      corridor.status !== "not_applicable" && corridor.minMonthlyCents !== null
+        ? (corridor.minRepaymentBps ??
+          repaymentBpsFromRate(domain, corridor.minMonthlyCents)?.bps ??
+          null)
+        : null;
+    const maxEquivBps =
+      corridor.status !== "not_applicable" && corridor.maxMonthlyCents !== null
+        ? (corridor.maxRepaymentBps ??
+          repaymentBpsFromRate(domain, corridor.maxMonthlyCents)?.bps ??
+          null)
+        : null;
+    return { options, allowance, corridor, minEquivBps, maxEquivBps };
+  }, [isLoan, contract, asOfDate]);
 
   async function handleStatusChange(nextStatus: ContractStatus) {
     if (!contract) return;
@@ -267,10 +303,12 @@ function ContractDetailDrawerInner({
           ) : null}
         </div>
 
-        {isLoan &&
-        (contract.fixedInterestUntil ||
-          contract.specialRepaymentMaxYearlyCents != null) ? (
-          <div className="space-y-2 rounded-xl border border-[var(--border)] p-4 text-sm">
+        {isLoan && loanOptionsView ? (
+          <div className="space-y-2.5 rounded-xl border border-[var(--border)] p-4 text-sm">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+              Vertragsoptionen
+            </h3>
+
             {contract.fixedInterestUntil ? (
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[var(--text-secondary)]">
@@ -281,14 +319,143 @@ function ContractDetailDrawerInner({
                 </span>
               </div>
             ) : null}
-            {contract.specialRepaymentMaxYearlyCents != null ? (
+
+            {loanOptionsView.options.originalPrincipalCents != null ? (
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[var(--text-secondary)]">
-                  Max. Sondertilgung / Jahr
+                  Ursprungsbetrag
                 </span>
                 <span className="tabular-nums font-medium text-[var(--text-primary)]">
-                  {formatCentsDE(contract.specialRepaymentMaxYearlyCents)}
+                  {formatCentsDE(loanOptionsView.options.originalPrincipalCents)}
                 </span>
+              </div>
+            ) : null}
+
+            {/* Sondertilgung */}
+            <div className="space-y-1 border-t border-[var(--border)]/60 pt-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[var(--text-secondary)]">
+                  Sondertilgung
+                </span>
+                <span className="tabular-nums font-medium text-[var(--text-primary)]">
+                  {loanOptionsView.allowance.status === "none"
+                    ? "Nicht möglich"
+                    : loanOptionsView.allowance.status === "unknown"
+                      ? "Unbekannt"
+                      : loanOptionsView.allowance.capCents !== null
+                        ? `${formatWholeEuroDE(loanOptionsView.allowance.capCents)} / Jahr`
+                        : "Möglich (Höhe unbekannt)"}
+                </span>
+              </div>
+              {loanOptionsView.allowance.status === "allowed" &&
+              loanOptionsView.allowance.remainingCents !== null ? (
+                <div className="flex items-center justify-between gap-2 text-xs text-[var(--text-secondary)]">
+                  <span>
+                    Kontingent {asOfDate.slice(0, 4)}
+                    {loanOptionsView.allowance.basis === "percent_original" &&
+                    loanOptionsView.allowance.percentBps != null
+                      ? ` (${formatBpsDE(loanOptionsView.allowance.percentBps)} Ursprung)`
+                      : loanOptionsView.allowance.basis === "percent_balance" &&
+                          loanOptionsView.allowance.percentBps != null
+                        ? ` (${formatBpsDE(loanOptionsView.allowance.percentBps)} Restschuld)`
+                        : ""}
+                  </span>
+                  <span className="tabular-nums">
+                    frei {formatWholeEuroDE(loanOptionsView.allowance.remainingCents)}
+                    {loanOptionsView.allowance.usedCents > 0
+                      ? ` · genutzt ${formatWholeEuroDE(loanOptionsView.allowance.usedCents)}`
+                      : ""}
+                  </span>
+                </div>
+              ) : null}
+              {loanOptionsView.allowance.flags.missingOriginalPrincipal ? (
+                <p className="text-[11px] text-[var(--amber)]">
+                  Höhe unbekannt – Ursprungsbetrag fehlt.
+                </p>
+              ) : null}
+              {loanOptionsView.allowance.flags.usageFromOtherYear ? (
+                <p className="text-[11px] text-[var(--text-secondary)]">
+                  Genutzte Sondertilgung stammt aus{" "}
+                  <span className="tabular-nums">
+                    {loanOptionsView.allowance.usedYear}
+                  </span>{" "}
+                  (nicht auf {asOfDate.slice(0, 4)} angerechnet).
+                </p>
+              ) : null}
+            </div>
+
+            {/* Tilgungssatzwechsel */}
+            {loanOptionsView.corridor.status !== "not_applicable" ? (
+              <div className="space-y-1 border-t border-[var(--border)]/60 pt-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[var(--text-secondary)]">
+                    Tilgungssatzwechsel
+                  </span>
+                  <span className="tabular-nums font-medium text-[var(--text-primary)]">
+                    {loanOptionsView.corridor.status === "none"
+                      ? "Nicht möglich"
+                      : loanOptionsView.corridor.status === "unknown"
+                        ? "Unbekannt"
+                        : loanOptionsView.corridor.flags.exhausted
+                          ? "Erschöpft"
+                          : loanOptionsView.corridor.remainingChanges !== null
+                            ? `${loanOptionsView.corridor.remainingChanges} übrig${
+                                loanOptionsView.options.rateChangeScope
+                                  ? ` (${RATE_CHANGE_SCOPE_LABELS[loanOptionsView.options.rateChangeScope]})`
+                                  : ""
+                              }`
+                            : `Möglich (Anzahl unbekannt${
+                                loanOptionsView.options.rateChangeScope
+                                  ? `, ${RATE_CHANGE_SCOPE_LABELS[loanOptionsView.options.rateChangeScope]}`
+                                  : ""
+                              })`}
+                  </span>
+                </div>
+                {loanOptionsView.corridor.status === "allowed" &&
+                loanOptionsView.corridor.minMonthlyCents !== null &&
+                loanOptionsView.corridor.maxMonthlyCents !== null ? (
+                  <div className="flex flex-wrap items-center justify-between gap-1 text-xs text-[var(--text-secondary)]">
+                    <span>Korridor</span>
+                    <span className="tabular-nums">
+                      {formatWholeEuroDE(
+                        loanOptionsView.corridor.minMonthlyCents,
+                      )}{" "}
+                      –{" "}
+                      {formatWholeEuroDE(
+                        loanOptionsView.corridor.maxMonthlyCents,
+                      )}
+                      /Monat
+                      {loanOptionsView.minEquivBps !== null &&
+                      loanOptionsView.maxEquivBps !== null
+                        ? ` (${formatBpsDE(loanOptionsView.minEquivBps)} – ${formatBpsDE(loanOptionsView.maxEquivBps)} Tilgung)`
+                        : ""}
+                    </span>
+                  </div>
+                ) : null}
+                {loanOptionsView.corridor.status === "allowed" &&
+                loanOptionsView.corridor.flags.corridorAssumed ? (
+                  <p className="text-[11px] text-[var(--amber)]">
+                    Korridor angenommen (1–10 % Tilgung).
+                  </p>
+                ) : null}
+                {loanOptionsView.corridor.status === "allowed" &&
+                loanOptionsView.corridor.flags.approximatedBase ? (
+                  <p className="text-[11px] text-[var(--text-secondary)]">
+                    Näherung über aktuelle Restschuld.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {/* Notiz */}
+            {loanOptionsView.options.loanOptionsNote ? (
+              <div className="border-t border-[var(--border)]/60 pt-2">
+                <p className="text-[11px] text-[var(--text-secondary)]">
+                  Notiz (nur lokal)
+                </p>
+                <p className="mt-0.5 whitespace-pre-wrap text-xs text-[var(--text-primary)]">
+                  {loanOptionsView.options.loanOptionsNote}
+                </p>
               </div>
             ) : null}
           </div>

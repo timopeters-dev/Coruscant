@@ -110,6 +110,8 @@ function ContractModalInner({
   const [pdfError, setPdfError] = React.useState<string | null>(null);
   const [pdfNotice, setPdfNotice] = React.useState<string | null>(null);
   const [aiExtractedOk, setAiExtractedOk] = React.useState(false);
+  const [hasPrefilledLoanOptions, setHasPrefilledLoanOptions] =
+    React.useState(false);
 
   function applyDocumentPrefill(
     doc: DocumentRow,
@@ -129,6 +131,7 @@ function ContractModalInner({
 
     setAttachedDocument(doc);
     setDuplicateCandidate(null);
+    setHasPrefilledLoanOptions(prefill.hasExtractedLoanOptions);
     setValues((prev) =>
       applyPrefillToContractFormValues(
         {
@@ -464,6 +467,7 @@ function ContractModalInner({
           properties={properties}
           disabled={busy}
           idPrefix="contract"
+          hasPrefilledLoanOptions={hasPrefilledLoanOptions}
         />
 
         <div className="flex justify-end gap-2 border-t border-[var(--border)] pt-4">

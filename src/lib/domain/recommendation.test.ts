@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  computeRecommendationFingerprint,
   DEFAULT_RECOMMENDATION_ASSUMPTIONS,
   recommendMonthlySavings,
   recommendUse,
@@ -8,6 +9,7 @@ import {
   type RecommendationPot,
   type RecommendationState,
 } from "./recommendation";
+import type { RateCorridor } from "./loan-options";
 import { findBreakEvenReturnBps } from "./scenarios";
 
 function makePot(overrides: Partial<RecommendationPot> = {}): RecommendationPot {
@@ -851,5 +853,514 @@ describe("recommendMonthlySavings", () => {
       amountCents: 750_000,
       target: { type: "pot", potId: "pot-ef-2" },
     });
+  });
+});
+
+function makeCorridor(overrides: Partial<RateCorridor> = {}): RateCorridor {
+  return {
+    status: "allowed",
+    currentMonthlyCents: 100_000,
+    minMonthlyCents: 70_000,
+    maxMonthlyCents: 150_000,
+    sliderMinMonthlyCents: 70_000,
+    monthlyInterestCents: 35_000,
+    remainingChanges: 2,
+    latestChangeDate: "2036-01-01",
+    minRepaymentBps: 100,
+    maxRepaymentBps: 500,
+    flags: {
+      corridorAssumed: false,
+      approximatedBase: false,
+      currentOutsideCorridor: false,
+      minBelowInterest: false,
+      perYearUsageUntracked: false,
+      exhausted: false,
+      corridorEmpty: false,
+    },
+    ...overrides,
+  };
+}
+
+describe("loan rate increase & special repayment rules (Slice 24)", () => {
+  it("creates loan_rate_increase only when special allowance is insufficient, rounds down to 10€, sums exactly to surplus", () => {
+    // Special cap covers everything -> no loan_rate_increase
+    const enoughSpecial = recommendMonthlySavings(
+      makeState({
+        asOfDate: "2026-01-15",
+        monthlyExpensesCents: 0,
+        monthlySurplusCents: 100_000,
+        loans: [
+          makeLoan({
+            id: "loan-1",
+            interestRateBps: 550,
+            monthlyRateCents: 100_000,
+            specialRepaymentMaxYearlyCents: 2_000_000,
+            rateCorridor: makeCorridor(),
+          }),
+        ],
+      }),
+      { savingsBufferBps: 0 },
+    );
+    expect(enoughSpecial.items.some((i) => i.kind === "loan_rate_increase")).toBe(
+      false,
+    );
+
+    // Special cap too small: surplus 100_500 (1005 €), annual cap 240_000 / 12 = 20_000/month
+    // Remaining 80_500; 50% share cap of 100_500 = 50_250 -> rounded down to 10 € = 50_000; rest 30_500 -> ETF
+    const split = recommendMonthlySavings(
+      makeState({
+        asOfDate: "2026-01-15",
+        monthlyExpensesCents: 0,
+        monthlySurplusCents: 100_500,
+        loans: [
+          makeLoan({
+            id: "loan-1",
+            interestRateBps: 550,
+            monthlyRateCents: 100_000,
+            specialRepaymentMaxYearlyCents: 240_000,
+            rateCorridor: makeCorridor({ maxMonthlyCents: 200_000 }),
+          }),
+        ],
+      }),
+      { savingsBufferBps: 0 },
+    );
+    const rateItem = split.items.find((i) => i.kind === "loan_rate_increase");
+    expect(rateItem).toBeDefined();
+    expect(rateItem?.amountCents).toBe(50_000);
+    expect(rateItem?.currentMonthlyRateCents).toBe(100_000);
+    expect(rateItem?.newMonthlyRateCents).toBe(150_000);
+    expect(rateItem?.reasons.some((r) => r.code === "RATE_INCREASE_BEATS_ETF")).toBe(
+      true,
+    );
+    expect(rateItem?.reasons.some((r) => r.code === "RATE_CHANGE_SHARE_LIMIT")).toBe(
+      true,
+    );
+    const total = split.items.reduce((acc, i) => acc + i.amountCents, 0);
+    expect(total).toBe(100_500);
+  });
+
+  it("enforces corridor max limit, exhausted changes, unknown count, unknown right, and assumed corridor", () => {
+    // Corridor max limits to +20_000
+    const corridorLimited = recommendMonthlySavings(
+      makeState({
+        asOfDate: "2026-01-15",
+        monthlyExpensesCents: 0,
+        monthlySurplusCents: 100_000,
+        loans: [
+          makeLoan({
+            interestRateBps: 550,
+            monthlyRateCents: 100_000,
+            specialRepaymentMaxYearlyCents: 0,
+            rateCorridor: makeCorridor({ maxMonthlyCents: 120_000 }),
+          }),
+        ],
+      }),
+      { savingsBufferBps: 0 },
+    );
+    const rcItem = corridorLimited.items.find(
+      (i) => i.kind === "loan_rate_increase",
+    );
+    expect(rcItem?.amountCents).toBe(20_000);
+    expect(
+      rcItem?.reasons.some((r) => r.code === "RATE_CHANGE_CORRIDOR_LIMIT"),
+    ).toBe(true);
+
+    // Exhausted -> no item
+    const exhausted = recommendMonthlySavings(
+      makeState({
+        asOfDate: "2026-01-15",
+        monthlyExpensesCents: 0,
+        monthlySurplusCents: 100_000,
+        loans: [
+          makeLoan({
+            interestRateBps: 550,
+            monthlyRateCents: 100_000,
+            specialRepaymentMaxYearlyCents: 0,
+            rateCorridor: makeCorridor({
+              remainingChanges: 0,
+              flags: { ...makeCorridor().flags, exhausted: true },
+            }),
+          }),
+        ],
+      }),
+      { savingsBufferBps: 0 },
+    );
+    expect(exhausted.items.some((i) => i.kind === "loan_rate_increase")).toBe(
+      false,
+    );
+
+    // Unknown count (remainingChanges = null) -> item + RATE_CHANGE_COUNT_UNKNOWN
+    const unknownCount = recommendMonthlySavings(
+      makeState({
+        asOfDate: "2026-01-15",
+        monthlyExpensesCents: 0,
+        monthlySurplusCents: 100_000,
+        loans: [
+          makeLoan({
+            interestRateBps: 550,
+            monthlyRateCents: 100_000,
+            specialRepaymentMaxYearlyCents: 0,
+            rateCorridor: makeCorridor({ remainingChanges: null }),
+          }),
+        ],
+      }),
+      { savingsBufferBps: 0 },
+    );
+    const ucItem = unknownCount.items.find((i) => i.kind === "loan_rate_increase");
+    expect(ucItem).toBeDefined();
+    expect(
+      ucItem?.reasons.some((r) => r.code === "RATE_CHANGE_COUNT_UNKNOWN"),
+    ).toBe(true);
+
+    // Unknown right -> no item + RATE_CHANGE_RIGHT_UNKNOWN
+    const unknownRight = recommendMonthlySavings(
+      makeState({
+        asOfDate: "2026-01-15",
+        monthlyExpensesCents: 0,
+        monthlySurplusCents: 100_000,
+        loans: [
+          makeLoan({
+            interestRateBps: 550,
+            monthlyRateCents: 100_000,
+            specialRepaymentMaxYearlyCents: 0,
+            rateCorridor: makeCorridor({
+              status: "unknown",
+              flags: { ...makeCorridor().flags, corridorAssumed: true },
+            }),
+          }),
+        ],
+      }),
+      { savingsBufferBps: 0 },
+    );
+    expect(unknownRight.items.some((i) => i.kind === "loan_rate_increase")).toBe(
+      false,
+    );
+    expect(unknownRight.notes).toContainEqual({
+      code: "RATE_CHANGE_RIGHT_UNKNOWN",
+      loanId: "loan-1",
+    });
+
+    // Assumed corridor on allowed right -> no item
+    const assumed = recommendMonthlySavings(
+      makeState({
+        asOfDate: "2026-01-15",
+        monthlyExpensesCents: 0,
+        monthlySurplusCents: 100_000,
+        loans: [
+          makeLoan({
+            interestRateBps: 550,
+            monthlyRateCents: 100_000,
+            specialRepaymentMaxYearlyCents: 0,
+            rateCorridor: makeCorridor({
+              flags: { ...makeCorridor().flags, corridorAssumed: true },
+            }),
+          }),
+        ],
+      }),
+      { savingsBufferBps: 0 },
+    );
+    expect(assumed.items.some((i) => i.kind === "loan_rate_increase")).toBe(
+      false,
+    );
+  });
+
+  it("skips rate increase when fixed interest ends in 11 months (not 12), ETF wins, or emergency fund has gap; emits RATE_DECREASE_POSSIBLE", () => {
+    // 11 months -> RATE_CHANGE_SKIPPED_FIXED_END_SOON
+    const ends11 = recommendMonthlySavings(
+      makeState({
+        asOfDate: "2026-01-15",
+        monthlyExpensesCents: 0,
+        monthlySurplusCents: 100_000,
+        loans: [
+          makeLoan({
+            interestRateBps: 550,
+            fixedInterestUntil: "2026-12-15", // 11 months
+            rateCorridor: makeCorridor(),
+          }),
+        ],
+      }),
+      { savingsBufferBps: 0 },
+    );
+    expect(ends11.items.some((i) => i.kind === "loan_rate_increase")).toBe(false);
+    expect(
+      ends11.notes.some((n) => n.code === "RATE_CHANGE_SKIPPED_FIXED_END_SOON"),
+    ).toBe(true);
+
+    // Exactly 12 months -> allowed
+    const ends12 = recommendMonthlySavings(
+      makeState({
+        asOfDate: "2026-01-15",
+        monthlyExpensesCents: 0,
+        monthlySurplusCents: 100_000,
+        loans: [
+          makeLoan({
+            interestRateBps: 550,
+            specialRepaymentMaxYearlyCents: 0,
+            fixedInterestUntil: "2027-01-15", // 12 months
+            rateCorridor: makeCorridor(),
+          }),
+        ],
+      }),
+      { savingsBufferBps: 0 },
+    );
+    expect(ends12.items.some((i) => i.kind === "loan_rate_increase")).toBe(true);
+    expect(
+      ends12.notes.some((n) => n.code === "RATE_CHANGE_SKIPPED_FIXED_END_SOON"),
+    ).toBe(false);
+
+    // ETF wins -> no rate increase
+    const etfWins = recommendMonthlySavings(
+      makeState({
+        asOfDate: "2026-01-15",
+        monthlyExpensesCents: 0,
+        monthlySurplusCents: 100_000,
+        loans: [
+          makeLoan({
+            interestRateBps: 100,
+            specialRepaymentMaxYearlyCents: 0,
+            rateCorridor: makeCorridor(),
+          }),
+        ],
+      }),
+      { savingsBufferBps: 0, etfAnnualReturnBps: 600 },
+    );
+    expect(etfWins.items.some((i) => i.kind === "loan_rate_increase")).toBe(false);
+
+    // Emergency fund gap -> no rate increase + RATE_DECREASE_POSSIBLE
+    const efGap = recommendMonthlySavings(
+      makeState({
+        asOfDate: "2026-01-15",
+        monthlyExpensesCents: 200_000,
+        monthlySurplusCents: 100_000,
+        pots: [
+          makePot({
+            id: "pot-ef",
+            purpose: "emergency_fund",
+            currentCents: 100_000,
+            targetCents: 600_000,
+          }),
+        ],
+        loans: [
+          makeLoan({
+            interestRateBps: 550,
+            monthlyRateCents: 100_000,
+            specialRepaymentMaxYearlyCents: 0,
+            rateCorridor: makeCorridor({ minMonthlyCents: 70_000 }),
+          }),
+        ],
+      }),
+      { savingsBufferBps: 0 },
+    );
+    expect(efGap.items.some((i) => i.kind === "loan_rate_increase")).toBe(false);
+    expect(efGap.notes).toContainEqual({
+      code: "RATE_DECREASE_POSSIBLE",
+      loanId: "loan-1",
+      currentMonthlyRateCents: 100_000,
+      minMonthlyCents: 70_000,
+      reliefCents: 30_000,
+    });
+
+    // NO_SURPLUS -> RATE_DECREASE_POSSIBLE
+    const noSurplus = recommendMonthlySavings(
+      makeState({
+        asOfDate: "2026-01-15",
+        monthlySurplusCents: 0,
+        loans: [
+          makeLoan({
+            monthlyRateCents: 100_000,
+            rateCorridor: makeCorridor({ minMonthlyCents: 75_000 }),
+          }),
+        ],
+      }),
+    );
+    expect(noSurplus.notes).toContainEqual({
+      code: "RATE_DECREASE_POSSIBLE",
+      loanId: "loan-1",
+      currentMonthlyRateCents: 100_000,
+      minMonthlyCents: 75_000,
+      reliefCents: 25_000,
+    });
+  });
+
+  it("handles multiple loans sequentially, one-time mode RATE_CHANGE_ALTERNATIVE, persisted usedCents vs override, and fingerprint changes", () => {
+    // Two loans: loan-1 takes corridor max +20k, loan-2 takes remaining +30k up to 50% share cap (50k)
+    const multi = recommendMonthlySavings(
+      makeState({
+        asOfDate: "2026-01-15",
+        monthlyExpensesCents: 0,
+        monthlySurplusCents: 100_000,
+        loans: [
+          makeLoan({
+            id: "loan-1",
+            interestRateBps: 600,
+            monthlyRateCents: 100_000,
+            specialRepaymentMaxYearlyCents: 0,
+            rateCorridor: makeCorridor({ maxMonthlyCents: 120_000 }),
+          }),
+          makeLoan({
+            id: "loan-2",
+            interestRateBps: 550,
+            monthlyRateCents: 100_000,
+            specialRepaymentMaxYearlyCents: 0,
+            rateCorridor: makeCorridor({ maxMonthlyCents: 200_000 }),
+          }),
+        ],
+      }),
+      { savingsBufferBps: 0 },
+    );
+    const rateItems = multi.items.filter((i) => i.kind === "loan_rate_increase");
+    expect(rateItems).toHaveLength(2);
+    expect(rateItems[0]?.amountCents).toBe(20_000);
+    expect(rateItems[1]?.amountCents).toBe(30_000);
+
+    // One-time mode: never loan_rate_increase, emits RATE_CHANGE_ALTERNATIVE when capped
+    const oneTime = recommendUse(
+      1_000_000,
+      makeState({
+        asOfDate: "2026-01-15",
+        monthlyExpensesCents: 0,
+        loans: [
+          makeLoan({
+            id: "loan-1",
+            interestRateBps: 550,
+            monthlyRateCents: 100_000,
+            specialRepaymentMaxYearlyCents: 200_000,
+            rateCorridor: makeCorridor({ maxMonthlyCents: 150_000 }),
+          }),
+        ],
+      }),
+    );
+    expect(oneTime.items.some((i) => i.kind === "loan_rate_increase")).toBe(false);
+    expect(oneTime.notes).toContainEqual({
+      code: "RATE_CHANGE_ALTERNATIVE",
+      loanId: "loan-1",
+      remainingChanges: 2,
+      maxMonthlyCents: 150_000,
+    });
+
+    // Persisted usedCents reduces room, UI override takes precedence, missing originalPrincipal emits note
+    const withPersisted = recommendUse(
+      500_000,
+      makeState({
+        asOfDate: "2026-01-15",
+        monthlyExpensesCents: 0,
+        loans: [
+          makeLoan({
+            id: "loan-1",
+            interestRateBps: 550,
+            specialRepaymentMaxYearlyCents: 300_000,
+            specialRepaymentUsedThisYearCents: 200_000,
+          }),
+        ],
+      }),
+    );
+    expect(withPersisted.items[0]?.amountCents).toBe(100_000);
+
+    const withOverride = recommendUse(
+      500_000,
+      makeState({
+        asOfDate: "2026-01-15",
+        monthlyExpensesCents: 0,
+        loans: [
+          makeLoan({
+            id: "loan-1",
+            interestRateBps: 550,
+            specialRepaymentMaxYearlyCents: 300_000,
+            specialRepaymentUsedThisYearCents: 200_000,
+          }),
+        ],
+      }),
+      { specialRepaymentUsedThisYearCentsByLoanId: { "loan-1": 50_000 } },
+    );
+    expect(withOverride.items[0]?.amountCents).toBe(250_000);
+
+    const missingOrig = recommendUse(
+      300_000,
+      makeState({
+        asOfDate: "2026-01-15",
+        monthlyExpensesCents: 0,
+        loans: [
+          makeLoan({
+            id: "loan-1",
+            interestRateBps: 550,
+            specialRepaymentMaxYearlyCents: null,
+            specialRepaymentRule: {
+              kind: "allowed_unknown_amount",
+              missingOriginalPrincipal: true,
+            },
+          }),
+        ],
+      }),
+    );
+    expect(missingOrig.notes).toContainEqual({
+      code: "SPECIAL_REPAYMENT_AMOUNT_UNKNOWN",
+      loanId: "loan-1",
+      missingOriginalPrincipal: true,
+    });
+
+    // Fingerprint changes when corridor or remainingChanges changes
+    const fp1 = computeRecommendationFingerprint(
+      recommendMonthlySavings(
+        makeState({
+          asOfDate: "2026-01-15",
+          monthlyExpensesCents: 0,
+          monthlySurplusCents: 100_000,
+          loans: [
+            makeLoan({
+              interestRateBps: 100,
+              rateCorridor: makeCorridor({ remainingChanges: 2 }),
+            }),
+          ],
+        }),
+      ),
+    );
+    const fp2 = computeRecommendationFingerprint(
+      recommendMonthlySavings(
+        makeState({
+          asOfDate: "2026-01-15",
+          monthlyExpensesCents: 0,
+          monthlySurplusCents: 100_000,
+          loans: [
+            makeLoan({
+              interestRateBps: 100,
+              rateCorridor: makeCorridor({ remainingChanges: 1 }),
+            }),
+          ],
+        }),
+      ),
+    );
+    expect(fp1).not.toBe(fp2);
+  });
+
+  it("does not throw or emit loan_rate_increase when corridorEmpty is true after calibration", () => {
+    const res = recommendMonthlySavings(
+      makeState({
+        asOfDate: "2026-01-15",
+        monthlyExpensesCents: 0,
+        monthlySurplusCents: 200_000,
+        loans: [
+          makeLoan({
+            interestRateBps: 550,
+            specialRepaymentMaxYearlyCents: 0,
+            rateCorridor: makeCorridor({
+              minMonthlyCents: 100_000,
+              maxMonthlyCents: 100_000,
+              sliderMinMonthlyCents: 100_000,
+              flags: {
+                corridorAssumed: false,
+                approximatedBase: true,
+                currentOutsideCorridor: false,
+                minBelowInterest: false,
+                perYearUsageUntracked: false,
+                exhausted: false,
+                corridorEmpty: true,
+              },
+            }),
+          }),
+        ],
+      }),
+      { savingsBufferBps: 0 },
+    );
+    expect(res.items.some((i) => i.kind === "loan_rate_increase")).toBe(false);
   });
 });

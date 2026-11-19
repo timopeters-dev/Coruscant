@@ -87,26 +87,36 @@ export function buildFreeMoneyHeadlines(
 
   const isRoundedEqual =
     result.winner === "equal" || Math.abs(result.netAdvantageEtfCents) < 50;
+  const isRateChannel =
+    input.monthlyChannel === "rate_increase" && input.monthlyAmountCents > 0;
 
   let primary: string;
   if (isRoundedEqual) {
     primary = `${prefix} liegen beide Wege gleichauf.`;
   } else if (result.winner === "etf") {
-    primary = `${prefix}: ETF-Ansparung liegt ${formatWholeEuroDE(result.netAdvantageEtfCents)} vor der Sondertilgung.`;
+    primary = isRateChannel
+      ? `${prefix}: ETF-Ansparung liegt ${formatWholeEuroDE(result.netAdvantageEtfCents)} vor der höheren Rate.`
+      : `${prefix}: ETF-Ansparung liegt ${formatWholeEuroDE(result.netAdvantageEtfCents)} vor der Sondertilgung.`;
   } else {
-    primary = `${prefix}: Sondertilgung liegt ${formatWholeEuroDE(-result.netAdvantageEtfCents)} vor dem ETF.`;
+    primary = isRateChannel
+      ? `${prefix}: Höhere Rate liegt ${formatWholeEuroDE(-result.netAdvantageEtfCents)} vor dem ETF.`
+      : `${prefix}: Sondertilgung liegt ${formatWholeEuroDE(-result.netAdvantageEtfCents)} vor dem ETF.`;
   }
 
   let secondary: string | null = null;
   if (breakEven) {
     if (breakEven.kind === "bps") {
-      secondary = `Das ETF lohnt sich ab ${formatBpsDE(breakEven.bps)} Rendite p. a. – du rechnest mit ${formatBpsDE(input.etfAnnualReturnBps)}.`;
+      secondary = isRateChannel
+        ? `Ab ${formatBpsDE(breakEven.bps)} ETF-Rendite p. a. lohnt der ETF mehr als die höhere Rate – du rechnest mit ${formatBpsDE(input.etfAnnualReturnBps)}.`
+        : `Das ETF lohnt sich ab ${formatBpsDE(breakEven.bps)} Rendite p. a. – du rechnest mit ${formatBpsDE(input.etfAnnualReturnBps)}.`;
     } else if (breakEven.kind === "unreachable") {
-      secondary =
-        "Selbst mit 30 % Rendite holt das ETF die Sondertilgung nicht ein.";
+      secondary = isRateChannel
+        ? "Selbst mit 30 % Rendite holt das ETF die höhere Rate nicht ein."
+        : "Selbst mit 30 % Rendite holt das ETF die Sondertilgung nicht ein.";
     } else if (breakEven.kind === "identical") {
-      secondary =
-        "Die Rendite spielt hier keine Rolle – es wird nicht sondergetilgt.";
+      secondary = isRateChannel
+        ? "Die Rendite spielt hier keine Rolle – die Rate wird im Zeitraum nicht erhöht."
+        : "Die Rendite spielt hier keine Rolle – es wird nicht sondergetilgt.";
     }
   }
 

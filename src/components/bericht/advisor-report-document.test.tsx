@@ -123,4 +123,85 @@ describe("AdvisorReportDocument", () => {
     expect(html).toContain("KREDIT-1 · Annuität");
     expect(html).toContain("IMMOBILIE-1 · eigengenutzt");
   });
+
+  it("renders Optionen column with two lines and shows loan note footnote only in full mode", () => {
+    const asOfDate = "2026-11-19";
+    const contracts = [
+      {
+        id: "loan-1",
+        name: "Hauskredit Musterstraße 1",
+        provider: "Musterbank",
+        category: "loan" as const,
+        status: "active" as const,
+        currentBalanceCents: 20_000_000,
+        balanceAsOfDate: "2026-11-01",
+        monthlyRateCents: 120_000,
+        interestRateBps: 380,
+        repaymentType: "annuity" as const,
+        fixedInterestUntil: "2036-06-15",
+        futureLoanInterestRateBps: null,
+        originalPrincipalCents: 25_000_000,
+        specialRepaymentRight: "allowed" as const,
+        specialRepaymentBasis: "percent_original" as const,
+        specialRepaymentPercentBps: 500,
+        rateChangeRight: "allowed" as const,
+        rateChangeTotalCount: 2,
+        rateChangeScope: "fixed_period" as const,
+        rateChangeUsedCount: 0,
+        rateChangeMinRepaymentBps: 100,
+        rateChangeMaxRepaymentBps: 500,
+        loanOptionsNote: "Vertrauliche Notiz Erika Musterfrau",
+      },
+    ];
+    const balance = calculateHouseholdBalance({
+      asOfDate,
+      properties: [],
+      contracts,
+      pots: [],
+    });
+    const cashflow = calculateConsolidatedCashflow({
+      household: null,
+      manualItems: [],
+      variableBasis: "budget",
+    });
+    const report = buildAdvisorReport({
+      asOfDate,
+      generatedAt: "2026-11-19T10:00:00.000Z",
+      snapshotFetchedAt: "2026-11-18T10:00:00.000Z",
+      isDummyHousehold: false,
+      balance,
+      properties: [],
+      contracts,
+      pots: [],
+      cashflow,
+      history: [],
+      recommendationState: {
+        asOfDate,
+        monthlyExpensesCents: null,
+        monthlySurplusCents: 0,
+        pots: [],
+        loans: [],
+      },
+      oneTimeAmountCents: null,
+    });
+
+    const fullHtml = renderToStaticMarkup(
+      <AdvisorReportDocument view={buildAdvisorReportView(report, "full")} />,
+    );
+    expect(fullHtml).toContain(">Optionen</th>");
+    expect(fullHtml).toContain("print-avoid-break");
+    expect(fullHtml).toContain("Sondertilgung:");
+    expect(fullHtml).toContain("Tilgungssatzwechsel:");
+    expect(fullHtml).toContain("Notiz: Vertrauliche Notiz Erika Musterfrau");
+
+    const anonHtml = renderToStaticMarkup(
+      <AdvisorReportDocument
+        view={buildAdvisorReportView(report, "anonymized")}
+      />,
+    );
+    expect(anonHtml).toContain("Sondertilgung:");
+    expect(anonHtml).toContain("Tilgungssatzwechsel:");
+    expect(anonHtml).not.toContain("Erika Musterfrau");
+    expect(anonHtml).not.toContain("Notiz:");
+  });
 });

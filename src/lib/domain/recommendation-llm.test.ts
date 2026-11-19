@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { buildInvestmentContext, type InvestmentContextInput } from "./investment-context";
-import { recommendUse, type RecommendationState } from "./recommendation";
+import {
+  recommendMonthlySavings,
+  recommendUse,
+  type RecommendationState,
+} from "./recommendation";
 import {
   buildLlmInvestmentContextView,
   buildRecommendationLlmView,
@@ -335,5 +339,99 @@ describe("buildRecommendationLlmView & validateExplanation", () => {
     ).toEqual([]);
     expect(findCentLikeNumbers(["Wert 1234500"], raw)).toEqual(["1234500"]);
     expect(findCentLikeNumbers(["Nur 50 Cent"], raw)).toEqual(["50"]);
+  });
+
+  it("includes loan_rate_increase in LLM view with Euro values, accepts valid placeholder rates, and rejects invented rates or corridors", () => {
+    const rateState: RecommendationState = {
+      asOfDate: "2026-01-15",
+      monthlyExpensesCents: 0,
+      monthlySurplusCents: 100_000,
+      pots: [],
+      loans: [
+        {
+          id: "loan-1",
+          balanceCents: 20_000_000,
+          interestRateBps: 550,
+          monthlyRateCents: 100_000,
+          repaymentType: "annuity",
+          specialRepaymentMaxYearlyCents: 0,
+          fixedInterestUntil: "2036-01-01",
+          futureLoanInterestRateBps: null,
+          rateCorridor: {
+            status: "allowed",
+            currentMonthlyCents: 100_000,
+            minMonthlyCents: 70_000,
+            maxMonthlyCents: 130_000,
+            sliderMinMonthlyCents: 70_000,
+            monthlyInterestCents: 91_667,
+            remainingChanges: 2,
+            latestChangeDate: "2036-01-01",
+            minRepaymentBps: 100,
+            maxRepaymentBps: 500,
+            flags: {
+              corridorAssumed: false,
+              approximatedBase: false,
+              currentOutsideCorridor: false,
+              minBelowInterest: false,
+              perYearUsageUntracked: false,
+              exhausted: false,
+              corridorEmpty: false,
+            },
+          },
+        },
+      ],
+    };
+
+    const result = recommendMonthlySavings(rateState, { savingsBufferBps: 0 });
+    const view = buildRecommendationLlmView(result, rateState, {
+      isDummyHousehold: true,
+    });
+    const ratePost = view.posten.find((p) => p.art === "ratenerhoehung");
+    expect(ratePost).toBeDefined();
+    expect(view.werte[`${ratePost!.ref}.aktuelleRate`]).toBe("1.000 €");
+    expect(view.werte[`${ratePost!.ref}.neueRate`]).toBe("1.300 €");
+
+    // Accepts valid placeholder-based new rate
+    const ok = validateExplanation(
+      {
+        summary: "Wir verteilen {BETRAG} monatlich.",
+        items: [
+          {
+            ref: ratePost!.ref,
+            text: `Rate von {${ratePost!.ref}.aktuelleRate} auf {${ratePost!.ref}.neueRate} erhöhen.`,
+          },
+        ],
+        caveats: [],
+      },
+      view,
+    );
+    expect(ok.ok).toBe(true);
+    if (ok.ok) {
+      expect(ok.explanation.items[0]?.text).toBe(
+        "Rate von 1.000 € auf 1.300 € erhöhen.",
+      );
+    }
+
+    // Rejects invented rate
+    const badRate = validateExplanation(
+      {
+        summary: "Rate auf 1.800 € erhöhen.",
+        items: [{ ref: ratePost!.ref, text: `{${ratePost!.ref}.betrag}` }],
+        caveats: [],
+      },
+      view,
+    );
+    expect(badRate.ok).toBe(false);
+
+    // Rejects invented corridor
+    const badCorridor = validateExplanation(
+      {
+        summary: "Korridor liegt bei 1 bis 5 Prozent.",
+        items: [{ ref: ratePost!.ref, text: `{${ratePost!.ref}.betrag}` }],
+        caveats: [],
+      },
+      view,
+    );
+    expect(badCorridor.ok).toBe(false);
   });
 });

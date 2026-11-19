@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -10,11 +10,23 @@ import type { ContractPrefillResult } from "@/lib/domain/contract-prefill";
 import type {
   ContractCategory,
   ContractStatus,
+  DomainContract,
   RepaymentType,
 } from "@/lib/domain/contracts";
 import {
+  MAX_RATE_CHANGE_COUNT,
+  type OptionRight,
+  type RateChangeScope,
+  remainingSpecialRepaymentCents,
+  repaymentBpsFromRate,
+  resolveRateCorridor,
+  type SpecialRepaymentBasis,
+} from "@/lib/domain/loan-options";
+import {
   bpsToPercentInputString,
   centsToEuroInputString,
+  formatBpsDE,
+  formatEuroDE,
   parseEuroInputToCents,
   parsePercentInputToBps,
 } from "@/lib/domain/money";
@@ -33,7 +45,22 @@ export interface ContractFormValues {
   milestoneLabel: string;
   repaymentType: RepaymentType;
   fixedInterestUntil: string;
+  originalPrincipalEuro: string;
+  specialRepaymentRight: OptionRight;
+  specialRepaymentBasis: SpecialRepaymentBasis | "";
   specialRepaymentMaxYearlyEuro: string;
+  specialRepaymentPercent: string;
+  specialRepaymentUsedEuro: string;
+  specialRepaymentUsedYear: number;
+  rateChangeRight: OptionRight;
+  rateChangeTotalCount: string;
+  rateChangeScope: RateChangeScope | "";
+  rateChangeUsedCount: string;
+  rateChangeMinRepaymentPercent: string;
+  rateChangeMaxRepaymentPercent: string;
+  rateChangeMinMonthlyEuro: string;
+  rateChangeMaxMonthlyEuro: string;
+  loanOptionsNote: string;
   targetSumEuro: string;
   allocationThresholdPercent: string;
   futureLoanInterestRatePercent: string;
@@ -50,7 +77,18 @@ export interface ContractFieldErrors {
   milestoneDate?: string;
   milestoneLabel?: string;
   fixedInterestUntil?: string;
+  originalPrincipalEuro?: string;
   specialRepaymentMaxYearlyEuro?: string;
+  specialRepaymentPercent?: string;
+  specialRepaymentUsedEuro?: string;
+  rateChangeTotalCount?: string;
+  rateChangeUsedCount?: string;
+  rateChangeMinRepaymentPercent?: string;
+  rateChangeMaxRepaymentPercent?: string;
+  rateChangeMinMonthlyEuro?: string;
+  rateChangeMaxMonthlyEuro?: string;
+  rateChangeCorridor?: string;
+  loanOptionsNote?: string;
   targetSumEuro?: string;
   allocationThresholdPercent?: string;
   futureLoanInterestRatePercent?: string;
@@ -71,16 +109,53 @@ export interface ContractPayload {
   milestoneLabel: string | null;
   repaymentType?: RepaymentType;
   fixedInterestUntil?: string | null;
+  originalPrincipalCents?: number | null;
+  specialRepaymentRight?: OptionRight;
+  specialRepaymentBasis?: SpecialRepaymentBasis | null;
   specialRepaymentMaxYearlyCents?: number | null;
+  specialRepaymentPercentBps?: number | null;
+  specialRepaymentUsedCents?: number | null;
+  specialRepaymentUsedYear?: number | null;
+  rateChangeRight?: OptionRight;
+  rateChangeTotalCount?: number | null;
+  rateChangeScope?: RateChangeScope | null;
+  rateChangeUsedCount?: number;
+  rateChangeMinRepaymentBps?: number | null;
+  rateChangeMaxRepaymentBps?: number | null;
+  rateChangeMinMonthlyCents?: number | null;
+  rateChangeMaxMonthlyCents?: number | null;
+  loanOptionsNote?: string | null;
   targetSumCents?: number | null;
   allocationThresholdPercent?: number | null;
   futureLoanInterestRateBps?: number | null;
+}
+
+function yearFromIsoDate(isoDate: string): number {
+  const year = Number(isoDate.slice(0, 4));
+  return Number.isInteger(year) && year >= 1900 && year <= 2200 ? year : 2026;
+}
+
+export function hasPopulatedLoanOptions(values: ContractFormValues): boolean {
+  return (
+    values.originalPrincipalEuro.trim().length > 0 ||
+    values.specialRepaymentRight !== "unknown" ||
+    values.specialRepaymentUsedEuro.trim().length > 0 ||
+    values.rateChangeRight !== "unknown" ||
+    values.loanOptionsNote.trim().length > 0
+  );
 }
 
 export function createInitialContractFormValues(
   initialContract: FinancialContractRow | null | undefined,
   asOfDate: string,
 ): ContractFormValues {
+  const currentYear = yearFromIsoDate(asOfDate);
+  const usedInCurrentYear =
+    initialContract?.specialRepaymentUsedYear === currentYear &&
+    initialContract.specialRepaymentUsedCents != null
+      ? centsToEuroInputString(initialContract.specialRepaymentUsedCents)
+      : "";
+
   return {
     name: initialContract?.name ?? "",
     provider: initialContract?.provider ?? "",
@@ -101,10 +176,49 @@ export function createInitialContractFormValues(
     milestoneLabel: initialContract?.milestoneLabel ?? "",
     repaymentType: initialContract?.repaymentType ?? "annuity",
     fixedInterestUntil: initialContract?.fixedInterestUntil ?? "",
+    originalPrincipalEuro:
+      initialContract?.originalPrincipalCents != null
+        ? centsToEuroInputString(initialContract.originalPrincipalCents)
+        : "",
+    specialRepaymentRight: initialContract?.specialRepaymentRight ?? "unknown",
+    specialRepaymentBasis: initialContract?.specialRepaymentBasis ?? "",
     specialRepaymentMaxYearlyEuro:
       initialContract?.specialRepaymentMaxYearlyCents != null
         ? centsToEuroInputString(initialContract.specialRepaymentMaxYearlyCents)
         : "",
+    specialRepaymentPercent:
+      initialContract?.specialRepaymentPercentBps != null
+        ? bpsToPercentInputString(initialContract.specialRepaymentPercentBps)
+        : "",
+    specialRepaymentUsedEuro: usedInCurrentYear,
+    specialRepaymentUsedYear: currentYear,
+    rateChangeRight: initialContract?.rateChangeRight ?? "unknown",
+    rateChangeTotalCount:
+      initialContract?.rateChangeTotalCount != null
+        ? String(initialContract.rateChangeTotalCount)
+        : "",
+    rateChangeScope: initialContract?.rateChangeScope ?? "",
+    rateChangeUsedCount:
+      initialContract?.rateChangeUsedCount != null
+        ? String(initialContract.rateChangeUsedCount)
+        : "0",
+    rateChangeMinRepaymentPercent:
+      initialContract?.rateChangeMinRepaymentBps != null
+        ? bpsToPercentInputString(initialContract.rateChangeMinRepaymentBps)
+        : "",
+    rateChangeMaxRepaymentPercent:
+      initialContract?.rateChangeMaxRepaymentBps != null
+        ? bpsToPercentInputString(initialContract.rateChangeMaxRepaymentBps)
+        : "",
+    rateChangeMinMonthlyEuro:
+      initialContract?.rateChangeMinMonthlyCents != null
+        ? centsToEuroInputString(initialContract.rateChangeMinMonthlyCents)
+        : "",
+    rateChangeMaxMonthlyEuro:
+      initialContract?.rateChangeMaxMonthlyCents != null
+        ? centsToEuroInputString(initialContract.rateChangeMaxMonthlyCents)
+        : "",
+    loanOptionsNote: initialContract?.loanOptionsNote ?? "",
     targetSumEuro:
       initialContract?.targetSumCents != null
         ? centsToEuroInputString(initialContract.targetSumCents)
@@ -145,9 +259,41 @@ export function applyPrefillToContractFormValues(
         : "",
     repaymentType: values.repaymentType,
     fixedInterestUntil: values.fixedInterestUntil ?? "",
+    originalPrincipalEuro:
+      values.originalPrincipalCents != null
+        ? centsToEuroInputString(values.originalPrincipalCents)
+        : "",
+    specialRepaymentRight: values.specialRepaymentRight,
+    specialRepaymentBasis: values.specialRepaymentBasis ?? "",
     specialRepaymentMaxYearlyEuro:
       values.specialRepaymentMaxYearlyCents != null
         ? centsToEuroInputString(values.specialRepaymentMaxYearlyCents)
+        : "",
+    specialRepaymentPercent:
+      values.specialRepaymentPercentBps != null
+        ? bpsToPercentInputString(values.specialRepaymentPercentBps)
+        : "",
+    rateChangeRight: values.rateChangeRight,
+    rateChangeTotalCount:
+      values.rateChangeTotalCount != null
+        ? String(values.rateChangeTotalCount)
+        : "",
+    rateChangeScope: values.rateChangeScope ?? "",
+    rateChangeMinRepaymentPercent:
+      values.rateChangeMinRepaymentBps != null
+        ? bpsToPercentInputString(values.rateChangeMinRepaymentBps)
+        : "",
+    rateChangeMaxRepaymentPercent:
+      values.rateChangeMaxRepaymentBps != null
+        ? bpsToPercentInputString(values.rateChangeMaxRepaymentBps)
+        : "",
+    rateChangeMinMonthlyEuro:
+      values.rateChangeMinMonthlyCents != null
+        ? centsToEuroInputString(values.rateChangeMinMonthlyCents)
+        : "",
+    rateChangeMaxMonthlyEuro:
+      values.rateChangeMaxMonthlyCents != null
+        ? centsToEuroInputString(values.rateChangeMaxMonthlyCents)
         : "",
     targetSumEuro:
       values.targetSumCents != null
@@ -200,22 +346,217 @@ export function validateAndBuildContractPayload(
       "Bitte einen gültigen Zinssatz in % angeben (z. B. 3,50).";
   }
 
+  let originalPrincipalCents: number | null = null;
+  let specialRepaymentBasis: SpecialRepaymentBasis | null = null;
   let specialRepaymentMaxYearlyCents: number | null = null;
+  let specialRepaymentPercentBps: number | null = null;
+  let specialRepaymentUsedCents: number | null = null;
+  let specialRepaymentUsedYear: number | null = null;
+  let rateChangeRight: OptionRight = values.rateChangeRight;
+  let rateChangeTotalCount: number | null = null;
+  let rateChangeScope: RateChangeScope | null = null;
+  let rateChangeUsedCount = 0;
+  let rateChangeMinRepaymentBps: number | null = null;
+  let rateChangeMaxRepaymentBps: number | null = null;
+  let rateChangeMinMonthlyCents: number | null = null;
+  let rateChangeMaxMonthlyCents: number | null = null;
+  let loanOptionsNote: string | null = null;
+
   let targetSumCents: number | null = null;
   let parsedThreshold: number | null = null;
   let futureLoanInterestRateBps: number | null = null;
 
   if (values.category === "loan") {
-    if (values.specialRepaymentMaxYearlyEuro.trim().length > 0) {
-      const parsed = parseEuroInputToCents(
-        values.specialRepaymentMaxYearlyEuro,
-      );
+    if (values.originalPrincipalEuro.trim().length > 0) {
+      const parsed = parseEuroInputToCents(values.originalPrincipalEuro);
+      if (parsed === null || parsed <= 0) {
+        nextErrors.originalPrincipalEuro =
+          "Bitte einen Ursprungsbetrag größer als 0,00 € eingeben.";
+      } else {
+        originalPrincipalCents = parsed;
+      }
+    }
+
+    if (values.specialRepaymentRight === "allowed") {
+      specialRepaymentBasis =
+        values.specialRepaymentBasis === ""
+          ? null
+          : values.specialRepaymentBasis;
+
+      if (specialRepaymentBasis === "fixed_yearly") {
+        const parsed = parseEuroInputToCents(
+          values.specialRepaymentMaxYearlyEuro,
+        );
+        if (parsed === null || parsed <= 0) {
+          nextErrors.specialRepaymentMaxYearlyEuro =
+            "Bitte einen gültigen Betrag > 0,00 € eingeben.";
+        } else {
+          specialRepaymentMaxYearlyCents = parsed;
+        }
+      } else if (
+        specialRepaymentBasis === "percent_original" ||
+        specialRepaymentBasis === "percent_balance"
+      ) {
+        const parsed = parsePercentInputToBps(values.specialRepaymentPercent);
+        if (parsed === null || parsed <= 0 || parsed > 10_000) {
+          nextErrors.specialRepaymentPercent =
+            "Bitte einen Prozentsatz zwischen 0,01 % und 100 % eingeben.";
+        } else {
+          specialRepaymentPercentBps = parsed;
+        }
+      }
+    }
+
+    if (values.specialRepaymentUsedEuro.trim().length > 0) {
+      const parsed = parseEuroInputToCents(values.specialRepaymentUsedEuro);
       if (parsed === null || parsed < 0) {
-        nextErrors.specialRepaymentMaxYearlyEuro =
+        nextErrors.specialRepaymentUsedEuro =
           "Bitte einen gültigen Betrag >= 0,00 € eingeben.";
       } else {
-        specialRepaymentMaxYearlyCents = parsed;
+        specialRepaymentUsedCents = parsed;
+        specialRepaymentUsedYear = values.specialRepaymentUsedYear;
       }
+    }
+
+    if (values.repaymentType === "lump_sum") {
+      rateChangeRight = "none";
+    } else if (values.rateChangeRight === "allowed") {
+      if (values.rateChangeTotalCount.trim().length > 0) {
+        const raw = Number(values.rateChangeTotalCount.trim());
+        if (!Number.isInteger(raw) || raw < 1 || raw > MAX_RATE_CHANGE_COUNT) {
+          nextErrors.rateChangeTotalCount = `Bitte eine ganze Zahl zwischen 1 und ${MAX_RATE_CHANGE_COUNT} eingeben.`;
+        } else {
+          rateChangeTotalCount = raw;
+        }
+      }
+
+      rateChangeScope =
+        values.rateChangeScope === "" ? null : values.rateChangeScope;
+
+      if (values.rateChangeUsedCount.trim().length > 0) {
+        const raw = Number(values.rateChangeUsedCount.trim());
+        if (!Number.isInteger(raw) || raw < 0) {
+          nextErrors.rateChangeUsedCount =
+            "Bitte eine ganze Zahl >= 0 eingeben.";
+        } else {
+          rateChangeUsedCount = raw;
+        }
+      }
+
+      if (
+        rateChangeTotalCount !== null &&
+        rateChangeScope !== "per_year" &&
+        rateChangeUsedCount > rateChangeTotalCount
+      ) {
+        nextErrors.rateChangeUsedCount = `Genutzte Wechsel (${rateChangeUsedCount}) dürfen die erlaubte Anzahl (${rateChangeTotalCount}) nicht überschreiten.`;
+      }
+
+      if (values.rateChangeMinRepaymentPercent.trim().length > 0) {
+        const parsed = parsePercentInputToBps(
+          values.rateChangeMinRepaymentPercent,
+        );
+        if (parsed === null || parsed < 0 || parsed > 10_000) {
+          nextErrors.rateChangeMinRepaymentPercent =
+            "Bitte einen Prozentsatz zwischen 0 % und 100 % eingeben.";
+        } else {
+          rateChangeMinRepaymentBps = parsed;
+        }
+      }
+
+      if (values.rateChangeMaxRepaymentPercent.trim().length > 0) {
+        const parsed = parsePercentInputToBps(
+          values.rateChangeMaxRepaymentPercent,
+        );
+        if (parsed === null || parsed < 0 || parsed > 10_000) {
+          nextErrors.rateChangeMaxRepaymentPercent =
+            "Bitte einen Prozentsatz zwischen 0 % und 100 % eingeben.";
+        } else {
+          rateChangeMaxRepaymentBps = parsed;
+        }
+      }
+
+      if (
+        rateChangeMinRepaymentBps !== null &&
+        rateChangeMaxRepaymentBps !== null &&
+        rateChangeMinRepaymentBps > rateChangeMaxRepaymentBps
+      ) {
+        nextErrors.rateChangeMaxRepaymentPercent =
+          "Max. Tilgungssatz darf nicht kleiner als Min. sein.";
+      }
+
+      if (values.rateChangeMinMonthlyEuro.trim().length > 0) {
+        const parsed = parseEuroInputToCents(values.rateChangeMinMonthlyEuro);
+        if (parsed === null || parsed < 0) {
+          nextErrors.rateChangeMinMonthlyEuro =
+            "Bitte eine gültige Rate >= 0,00 € eingeben.";
+        } else {
+          rateChangeMinMonthlyCents = parsed;
+        }
+      }
+
+      if (values.rateChangeMaxMonthlyEuro.trim().length > 0) {
+        const parsed = parseEuroInputToCents(values.rateChangeMaxMonthlyEuro);
+        if (parsed === null || parsed < 0) {
+          nextErrors.rateChangeMaxMonthlyEuro =
+            "Bitte eine gültige Rate >= 0,00 € eingeben.";
+        } else {
+          rateChangeMaxMonthlyCents = parsed;
+        }
+      }
+
+      if (
+        rateChangeMinMonthlyCents !== null &&
+        rateChangeMaxMonthlyCents !== null &&
+        rateChangeMinMonthlyCents > rateChangeMaxMonthlyCents
+      ) {
+        nextErrors.rateChangeMaxMonthlyEuro =
+          "Max. Monatsrate darf nicht kleiner als Min. sein.";
+      }
+
+      if (
+        !nextErrors.rateChangeMaxRepaymentPercent &&
+        !nextErrors.rateChangeMaxMonthlyEuro &&
+        currentBalanceCents !== null &&
+        monthlyRateCents !== null &&
+        interestRateBps !== null &&
+        values.balanceAsOfDate.trim().length > 0
+      ) {
+        const corridor = resolveRateCorridor(
+          {
+            id: "form-check",
+            name: trimmedName || "Kredit",
+            category: "loan",
+            status: values.status,
+            currentBalanceCents,
+            balanceAsOfDate: values.balanceAsOfDate.trim(),
+            monthlyRateCents,
+            interestRateBps,
+            repaymentType: values.repaymentType,
+            originalPrincipalCents,
+            rateChangeRight: "allowed",
+            rateChangeTotalCount,
+            rateChangeScope,
+            rateChangeUsedCount,
+            rateChangeMinRepaymentBps,
+            rateChangeMaxRepaymentBps,
+            rateChangeMinMonthlyCents,
+            rateChangeMaxMonthlyCents,
+            fixedInterestUntil: values.fixedInterestUntil.trim() || null,
+          },
+          values.balanceAsOfDate.trim(),
+        );
+        if (corridor.flags.corridorEmpty) {
+          nextErrors.rateChangeCorridor =
+            "Tilgungssatz- und Raten-Korridor haben keine gemeinsame Schnittmenge.";
+        }
+      }
+    }
+
+    const trimmedNote = values.loanOptionsNote.trim();
+    if (trimmedNote.length > 500) {
+      nextErrors.loanOptionsNote = "Notiz darf höchstens 500 Zeichen enthalten.";
+    } else if (trimmedNote.length > 0) {
+      loanOptionsNote = trimmedNote;
     }
   } else {
     if (values.targetSumEuro.trim().length > 0) {
@@ -281,7 +622,22 @@ export function validateAndBuildContractPayload(
         ...base,
         repaymentType: values.repaymentType,
         fixedInterestUntil: values.fixedInterestUntil.trim() || null,
+        originalPrincipalCents,
+        specialRepaymentRight: values.specialRepaymentRight,
+        specialRepaymentBasis,
         specialRepaymentMaxYearlyCents,
+        specialRepaymentPercentBps,
+        specialRepaymentUsedCents,
+        specialRepaymentUsedYear,
+        rateChangeRight,
+        rateChangeTotalCount,
+        rateChangeScope,
+        rateChangeUsedCount,
+        rateChangeMinRepaymentBps,
+        rateChangeMaxRepaymentBps,
+        rateChangeMinMonthlyCents,
+        rateChangeMaxMonthlyCents,
+        loanOptionsNote,
       },
     };
   }
@@ -301,42 +657,35 @@ export function mapApiFieldErrorsToContractErrors(
   error?: string,
   fieldErrors?: Record<string, string>,
 ): ContractFieldErrors {
+  const pick = (key: string) =>
+    fieldErrors?.[key] ?? fieldErrors?.[`contract.${key}`];
   return {
-    name: fieldErrors?.name ?? fieldErrors?.["contract.name"],
-    provider: fieldErrors?.provider ?? fieldErrors?.["contract.provider"],
-    linkedPropertyId:
-      fieldErrors?.linkedPropertyId ??
-      fieldErrors?.["contract.linkedPropertyId"],
-    currentBalanceEuro:
-      fieldErrors?.currentBalanceCents ??
-      fieldErrors?.["contract.currentBalanceCents"],
-    balanceAsOfDate:
-      fieldErrors?.balanceAsOfDate ??
-      fieldErrors?.["contract.balanceAsOfDate"],
-    monthlyRateEuro:
-      fieldErrors?.monthlyRateCents ??
-      fieldErrors?.["contract.monthlyRateCents"],
-    interestRatePercent:
-      fieldErrors?.interestRateBps ??
-      fieldErrors?.["contract.interestRateBps"],
-    milestoneDate:
-      fieldErrors?.milestoneDate ?? fieldErrors?.["contract.milestoneDate"],
-    milestoneLabel:
-      fieldErrors?.milestoneLabel ?? fieldErrors?.["contract.milestoneLabel"],
-    fixedInterestUntil:
-      fieldErrors?.fixedInterestUntil ??
-      fieldErrors?.["contract.fixedInterestUntil"],
-    specialRepaymentMaxYearlyEuro:
-      fieldErrors?.specialRepaymentMaxYearlyCents ??
-      fieldErrors?.["contract.specialRepaymentMaxYearlyCents"],
-    targetSumEuro:
-      fieldErrors?.targetSumCents ?? fieldErrors?.["contract.targetSumCents"],
-    allocationThresholdPercent:
-      fieldErrors?.allocationThresholdPercent ??
-      fieldErrors?.["contract.allocationThresholdPercent"],
-    futureLoanInterestRatePercent:
-      fieldErrors?.futureLoanInterestRateBps ??
-      fieldErrors?.["contract.futureLoanInterestRateBps"],
+    name: pick("name"),
+    provider: pick("provider"),
+    linkedPropertyId: pick("linkedPropertyId"),
+    currentBalanceEuro: pick("currentBalanceCents"),
+    balanceAsOfDate: pick("balanceAsOfDate"),
+    monthlyRateEuro: pick("monthlyRateCents"),
+    interestRatePercent: pick("interestRateBps"),
+    milestoneDate: pick("milestoneDate"),
+    milestoneLabel: pick("milestoneLabel"),
+    fixedInterestUntil: pick("fixedInterestUntil"),
+    originalPrincipalEuro: pick("originalPrincipalCents"),
+    specialRepaymentMaxYearlyEuro: pick("specialRepaymentMaxYearlyCents"),
+    specialRepaymentPercent: pick("specialRepaymentPercentBps"),
+    specialRepaymentUsedEuro:
+      pick("specialRepaymentUsedCents") ?? pick("specialRepaymentUsedYear"),
+    rateChangeTotalCount: pick("rateChangeTotalCount"),
+    rateChangeUsedCount: pick("rateChangeUsedCount"),
+    rateChangeMinRepaymentPercent: pick("rateChangeMinRepaymentBps"),
+    rateChangeMaxRepaymentPercent: pick("rateChangeMaxRepaymentBps"),
+    rateChangeMinMonthlyEuro: pick("rateChangeMinMonthlyCents"),
+    rateChangeMaxMonthlyEuro: pick("rateChangeMaxMonthlyCents"),
+    rateChangeCorridor: pick("rateChangeCorridor"),
+    loanOptionsNote: pick("loanOptionsNote"),
+    targetSumEuro: pick("targetSumCents"),
+    allocationThresholdPercent: pick("allocationThresholdPercent"),
+    futureLoanInterestRatePercent: pick("futureLoanInterestRateBps"),
     general: error ?? "Speichern fehlgeschlagen.",
   };
 }
@@ -365,6 +714,121 @@ export function ContractPrefillReviewNotice({ hints }: { hints: string[] }) {
   );
 }
 
+function buildPreviewDomainContract(
+  values: ContractFormValues,
+): DomainContract | null {
+  if (values.category !== "loan") return null;
+  const currentBalanceCents = parseEuroInputToCents(values.currentBalanceEuro);
+  const monthlyRateCents = parseEuroInputToCents(values.monthlyRateEuro);
+  const interestRateBps = parsePercentInputToBps(values.interestRatePercent);
+  if (
+    currentBalanceCents === null ||
+    currentBalanceCents < 0 ||
+    monthlyRateCents === null ||
+    monthlyRateCents < 0 ||
+    interestRateBps === null ||
+    interestRateBps < 0
+  ) {
+    return null;
+  }
+  const orig = values.originalPrincipalEuro.trim()
+    ? parseEuroInputToCents(values.originalPrincipalEuro)
+    : null;
+  const maxYearly = values.specialRepaymentMaxYearlyEuro.trim()
+    ? parseEuroInputToCents(values.specialRepaymentMaxYearlyEuro)
+    : null;
+  const srPct = values.specialRepaymentPercent.trim()
+    ? parsePercentInputToBps(values.specialRepaymentPercent)
+    : null;
+  const srUsed = values.specialRepaymentUsedEuro.trim()
+    ? parseEuroInputToCents(values.specialRepaymentUsedEuro)
+    : null;
+  const rcCountRaw = values.rateChangeTotalCount.trim()
+    ? Number(values.rateChangeTotalCount.trim())
+    : null;
+  const rcUsedRaw = values.rateChangeUsedCount.trim()
+    ? Number(values.rateChangeUsedCount.trim())
+    : 0;
+  const minBps = values.rateChangeMinRepaymentPercent.trim()
+    ? parsePercentInputToBps(values.rateChangeMinRepaymentPercent)
+    : null;
+  const maxBps = values.rateChangeMaxRepaymentPercent.trim()
+    ? parsePercentInputToBps(values.rateChangeMaxRepaymentPercent)
+    : null;
+  const minMonthly = values.rateChangeMinMonthlyEuro.trim()
+    ? parseEuroInputToCents(values.rateChangeMinMonthlyEuro)
+    : null;
+  const maxMonthly = values.rateChangeMaxMonthlyEuro.trim()
+    ? parseEuroInputToCents(values.rateChangeMaxMonthlyEuro)
+    : null;
+
+  return {
+    id: "preview",
+    name: values.name.trim() || "Kredit",
+    category: "loan",
+    status: values.status,
+    currentBalanceCents,
+    balanceAsOfDate: values.balanceAsOfDate || `${values.specialRepaymentUsedYear}-01-01`,
+    monthlyRateCents,
+    interestRateBps,
+    repaymentType: values.repaymentType,
+    fixedInterestUntil: values.fixedInterestUntil.trim() || null,
+    originalPrincipalCents: orig !== null && orig > 0 ? orig : null,
+    specialRepaymentRight: values.specialRepaymentRight,
+    specialRepaymentBasis:
+      values.specialRepaymentRight === "allowed" &&
+      values.specialRepaymentBasis !== ""
+        ? values.specialRepaymentBasis
+        : null,
+    specialRepaymentMaxYearlyCents:
+      values.specialRepaymentRight === "allowed" &&
+      values.specialRepaymentBasis === "fixed_yearly" &&
+      maxYearly !== null &&
+      maxYearly > 0
+        ? maxYearly
+        : null,
+    specialRepaymentPercentBps:
+      values.specialRepaymentRight === "allowed" &&
+      (values.specialRepaymentBasis === "percent_original" ||
+        values.specialRepaymentBasis === "percent_balance") &&
+      srPct !== null &&
+      srPct > 0 &&
+      srPct <= 10_000
+        ? srPct
+        : null,
+    specialRepaymentUsedCents: srUsed !== null && srUsed >= 0 ? srUsed : null,
+    specialRepaymentUsedYear:
+      srUsed !== null && srUsed >= 0 ? values.specialRepaymentUsedYear : null,
+    rateChangeRight:
+      values.repaymentType === "lump_sum" ? "none" : values.rateChangeRight,
+    rateChangeTotalCount:
+      rcCountRaw !== null &&
+      Number.isInteger(rcCountRaw) &&
+      rcCountRaw >= 1 &&
+      rcCountRaw <= MAX_RATE_CHANGE_COUNT
+        ? rcCountRaw
+        : null,
+    rateChangeScope:
+      values.rateChangeScope !== "" ? values.rateChangeScope : null,
+    rateChangeUsedCount:
+      Number.isInteger(rcUsedRaw) && rcUsedRaw >= 0 ? rcUsedRaw : 0,
+    rateChangeMinRepaymentBps:
+      minBps !== null && minBps >= 0 && minBps <= 10_000 ? minBps : null,
+    rateChangeMaxRepaymentBps:
+      maxBps !== null && maxBps >= 0 && maxBps <= 10_000 ? maxBps : null,
+    rateChangeMinMonthlyCents:
+      minMonthly !== null && minMonthly >= 0 ? minMonthly : null,
+    rateChangeMaxMonthlyCents:
+      maxMonthly !== null && maxMonthly >= 0 ? maxMonthly : null,
+  };
+}
+
+const OPTION_RIGHT_SEGMENTS: { value: OptionRight; label: string }[] = [
+  { value: "unknown", label: "Unbekannt" },
+  { value: "none", label: "Nicht möglich" },
+  { value: "allowed", label: "Möglich" },
+];
+
 interface ContractFormFieldsProps {
   values: ContractFormValues;
   onChange: (next: ContractFormValues) => void;
@@ -372,6 +836,7 @@ interface ContractFormFieldsProps {
   properties: PropertyRow[];
   disabled?: boolean;
   idPrefix?: string;
+  hasPrefilledLoanOptions?: boolean;
 }
 
 export function ContractFormFields({
@@ -381,13 +846,107 @@ export function ContractFormFields({
   properties,
   disabled = false,
   idPrefix = "contract",
+  hasPrefilledLoanOptions = false,
 }: ContractFormFieldsProps) {
+  const [optionsOpen, setOptionsOpen] = React.useState<boolean>(
+    () => hasPopulatedLoanOptions(values) || hasPrefilledLoanOptions,
+  );
+
   function updateField<K extends keyof ContractFormValues>(
     key: K,
     value: ContractFormValues[K],
   ) {
     onChange({ ...values, [key]: value });
   }
+
+  const previewContract = React.useMemo(
+    () => buildPreviewDomainContract(values),
+    [values],
+  );
+
+  const previewAsOf = `${values.specialRepaymentUsedYear}-01-01`;
+
+  const specialHint = React.useMemo(() => {
+    if (!previewContract || values.specialRepaymentRight !== "allowed") {
+      return null;
+    }
+    try {
+      const allowance = remainingSpecialRepaymentCents(
+        previewContract,
+        previewAsOf,
+        previewContract.currentBalanceCents,
+      );
+      if (allowance.flags.missingOriginalPrincipal) {
+        return "Höhe unbekannt – Ursprungsbetrag fehlt.";
+      }
+      if (allowance.capCents === null) {
+        return "Höhe nicht hinterlegt – Simulation ohne Jahresdeckel.";
+      }
+      const capStr = formatEuroDE(allowance.capCents);
+      const remStr =
+        allowance.remainingCents !== null
+          ? formatEuroDE(allowance.remainingCents)
+          : capStr;
+      return `Entspricht ${capStr}/Jahr, frei ${remStr} (${values.specialRepaymentUsedYear}).`;
+    } catch {
+      return null;
+    }
+  }, [previewContract, previewAsOf, values.specialRepaymentRight, values.specialRepaymentUsedYear]);
+
+  const corridorHint = React.useMemo(() => {
+    if (
+      !previewContract ||
+      values.repaymentType === "lump_sum" ||
+      values.rateChangeRight !== "allowed"
+    ) {
+      return null;
+    }
+    try {
+      const corridor = resolveRateCorridor(previewContract, previewAsOf);
+      if (
+        corridor.flags.corridorEmpty ||
+        corridor.minMonthlyCents === null ||
+        corridor.maxMonthlyCents === null
+      ) {
+        return null;
+      }
+      const currentRepay = repaymentBpsFromRate(
+        previewContract,
+        previewContract.monthlyRateCents,
+      );
+      const parts = [
+        `Rate ${formatEuroDE(corridor.minMonthlyCents)}–${formatEuroDE(corridor.maxMonthlyCents)}/Monat`,
+      ];
+      if (currentRepay !== null) {
+        parts.push(`aktuell ≈ ${formatBpsDE(currentRepay.bps)} Tilgung`);
+      }
+      if (corridor.flags.corridorAssumed) {
+        parts.push("angenommener Korridor 1–10 %");
+      }
+      if (corridor.flags.approximatedBase) {
+        parts.push("Näherung über Restschuld");
+      }
+      return parts.join(" · ");
+    } catch {
+      return null;
+    }
+  }, [previewContract, previewAsOf, values.repaymentType, values.rateChangeRight]);
+
+  const hasLoanOptionErrors = Boolean(
+    errors.originalPrincipalEuro ||
+      errors.specialRepaymentMaxYearlyEuro ||
+      errors.specialRepaymentPercent ||
+      errors.specialRepaymentUsedEuro ||
+      errors.rateChangeTotalCount ||
+      errors.rateChangeUsedCount ||
+      errors.rateChangeMinRepaymentPercent ||
+      errors.rateChangeMaxRepaymentPercent ||
+      errors.rateChangeMinMonthlyEuro ||
+      errors.rateChangeMaxMonthlyEuro ||
+      errors.rateChangeCorridor ||
+      errors.loanOptionsNote,
+  );
+  const isOptionsExpanded = optionsOpen || hasLoanOptionErrors;
 
   return (
     <div className="space-y-5">
@@ -457,7 +1016,7 @@ export function ContractFormFields({
           </Select>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 sm:col-span-2">
           <Label htmlFor={`${idPrefix}-property`}>Immobilie (optional)</Label>
           <Select
             id={`${idPrefix}-property`}
@@ -567,7 +1126,7 @@ export function ContractFormFields({
           <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
             Kredit-Konditionen
           </h3>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor={`${idPrefix}-repayment-type`}>Tilgungsart</Label>
               <Select
@@ -580,7 +1139,9 @@ export function ContractFormFields({
               >
                 <option value="annuity">Annuitätendarlehen</option>
                 <option value="installment">Ratendarlehen</option>
-                <option value="lump_sum">Endfällig (z. B. Verwandtendarlehen)</option>
+                <option value="lump_sum">
+                  Endfällig (z. B. Verwandtendarlehen)
+                </option>
               </Select>
             </div>
 
@@ -605,37 +1166,506 @@ export function ContractFormFields({
                 </p>
               ) : null}
             </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor={`${idPrefix}-special-repayment`}>
-                Sondertilgung/Jahr (€)
-              </Label>
-              <Input
-                id={`${idPrefix}-special-repayment`}
-                inputMode="decimal"
-                value={values.specialRepaymentMaxYearlyEuro}
-                onChange={(e) =>
-                  updateField("specialRepaymentMaxYearlyEuro", e.target.value)
-                }
-                placeholder="z. B. 10000,00"
-                hasError={Boolean(errors.specialRepaymentMaxYearlyEuro)}
-                disabled={disabled}
-                className="tabular-nums"
-              />
-              {errors.specialRepaymentMaxYearlyEuro ? (
-                <p className="text-xs text-[var(--rose)]">
-                  {errors.specialRepaymentMaxYearlyEuro}
-                </p>
-              ) : null}
-            </div>
           </div>
 
           {values.repaymentType === "lump_sum" ? (
             <p className="text-xs text-[var(--text-secondary)]">
-              Hinweis: Bei endfälligen Darlehen erfolgt keine
-              automatische monatliche Tilgungsprojektion.
+              Hinweis: Bei endfälligen Darlehen erfolgt keine automatische
+              monatliche Tilgungsprojektion und kein Tilgungssatzwechsel.
             </p>
           ) : null}
+
+          {/* Collapsible Darlehensoptionen */}
+          <div
+            className={`rounded-xl border p-3.5 ${
+              hasPrefilledLoanOptions
+                ? "border-[var(--amber)]/50 bg-[var(--amber)]/5"
+                : "border-[var(--border)] bg-[var(--surface)]"
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => setOptionsOpen((open) => !open)}
+              aria-expanded={isOptionsExpanded}
+              className="flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            >
+              <span>Darlehensoptionen (Sondertilgung &amp; Tilgungswechsel)</span>
+              {isOptionsExpanded ? (
+                <ChevronDown className="h-4 w-4 text-[var(--text-secondary)]" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-[var(--text-secondary)]" />
+              )}
+            </button>
+
+            {isOptionsExpanded ? (
+              <div className="mt-4 space-y-5">
+                {/* Ursprungsbetrag */}
+                <div className="space-y-1.5 sm:max-w-xs">
+                  <Label htmlFor={`${idPrefix}-original-principal`}>
+                    Ursprungsbetrag / Nennbetrag (€, optional)
+                  </Label>
+                  <Input
+                    id={`${idPrefix}-original-principal`}
+                    inputMode="decimal"
+                    value={values.originalPrincipalEuro}
+                    onChange={(e) =>
+                      updateField("originalPrincipalEuro", e.target.value)
+                    }
+                    placeholder="z. B. 300000,00"
+                    hasError={Boolean(errors.originalPrincipalEuro)}
+                    disabled={disabled}
+                    className="tabular-nums"
+                  />
+                  {errors.originalPrincipalEuro ? (
+                    <p className="text-xs text-[var(--rose)]">
+                      {errors.originalPrincipalEuro}
+                    </p>
+                  ) : null}
+                </div>
+
+                {/* Sondertilgung */}
+                <div className="space-y-3 border-t border-[var(--border)] pt-4">
+                  <div className="space-y-1.5">
+                    <span className="block text-xs font-medium text-[var(--text-primary)]">
+                      Sondertilgungsrecht
+                    </span>
+                    <div
+                      role="group"
+                      aria-label="Sondertilgungsrecht"
+                      className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-0.5"
+                    >
+                      {OPTION_RIGHT_SEGMENTS.map((seg) => {
+                        const active = values.specialRepaymentRight === seg.value;
+                        return (
+                          <button
+                            key={seg.value}
+                            type="button"
+                            disabled={disabled}
+                            aria-pressed={active}
+                            onClick={() =>
+                              updateField("specialRepaymentRight", seg.value)
+                            }
+                            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                              active
+                                ? "bg-[var(--accent)] text-white"
+                                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                            }`}
+                          >
+                            {seg.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {values.specialRepaymentRight === "allowed" ? (
+                    <div className="space-y-3">
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="space-y-1.5">
+                          <Label htmlFor={`${idPrefix}-sr-basis`}>
+                            Deckel-Basis
+                          </Label>
+                          <Select
+                            id={`${idPrefix}-sr-basis`}
+                            value={values.specialRepaymentBasis}
+                            onChange={(e) =>
+                              updateField(
+                                "specialRepaymentBasis",
+                                e.target.value as SpecialRepaymentBasis | "",
+                              )
+                            }
+                            disabled={disabled}
+                          >
+                            <option value="">Höhe nicht hinterlegt</option>
+                            <option value="fixed_yearly">€ pro Jahr</option>
+                            <option value="percent_original">
+                              % vom Ursprungsbetrag
+                            </option>
+                            <option value="percent_balance">
+                              % der Restschuld
+                            </option>
+                          </Select>
+                        </div>
+
+                        {values.specialRepaymentBasis === "fixed_yearly" ? (
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`${idPrefix}-special-repayment`}>
+                              Sondertilgung/Jahr (€)
+                            </Label>
+                            <Input
+                              id={`${idPrefix}-special-repayment`}
+                              inputMode="decimal"
+                              value={values.specialRepaymentMaxYearlyEuro}
+                              onChange={(e) =>
+                                updateField(
+                                  "specialRepaymentMaxYearlyEuro",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="z. B. 10000,00"
+                              hasError={Boolean(
+                                errors.specialRepaymentMaxYearlyEuro,
+                              )}
+                              disabled={disabled}
+                              className="tabular-nums"
+                            />
+                            {errors.specialRepaymentMaxYearlyEuro ? (
+                              <p className="text-xs text-[var(--rose)]">
+                                {errors.specialRepaymentMaxYearlyEuro}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : null}
+
+                        {values.specialRepaymentBasis === "percent_original" ||
+                        values.specialRepaymentBasis === "percent_balance" ? (
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`${idPrefix}-sr-percent`}>
+                              Prozentsatz (%)
+                            </Label>
+                            <Input
+                              id={`${idPrefix}-sr-percent`}
+                              inputMode="decimal"
+                              value={values.specialRepaymentPercent}
+                              onChange={(e) =>
+                                updateField(
+                                  "specialRepaymentPercent",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="z. B. 5,00"
+                              hasError={Boolean(errors.specialRepaymentPercent)}
+                              disabled={disabled}
+                              className="tabular-nums"
+                            />
+                            {errors.specialRepaymentPercent ? (
+                              <p className="text-xs text-[var(--rose)]">
+                                {errors.specialRepaymentPercent}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : null}
+
+                        <div className="space-y-1.5">
+                          <Label htmlFor={`${idPrefix}-sr-used`}>
+                            Bereits genutzt in {values.specialRepaymentUsedYear}{" "}
+                            (€)
+                          </Label>
+                          <Input
+                            id={`${idPrefix}-sr-used`}
+                            inputMode="decimal"
+                            value={values.specialRepaymentUsedEuro}
+                            onChange={(e) =>
+                              updateField(
+                                "specialRepaymentUsedEuro",
+                                e.target.value,
+                              )
+                            }
+                            placeholder="0,00"
+                            hasError={Boolean(errors.specialRepaymentUsedEuro)}
+                            disabled={disabled}
+                            className="tabular-nums"
+                          />
+                          {errors.specialRepaymentUsedEuro ? (
+                            <p className="text-xs text-[var(--rose)]">
+                              {errors.specialRepaymentUsedEuro}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="space-y-0.5 text-xs text-[var(--text-secondary)]">
+                        {specialHint ? (
+                          <p className="tabular-nums font-medium text-[var(--text-primary)]">
+                            {specialHint}
+                          </p>
+                        ) : null}
+                        <p>
+                          Kontingent je Kalenderjahr gerechnet
+                          {values.specialRepaymentBasis === "percent_balance"
+                            ? " (Restschuld zu Jahresbeginn)."
+                            : "."}
+                        </p>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Tilgungssatzwechsel (nur bei nicht-endfälligen Krediten) */}
+                {values.repaymentType !== "lump_sum" ? (
+                  <div className="space-y-3 border-t border-[var(--border)] pt-4">
+                    <div className="space-y-1.5">
+                      <span className="block text-xs font-medium text-[var(--text-primary)]">
+                        Tilgungssatzwechsel
+                      </span>
+                      <div
+                        role="group"
+                        aria-label="Tilgungssatzwechsel"
+                        className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-0.5"
+                      >
+                        {OPTION_RIGHT_SEGMENTS.map((seg) => {
+                          const active = values.rateChangeRight === seg.value;
+                          return (
+                            <button
+                              key={seg.value}
+                              type="button"
+                              disabled={disabled}
+                              aria-pressed={active}
+                              onClick={() =>
+                                updateField("rateChangeRight", seg.value)
+                              }
+                              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                                active
+                                  ? "bg-[var(--accent)] text-white"
+                                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                              }`}
+                            >
+                              {seg.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {values.rateChangeRight === "allowed" ? (
+                      <div className="space-y-3">
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`${idPrefix}-rc-count`}>
+                              Erlaubte Wechsel (optional)
+                            </Label>
+                            <Input
+                              id={`${idPrefix}-rc-count`}
+                              inputMode="numeric"
+                              value={values.rateChangeTotalCount}
+                              onChange={(e) =>
+                                updateField(
+                                  "rateChangeTotalCount",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="z. B. 2"
+                              hasError={Boolean(errors.rateChangeTotalCount)}
+                              disabled={disabled}
+                              className="tabular-nums"
+                            />
+                            {errors.rateChangeTotalCount ? (
+                              <p className="text-xs text-[var(--rose)]">
+                                {errors.rateChangeTotalCount}
+                              </p>
+                            ) : null}
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`${idPrefix}-rc-scope`}>Bezug</Label>
+                            <Select
+                              id={`${idPrefix}-rc-scope`}
+                              value={values.rateChangeScope}
+                              onChange={(e) =>
+                                updateField(
+                                  "rateChangeScope",
+                                  e.target.value as RateChangeScope | "",
+                                )
+                              }
+                              disabled={disabled}
+                            >
+                              <option value="">Nicht festgelegt</option>
+                              <option value="term">Gesamtlaufzeit</option>
+                              <option value="fixed_period">
+                                je Zinsbindung
+                              </option>
+                              <option value="per_year">pro Jahr</option>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`${idPrefix}-rc-used`}>
+                              Bereits genutzt
+                            </Label>
+                            <Input
+                              id={`${idPrefix}-rc-used`}
+                              inputMode="numeric"
+                              value={values.rateChangeUsedCount}
+                              onChange={(e) =>
+                                updateField(
+                                  "rateChangeUsedCount",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="0"
+                              hasError={Boolean(errors.rateChangeUsedCount)}
+                              disabled={disabled}
+                              className="tabular-nums"
+                            />
+                            {errors.rateChangeUsedCount ? (
+                              <p className="text-xs text-[var(--rose)]">
+                                {errors.rateChangeUsedCount}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-4">
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`${idPrefix}-rc-min-bps`}>
+                              Tilgung Min (%)
+                            </Label>
+                            <Input
+                              id={`${idPrefix}-rc-min-bps`}
+                              inputMode="decimal"
+                              value={values.rateChangeMinRepaymentPercent}
+                              onChange={(e) =>
+                                updateField(
+                                  "rateChangeMinRepaymentPercent",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="z. B. 1,00"
+                              hasError={Boolean(
+                                errors.rateChangeMinRepaymentPercent,
+                              )}
+                              disabled={disabled}
+                              className="tabular-nums"
+                            />
+                            {errors.rateChangeMinRepaymentPercent ? (
+                              <p className="text-xs text-[var(--rose)]">
+                                {errors.rateChangeMinRepaymentPercent}
+                              </p>
+                            ) : null}
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`${idPrefix}-rc-max-bps`}>
+                              Tilgung Max (%)
+                            </Label>
+                            <Input
+                              id={`${idPrefix}-rc-max-bps`}
+                              inputMode="decimal"
+                              value={values.rateChangeMaxRepaymentPercent}
+                              onChange={(e) =>
+                                updateField(
+                                  "rateChangeMaxRepaymentPercent",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="z. B. 5,00"
+                              hasError={Boolean(
+                                errors.rateChangeMaxRepaymentPercent,
+                              )}
+                              disabled={disabled}
+                              className="tabular-nums"
+                            />
+                            {errors.rateChangeMaxRepaymentPercent ? (
+                              <p className="text-xs text-[var(--rose)]">
+                                {errors.rateChangeMaxRepaymentPercent}
+                              </p>
+                            ) : null}
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`${idPrefix}-rc-min-eur`}>
+                              Rate Min (€)
+                            </Label>
+                            <Input
+                              id={`${idPrefix}-rc-min-eur`}
+                              inputMode="decimal"
+                              value={values.rateChangeMinMonthlyEuro}
+                              onChange={(e) =>
+                                updateField(
+                                  "rateChangeMinMonthlyEuro",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="optional"
+                              hasError={Boolean(errors.rateChangeMinMonthlyEuro)}
+                              disabled={disabled}
+                              className="tabular-nums"
+                            />
+                            {errors.rateChangeMinMonthlyEuro ? (
+                              <p className="text-xs text-[var(--rose)]">
+                                {errors.rateChangeMinMonthlyEuro}
+                              </p>
+                            ) : null}
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`${idPrefix}-rc-max-eur`}>
+                              Rate Max (€)
+                            </Label>
+                            <Input
+                              id={`${idPrefix}-rc-max-eur`}
+                              inputMode="decimal"
+                              value={values.rateChangeMaxMonthlyEuro}
+                              onChange={(e) =>
+                                updateField(
+                                  "rateChangeMaxMonthlyEuro",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder="optional"
+                              hasError={Boolean(errors.rateChangeMaxMonthlyEuro)}
+                              disabled={disabled}
+                              className="tabular-nums"
+                            />
+                            {errors.rateChangeMaxMonthlyEuro ? (
+                              <p className="text-xs text-[var(--rose)]">
+                                {errors.rateChangeMaxMonthlyEuro}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        {errors.rateChangeCorridor ? (
+                          <p className="text-xs font-medium text-[var(--rose)]">
+                            {errors.rateChangeCorridor}
+                          </p>
+                        ) : null}
+
+                        {corridorHint ? (
+                          <p className="tabular-nums text-xs font-medium text-[var(--text-primary)]">
+                            {corridorHint}
+                          </p>
+                        ) : null}
+                        {values.rateChangeScope === "per_year" ? (
+                          <p className="text-xs text-[var(--text-secondary)]">
+                            Bei jährlichem Bezug wird die Nutzung im laufenden
+                            Jahr nicht separat gezählt.
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {/* Notiz */}
+                <div className="space-y-1.5 border-t border-[var(--border)] pt-4">
+                  <Label htmlFor={`${idPrefix}-loan-note`}>
+                    Vertragsnotiz (optional, max. 500 Zeichen)
+                  </Label>
+                  <textarea
+                    id={`${idPrefix}-loan-note`}
+                    rows={2}
+                    maxLength={500}
+                    value={values.loanOptionsNote}
+                    onChange={(e) =>
+                      updateField("loanOptionsNote", e.target.value)
+                    }
+                    disabled={disabled}
+                    placeholder="z. B. Sondertilgung nur zum 31.12., Wechsel 2× kostenlos"
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                  />
+                  {errors.loanOptionsNote ? (
+                    <p className="text-xs text-[var(--rose)]">
+                      {errors.loanOptionsNote}
+                    </p>
+                  ) : null}
+                  <p className="text-[11px] text-[var(--text-secondary)]">
+                    Bleibt lokal, nicht im anonymisierten Bericht.
+                  </p>
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
       ) : (
         <div className="space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]/50 p-4">

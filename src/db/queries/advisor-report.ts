@@ -149,6 +149,7 @@ export function loadAdvisorSensitiveStrings(): string[] {
     add(contract.name);
     add(contract.provider);
     add(contract.milestoneLabel);
+    add(contract.loanOptionsNote);
   }
   for (const property of listProperties()) {
     add(property.name);

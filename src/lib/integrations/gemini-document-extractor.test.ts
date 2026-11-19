@@ -467,6 +467,12 @@ describe("createGeminiDocumentExtractor", () => {
     expect(capturedPrompt).toContain("Konditionenübersicht");
     expect(capturedPrompt).toContain("ESIS-Merkblatt");
     expect(capturedPrompt).toContain("Basispunkten");
+    expect(capturedPrompt).toContain("originalPrincipalCents");
+    expect(capturedPrompt).toContain("specialRepaymentRight");
+    expect(capturedPrompt).toContain("specialRepaymentPercentBps");
+    expect(capturedPrompt).toContain("rateChangeRight");
+    expect(capturedPrompt).toContain("rateChangeMinRepaymentBps");
+    expect(capturedPrompt).toContain("Vorzeitige Rückzahlung");
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.data.extractedContract?.interestRateBps).toBe(345);

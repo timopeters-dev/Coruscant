@@ -631,10 +631,70 @@ export function updateContract(
       patch.repaymentType !== undefined
         ? patch.repaymentType
         : existing.repaymentType,
+    originalPrincipalCents:
+      patch.originalPrincipalCents !== undefined
+        ? patch.originalPrincipalCents
+        : existing.originalPrincipalCents,
+    specialRepaymentRight:
+      patch.specialRepaymentRight !== undefined
+        ? patch.specialRepaymentRight
+        : existing.specialRepaymentRight,
+    specialRepaymentBasis:
+      patch.specialRepaymentBasis !== undefined
+        ? patch.specialRepaymentBasis
+        : existing.specialRepaymentBasis,
     specialRepaymentMaxYearlyCents:
       patch.specialRepaymentMaxYearlyCents !== undefined
         ? patch.specialRepaymentMaxYearlyCents
         : existing.specialRepaymentMaxYearlyCents,
+    specialRepaymentPercentBps:
+      patch.specialRepaymentPercentBps !== undefined
+        ? patch.specialRepaymentPercentBps
+        : existing.specialRepaymentPercentBps,
+    specialRepaymentUsedCents:
+      patch.specialRepaymentUsedCents !== undefined
+        ? patch.specialRepaymentUsedCents
+        : existing.specialRepaymentUsedCents,
+    specialRepaymentUsedYear:
+      patch.specialRepaymentUsedYear !== undefined
+        ? patch.specialRepaymentUsedYear
+        : existing.specialRepaymentUsedYear,
+    rateChangeRight:
+      patch.rateChangeRight !== undefined
+        ? patch.rateChangeRight
+        : existing.rateChangeRight,
+    rateChangeTotalCount:
+      patch.rateChangeTotalCount !== undefined
+        ? patch.rateChangeTotalCount
+        : existing.rateChangeTotalCount,
+    rateChangeScope:
+      patch.rateChangeScope !== undefined
+        ? patch.rateChangeScope
+        : existing.rateChangeScope,
+    rateChangeUsedCount:
+      patch.rateChangeUsedCount !== undefined
+        ? patch.rateChangeUsedCount
+        : existing.rateChangeUsedCount,
+    rateChangeMinRepaymentBps:
+      patch.rateChangeMinRepaymentBps !== undefined
+        ? patch.rateChangeMinRepaymentBps
+        : existing.rateChangeMinRepaymentBps,
+    rateChangeMaxRepaymentBps:
+      patch.rateChangeMaxRepaymentBps !== undefined
+        ? patch.rateChangeMaxRepaymentBps
+        : existing.rateChangeMaxRepaymentBps,
+    rateChangeMinMonthlyCents:
+      patch.rateChangeMinMonthlyCents !== undefined
+        ? patch.rateChangeMinMonthlyCents
+        : existing.rateChangeMinMonthlyCents,
+    rateChangeMaxMonthlyCents:
+      patch.rateChangeMaxMonthlyCents !== undefined
+        ? patch.rateChangeMaxMonthlyCents
+        : existing.rateChangeMaxMonthlyCents,
+    loanOptionsNote:
+      patch.loanOptionsNote !== undefined
+        ? patch.loanOptionsNote
+        : existing.loanOptionsNote,
     fixedInterestUntil:
       patch.fixedInterestUntil !== undefined
         ? patch.fixedInterestUntil

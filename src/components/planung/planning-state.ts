@@ -1,3 +1,4 @@
+import type { DomainContract } from "@/lib/domain/contracts";
 import { parseIsoDate, parseYearMonth } from "@/lib/domain/date";
 import {
   DEFAULT_RECOMMENDATION_ASSUMPTIONS,
@@ -18,6 +19,7 @@ import {
   type CashflowChangeInput,
   type CashflowChangeResult,
   type PrepaymentDefaults,
+  type PrepaymentMonthlyChannel,
   type PrepaymentVsEtfInput,
   type PrepaymentVsEtfResult,
 } from "@/lib/domain/scenarios";
@@ -57,13 +59,29 @@ export function parsePlanningView(
   return "empfehlung";
 }
 
+export function parsePlanningLoanId(
+  raw: string | string[] | null | undefined,
+  loans: readonly Pick<LoanOption, "id">[],
+): string | null {
+  const first = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof first !== "string") return null;
+  const trimmed = first.trim();
+  if (!trimmed) return null;
+  return loans.some((l) => l.id === trimmed) ? trimmed : null;
+}
+
 export function buildPlanningHref(
   entry: PlanningEntry | null,
   view?: PlanningView,
+  options?: { kredit?: string },
 ): string {
   if (!entry) return "/planung";
   if (entry === "geld" && view && view !== "empfehlung") {
-    return `/planung?frage=geld&ansicht=${view}`;
+    const base = `/planung?frage=geld&ansicht=${view}`;
+    if (view === "vergleich" && options?.kredit) {
+      return `${base}&kredit=${encodeURIComponent(options.kredit)}`;
+    }
+    return base;
   }
   return `/planung?frage=${entry}`;
 }
@@ -73,12 +91,15 @@ export interface LoanOption {
   name: string;
   provider: string | null;
   defaults: PrepaymentDefaults;
+  contract?: DomainContract;
 }
 
 export interface FreeMoneyState {
   loanId: string;
   oneTimeCents: number;
   monthlyCents: number;
+  monthlyChannel: PrepaymentMonthlyChannel;
+  rateStartMonth: number;
   returnBps: number;
   allowanceCents: number;
   churchTaxBps: 0 | 800 | 900;
@@ -89,11 +110,43 @@ export interface FreeMoneyState {
 export const FREE_MONEY_DEFAULTS = {
   oneTimeCents: 1_000_000,
   monthlyCents: 20_000,
+  monthlyChannel: "special_repayment" as PrepaymentMonthlyChannel,
+  rateStartMonth: 1,
   returnBps: 600,
   allowanceCents: DEFAULT_SAVER_ALLOWANCE_CENTS,
   churchTaxBps: 0 as 0 | 800 | 900,
   usedThisYearCents: 0,
 } as const;
+
+export function canUseRateIncreaseChannel(loan: LoanOption | null): boolean {
+  if (!loan) return false;
+  const rc = loan.defaults.rateCorridor;
+  return (
+    rc.status !== "none" &&
+    rc.status !== "not_applicable" &&
+    !rc.flags.exhausted &&
+    !rc.flags.corridorEmpty &&
+    rc.maxMonthlyCents !== null &&
+    rc.maxMonthlyCents > rc.currentMonthlyCents
+  );
+}
+
+function maxRateStartMonthForLoan(loan: LoanOption | null): number {
+  const latest = loan?.defaults.rateCorridor.latestChangeDate;
+  if (!latest) return MAX_SCENARIO_MONTHS;
+  try {
+    const startYm = parseYearMonth(
+      loan.defaults.startDate.slice(0, 7),
+      "startDate",
+    );
+    const endYm = parseYearMonth(latest.slice(0, 7), "latestChangeDate");
+    const diff =
+      (endYm.year - startYm.year) * 12 + (endYm.month - startYm.month);
+    return Math.min(MAX_SCENARIO_MONTHS, Math.max(1, diff));
+  } catch {
+    return MAX_SCENARIO_MONTHS;
+  }
+}
 
 export function defaultLoanId(
   loans: readonly LoanOption[],
@@ -108,15 +161,32 @@ export function defaultLoanId(
 export function createFreeMoneyState(
   loans: readonly LoanOption[],
   asOfDate: string,
+  initialLoanId?: string | null,
 ): FreeMoneyState {
+  const validInitial =
+    initialLoanId && loans.some((l) => l.id === initialLoanId)
+      ? initialLoanId
+      : defaultLoanId(loans, asOfDate);
+  const selected = loans.find((l) => l.id === validInitial) ?? loans[0] ?? null;
+  const persistedUsed = selected?.defaults.specialAllowance.usedCents ?? 0;
+  const specialRem = selected?.defaults.specialAllowance.remainingCents;
+  const initialOneTime =
+    selected?.defaults.specialAllowance.status === "none"
+      ? 0
+      : specialRem != null
+        ? Math.min(FREE_MONEY_DEFAULTS.oneTimeCents, specialRem)
+        : FREE_MONEY_DEFAULTS.oneTimeCents;
+
   return {
-    loanId: defaultLoanId(loans, asOfDate),
-    oneTimeCents: FREE_MONEY_DEFAULTS.oneTimeCents,
+    loanId: validInitial,
+    oneTimeCents: initialOneTime,
     monthlyCents: FREE_MONEY_DEFAULTS.monthlyCents,
+    monthlyChannel: FREE_MONEY_DEFAULTS.monthlyChannel,
+    rateStartMonth: FREE_MONEY_DEFAULTS.rateStartMonth,
     returnBps: FREE_MONEY_DEFAULTS.returnBps,
     allowanceCents: FREE_MONEY_DEFAULTS.allowanceCents,
     churchTaxBps: FREE_MONEY_DEFAULTS.churchTaxBps,
-    usedThisYearCents: FREE_MONEY_DEFAULTS.usedThisYearCents,
+    usedThisYearCents: persistedUsed,
     horizonOverride: null,
   };
 }
@@ -133,6 +203,8 @@ export type FreeMoneyAction =
         | "returnBps";
       value: number;
     }
+  | { type: "setMonthlyChannel"; channel: PrepaymentMonthlyChannel }
+  | { type: "setRateStartMonth"; month: number }
   | { type: "setChurchTax"; bps: number }
   | { type: "setHorizon"; date: string }
   | { type: "reset"; loans: readonly LoanOption[]; asOfDate: string };
@@ -145,9 +217,51 @@ export function freeMoneyReducer(
   switch (a.type) {
     case "setLoan": {
       if (!a.loanId) return s;
-      if (loans && !loans.some((l) => l.id === a.loanId)) return s;
+      const targetLoan = loans?.find((l) => l.id === a.loanId) ?? null;
+      if (loans && !targetLoan) return s;
       if (s.loanId === a.loanId) return s;
-      return { ...s, loanId: a.loanId };
+      const nextChannel: PrepaymentMonthlyChannel =
+        s.monthlyChannel === "rate_increase" &&
+        targetLoan &&
+        !canUseRateIncreaseChannel(targetLoan)
+          ? "special_repayment"
+          : s.monthlyChannel;
+      const nextUsed =
+        targetLoan?.defaults.specialAllowance.usedCents ?? s.usedThisYearCents;
+      let nextOneTime = s.oneTimeCents;
+      if (targetLoan) {
+        const rem = targetLoan.defaults.specialAllowance.remainingCents;
+        if (targetLoan.defaults.specialAllowance.status === "none") {
+          nextOneTime = 0;
+        } else if (rem !== null && nextOneTime > rem) {
+          nextOneTime = rem;
+        }
+      }
+      let nextMonthly = s.monthlyCents;
+      if (
+        nextChannel === "rate_increase" &&
+        targetLoan?.defaults.rateCorridor.maxMonthlyCents != null
+      ) {
+        const maxInc = Math.max(
+          0,
+          targetLoan.defaults.rateCorridor.maxMonthlyCents -
+            targetLoan.defaults.rateCorridor.currentMonthlyCents,
+        );
+        if (nextMonthly > maxInc) nextMonthly = maxInc;
+      }
+      const nextRateStartMonth =
+        nextChannel === "rate_increase"
+          ? Math.min(s.rateStartMonth, maxRateStartMonthForLoan(targetLoan))
+          : s.rateStartMonth;
+      return {
+        ...s,
+        loanId: a.loanId,
+        monthlyChannel: nextChannel,
+        rateStartMonth: nextRateStartMonth,
+        usedThisYearCents: nextUsed,
+        oneTimeCents: nextOneTime,
+        monthlyCents: nextMonthly,
+      };
     }
     case "setField": {
       if (!Number.isSafeInteger(a.value)) return s;
@@ -161,8 +275,51 @@ export function freeMoneyReducer(
       } else if (a.field === "allowanceCents") {
         nextValue = Math.min(MAX_SAVER_ALLOWANCE_CENTS, Math.max(0, nextValue));
       }
+      if (a.field === "monthlyCents" && s.monthlyChannel === "rate_increase") {
+        const currentLoan = loans?.find((l) => l.id === s.loanId) ?? null;
+        const maxMonthly = currentLoan?.defaults.rateCorridor.maxMonthlyCents;
+        if (maxMonthly != null) {
+          const maxInc = Math.max(
+            0,
+            maxMonthly - currentLoan!.defaults.rateCorridor.currentMonthlyCents,
+          );
+          nextValue = Math.min(nextValue, maxInc);
+        }
+      }
       if (s[a.field] === nextValue) return s;
       return { ...s, [a.field]: nextValue };
+    }
+    case "setMonthlyChannel": {
+      const currentLoan = loans?.find((l) => l.id === s.loanId) ?? null;
+      if (
+        a.channel === "rate_increase" &&
+        currentLoan &&
+        !canUseRateIncreaseChannel(currentLoan)
+      ) {
+        return s;
+      }
+      if (s.monthlyChannel === a.channel) return s;
+      let nextMonthly = s.monthlyCents;
+      if (
+        a.channel === "rate_increase" &&
+        currentLoan?.defaults.rateCorridor.maxMonthlyCents != null
+      ) {
+        const maxInc = Math.max(
+          0,
+          currentLoan.defaults.rateCorridor.maxMonthlyCents -
+            currentLoan.defaults.rateCorridor.currentMonthlyCents,
+        );
+        if (nextMonthly > maxInc) nextMonthly = maxInc;
+      }
+      return { ...s, monthlyChannel: a.channel, monthlyCents: nextMonthly };
+    }
+    case "setRateStartMonth": {
+      if (!Number.isSafeInteger(a.month)) return s;
+      const currentLoan = loans?.find((l) => l.id === s.loanId) ?? null;
+      const maxMonth = maxRateStartMonthForLoan(currentLoan);
+      const clamped = Math.min(maxMonth, Math.max(1, a.month));
+      if (s.rateStartMonth === clamped) return s;
+      return { ...s, rateStartMonth: clamped };
     }
     case "setChurchTax": {
       if (
@@ -230,6 +387,9 @@ export function deriveFreeMoneyView(
     horizonEndDate,
     oneTimeAmountCents: s.oneTimeCents,
     monthlyAmountCents: s.monthlyCents,
+    monthlyChannel: s.monthlyChannel,
+    monthlyStartMonth:
+      s.monthlyChannel === "rate_increase" ? s.rateStartMonth : 1,
     specialRepaymentUsedThisYearCents: s.usedThisYearCents,
     saverAllowanceCents: s.allowanceCents,
     churchTaxBps: s.churchTaxBps,
@@ -264,11 +424,18 @@ export function safeBreakEven(view: FreeMoneyView): BreakEvenResult | null {
   }
 }
 
-export function isFreeMoneyAdvancedModified(s: FreeMoneyState): boolean {
+export function isFreeMoneyAdvancedModified(
+  s: FreeMoneyState,
+  loan?: LoanOption | null,
+): boolean {
+  const defaultUsed =
+    loan?.defaults.specialAllowance.usedCents ??
+    FREE_MONEY_DEFAULTS.usedThisYearCents;
   return (
+    s.returnBps !== FREE_MONEY_DEFAULTS.returnBps ||
     s.allowanceCents !== FREE_MONEY_DEFAULTS.allowanceCents ||
     s.churchTaxBps !== FREE_MONEY_DEFAULTS.churchTaxBps ||
-    s.usedThisYearCents !== FREE_MONEY_DEFAULTS.usedThisYearCents ||
+    s.usedThisYearCents !== defaultUsed ||
     s.horizonOverride !== null
   );
 }
@@ -470,6 +637,9 @@ export function recommendationReducer(
         case "emergencyFillMonths":
           if (v < 1 || v > 60) return s;
           break;
+        case "rateIncreaseMaxSurplusShareBps":
+          if (v < 0 || v > 10_000) return s;
+          break;
       }
       if (s.assumptions[a.field] === v) return s;
       return {
@@ -518,6 +688,7 @@ export function isRecommendationAssumptionsModified(
     a.shortHorizonMonths !== d.shortHorizonMonths ||
     a.savingsBufferBps !== d.savingsBufferBps ||
     a.emergencyFillMonths !== d.emergencyFillMonths ||
+    a.rateIncreaseMaxSurplusShareBps !== d.rateIncreaseMaxSurplusShareBps ||
     Object.values(a.specialRepaymentUsedThisYearCentsByLoanId).some(
       (v) => v > 0,
     )

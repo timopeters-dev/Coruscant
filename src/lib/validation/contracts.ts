@@ -2,6 +2,13 @@ import { z } from "zod";
 import { AUTO_VALUATION_INTERVALS } from "@/lib/domain/auto-valuation-schedule";
 import { getTodayIsoDate, parseIsoDate } from "@/lib/domain/date";
 import {
+  MAX_RATE_CHANGE_COUNT,
+  resolveRateCorridor,
+  type OptionRight,
+  type RateChangeScope,
+  type SpecialRepaymentBasis,
+} from "@/lib/domain/loan-options";
+import {
   MAX_RENOVATIONS,
   RENOVATION_KINDS,
   type Renovation,
@@ -266,6 +273,79 @@ export const repaymentTypeSchema = z.enum([
   "installment",
   "lump_sum",
 ]);
+export const optionRightSchema = z.enum(["unknown", "none", "allowed"]);
+export const specialRepaymentBasisSchema = z.enum([
+  "fixed_yearly",
+  "percent_original",
+  "percent_balance",
+]);
+export const rateChangeScopeSchema = z.enum([
+  "term",
+  "fixed_period",
+  "per_year",
+]);
+
+const nullableOptionalPositiveSafeInt = z
+  .number()
+  .int()
+  .min(1, "Betrag muss größer als 0 sein.")
+  .max(Number.MAX_SAFE_INTEGER)
+  .nullable()
+  .optional();
+
+const nullableOptionalSpecialPercentBps = z
+  .number()
+  .int()
+  .min(1, "Prozentsatz muss größer als 0 % sein.")
+  .max(10_000, "Prozentsatz darf höchstens 100 % betragen.")
+  .nullable()
+  .optional();
+
+const nullableOptionalRepaymentCorridorBps = z
+  .number()
+  .int()
+  .min(0, "Tilgungssatz darf nicht negativ sein.")
+  .max(10_000, "Tilgungssatz darf höchstens 100 % betragen.")
+  .nullable()
+  .optional();
+
+const nullableOptionalUsedYear = z
+  .number()
+  .int()
+  .min(1900, "Jahr muss zwischen 1900 und 2200 liegen.")
+  .max(2200, "Jahr muss zwischen 1900 und 2200 liegen.")
+  .nullable()
+  .optional();
+
+const nullableOptionalRateChangeCount = z
+  .number()
+  .int()
+  .min(1, "Anzahl muss mindestens 1 sein.")
+  .max(
+    MAX_RATE_CHANGE_COUNT,
+    `Höchstens ${MAX_RATE_CHANGE_COUNT} Wechsel möglich.`,
+  )
+  .nullable()
+  .optional();
+
+export const loanOptionSchemaFields = {
+  originalPrincipalCents: nullableOptionalPositiveSafeInt,
+  specialRepaymentRight: optionRightSchema.optional(),
+  specialRepaymentBasis: specialRepaymentBasisSchema.nullable().optional(),
+  specialRepaymentMaxYearlyCents: nonNegativeSafeInt.nullable().optional(),
+  specialRepaymentPercentBps: nullableOptionalSpecialPercentBps,
+  specialRepaymentUsedCents: nonNegativeSafeInt.nullable().optional(),
+  specialRepaymentUsedYear: nullableOptionalUsedYear,
+  rateChangeRight: optionRightSchema.optional(),
+  rateChangeTotalCount: nullableOptionalRateChangeCount,
+  rateChangeScope: rateChangeScopeSchema.nullable().optional(),
+  rateChangeUsedCount: nonNegativeSafeInt.optional(),
+  rateChangeMinRepaymentBps: nullableOptionalRepaymentCorridorBps,
+  rateChangeMaxRepaymentBps: nullableOptionalRepaymentCorridorBps,
+  rateChangeMinMonthlyCents: nonNegativeSafeInt.nullable().optional(),
+  rateChangeMaxMonthlyCents: nonNegativeSafeInt.nullable().optional(),
+  loanOptionsNote: nullableOptionalTrimmedString(500),
+};
 
 export const contractBaseObject = z.object({
   name: z.string().trim().min(1, "Name ist erforderlich.").max(120),
@@ -280,7 +360,7 @@ export const contractBaseObject = z.object({
   milestoneDate: nullableOptionalIsoDate,
   milestoneLabel: nullableOptionalTrimmedString(120),
   repaymentType: repaymentTypeSchema.nullable().optional(),
-  specialRepaymentMaxYearlyCents: nonNegativeSafeInt.nullable().optional(),
+  ...loanOptionSchemaFields,
   fixedInterestUntil: nullableOptionalIsoDate,
   targetSumCents: nonNegativeSafeInt.nullable().optional(),
   allocationThresholdPercent: z.number().int().min(0).max(100).nullable().optional(),
@@ -302,7 +382,22 @@ export interface NormalizedContractInput {
   milestoneDate: string | null;
   milestoneLabel: string | null;
   repaymentType: "annuity" | "installment" | "lump_sum" | null;
+  originalPrincipalCents: number | null;
+  specialRepaymentRight: OptionRight;
+  specialRepaymentBasis: SpecialRepaymentBasis | null;
   specialRepaymentMaxYearlyCents: number | null;
+  specialRepaymentPercentBps: number | null;
+  specialRepaymentUsedCents: number | null;
+  specialRepaymentUsedYear: number | null;
+  rateChangeRight: OptionRight;
+  rateChangeTotalCount: number | null;
+  rateChangeScope: RateChangeScope | null;
+  rateChangeUsedCount: number;
+  rateChangeMinRepaymentBps: number | null;
+  rateChangeMaxRepaymentBps: number | null;
+  rateChangeMinMonthlyCents: number | null;
+  rateChangeMaxMonthlyCents: number | null;
+  loanOptionsNote: string | null;
   fixedInterestUntil: string | null;
   targetSumCents: number | null;
   allocationThresholdPercent: number | null;
@@ -327,11 +422,88 @@ export function normalizeContractPayload(
   };
 
   if (input.category === "loan") {
+    const repaymentType = input.repaymentType ?? "annuity";
+
+    // Backward-compatible derivation when specialRepaymentRight is omitted
+    let specialRight: OptionRight;
+    let specialBasis: SpecialRepaymentBasis | null;
+    let specialMaxYearly: number | null;
+    let specialPercentBps: number | null;
+
+    if (input.specialRepaymentRight !== undefined) {
+      specialRight = input.specialRepaymentRight;
+      specialBasis = input.specialRepaymentBasis ?? null;
+      specialMaxYearly = input.specialRepaymentMaxYearlyCents ?? null;
+      specialPercentBps = input.specialRepaymentPercentBps ?? null;
+    } else if (input.specialRepaymentMaxYearlyCents == null) {
+      specialRight = "unknown";
+      specialBasis = null;
+      specialMaxYearly = null;
+      specialPercentBps = null;
+    } else if (input.specialRepaymentMaxYearlyCents === 0) {
+      specialRight = "none";
+      specialBasis = null;
+      specialMaxYearly = null;
+      specialPercentBps = null;
+    } else {
+      specialRight = "allowed";
+      specialBasis = input.specialRepaymentBasis ?? "fixed_yearly";
+      specialMaxYearly = input.specialRepaymentMaxYearlyCents;
+      specialPercentBps = input.specialRepaymentPercentBps ?? null;
+    }
+
+    if (specialRight !== "allowed") {
+      specialBasis = null;
+      specialMaxYearly = null;
+      specialPercentBps = null;
+    } else if (specialBasis === "fixed_yearly") {
+      specialPercentBps = null;
+    } else if (
+      specialBasis === "percent_original" ||
+      specialBasis === "percent_balance"
+    ) {
+      specialMaxYearly = null;
+    } else {
+      specialMaxYearly = null;
+      specialPercentBps = null;
+    }
+
+    const rateChangeRight: OptionRight =
+      repaymentType === "lump_sum"
+        ? "none"
+        : (input.rateChangeRight ?? "unknown");
+    const allowRateFields =
+      rateChangeRight === "allowed" && repaymentType !== "lump_sum";
+
     return {
       ...base,
-      repaymentType: input.repaymentType ?? "annuity",
-      specialRepaymentMaxYearlyCents:
-        input.specialRepaymentMaxYearlyCents ?? null,
+      repaymentType,
+      originalPrincipalCents: input.originalPrincipalCents ?? null,
+      specialRepaymentRight: specialRight,
+      specialRepaymentBasis: specialBasis,
+      specialRepaymentMaxYearlyCents: specialMaxYearly,
+      specialRepaymentPercentBps: specialPercentBps,
+      specialRepaymentUsedCents: input.specialRepaymentUsedCents ?? null,
+      specialRepaymentUsedYear: input.specialRepaymentUsedYear ?? null,
+      rateChangeRight,
+      rateChangeTotalCount: allowRateFields
+        ? (input.rateChangeTotalCount ?? null)
+        : null,
+      rateChangeScope: allowRateFields ? (input.rateChangeScope ?? null) : null,
+      rateChangeUsedCount: input.rateChangeUsedCount ?? 0,
+      rateChangeMinRepaymentBps: allowRateFields
+        ? (input.rateChangeMinRepaymentBps ?? null)
+        : null,
+      rateChangeMaxRepaymentBps: allowRateFields
+        ? (input.rateChangeMaxRepaymentBps ?? null)
+        : null,
+      rateChangeMinMonthlyCents: allowRateFields
+        ? (input.rateChangeMinMonthlyCents ?? null)
+        : null,
+      rateChangeMaxMonthlyCents: allowRateFields
+        ? (input.rateChangeMaxMonthlyCents ?? null)
+        : null,
+      loanOptionsNote: input.loanOptionsNote ?? null,
       fixedInterestUntil: input.fixedInterestUntil ?? null,
       targetSumCents: null,
       allocationThresholdPercent: null,
@@ -342,7 +514,22 @@ export function normalizeContractPayload(
   return {
     ...base,
     repaymentType: null,
+    originalPrincipalCents: null,
+    specialRepaymentRight: "unknown",
+    specialRepaymentBasis: null,
     specialRepaymentMaxYearlyCents: null,
+    specialRepaymentPercentBps: null,
+    specialRepaymentUsedCents: null,
+    specialRepaymentUsedYear: null,
+    rateChangeRight: "unknown",
+    rateChangeTotalCount: null,
+    rateChangeScope: null,
+    rateChangeUsedCount: 0,
+    rateChangeMinRepaymentBps: null,
+    rateChangeMaxRepaymentBps: null,
+    rateChangeMinMonthlyCents: null,
+    rateChangeMaxMonthlyCents: null,
+    loanOptionsNote: null,
     fixedInterestUntil: null,
     targetSumCents: input.targetSumCents ?? null,
     allocationThresholdPercent: input.allocationThresholdPercent ?? null,
@@ -350,9 +537,161 @@ export function normalizeContractPayload(
   };
 }
 
-export const contractCreateSchema = contractBaseObject.transform(
-  normalizeContractPayload,
-);
+export function refineLoanOptionConsistency(
+  data: ContractBaseValues,
+  ctx: z.RefinementCtx,
+): void {
+  if (data.category !== "loan") {
+    return;
+  }
+
+  const normalized = normalizeContractPayload(data);
+
+  // Used cents/year must be paired
+  const hasUsedCents = normalized.specialRepaymentUsedCents !== null;
+  const hasUsedYear = normalized.specialRepaymentUsedYear !== null;
+  if (hasUsedCents !== hasUsedYear) {
+    ctx.addIssue({
+      code: "custom",
+      path: [
+        hasUsedCents
+          ? "specialRepaymentUsedYear"
+          : "specialRepaymentUsedCents",
+      ],
+      message:
+        "Genutzte Sondertilgung und zugehöriges Jahr müssen gemeinsam angegeben werden.",
+    });
+  }
+
+  // Special repayment basis requires corresponding value
+  if (normalized.specialRepaymentRight === "allowed") {
+    if (
+      normalized.specialRepaymentBasis === "fixed_yearly" &&
+      (normalized.specialRepaymentMaxYearlyCents === null ||
+        normalized.specialRepaymentMaxYearlyCents <= 0)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["specialRepaymentMaxYearlyCents"],
+        message:
+          "Bei festem Jahresbetrag muss ein Betrag größer als 0 € angegeben werden.",
+      });
+    }
+    if (
+      (normalized.specialRepaymentBasis === "percent_original" ||
+        normalized.specialRepaymentBasis === "percent_balance") &&
+      normalized.specialRepaymentPercentBps === null
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["specialRepaymentPercentBps"],
+        message: "Bitte einen Prozentsatz größer als 0 % angeben.",
+      });
+    }
+  }
+
+  // Rate change consistency
+  if (
+    normalized.rateChangeRight === "allowed" &&
+    normalized.repaymentType !== "lump_sum"
+  ) {
+    if (
+      normalized.rateChangeTotalCount !== null &&
+      normalized.rateChangeScope !== "per_year" &&
+      normalized.rateChangeUsedCount > normalized.rateChangeTotalCount
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["rateChangeUsedCount"],
+        message: `Bereits genutzte Wechsel (${normalized.rateChangeUsedCount}) dürfen die erlaubte Anzahl (${normalized.rateChangeTotalCount}) nicht überschreiten.`,
+      });
+    }
+
+    if (
+      normalized.rateChangeMinRepaymentBps !== null &&
+      normalized.rateChangeMaxRepaymentBps !== null &&
+      normalized.rateChangeMinRepaymentBps >
+        normalized.rateChangeMaxRepaymentBps
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["rateChangeMaxRepaymentBps"],
+        message:
+          "Maximaler Tilgungssatz darf nicht kleiner als der minimale sein.",
+      });
+    }
+
+    if (
+      normalized.rateChangeMinMonthlyCents !== null &&
+      normalized.rateChangeMaxMonthlyCents !== null &&
+      normalized.rateChangeMinMonthlyCents >
+        normalized.rateChangeMaxMonthlyCents
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["rateChangeMaxMonthlyCents"],
+        message:
+          "Maximale Monatsrate darf nicht kleiner als die minimale sein.",
+      });
+    }
+
+    // Check corridor intersection via domain function (single source of math)
+    if (
+      (normalized.rateChangeMinRepaymentBps === null ||
+        normalized.rateChangeMaxRepaymentBps === null ||
+        normalized.rateChangeMinRepaymentBps <=
+          normalized.rateChangeMaxRepaymentBps) &&
+      (normalized.rateChangeMinMonthlyCents === null ||
+        normalized.rateChangeMaxMonthlyCents === null ||
+        normalized.rateChangeMinMonthlyCents <=
+          normalized.rateChangeMaxMonthlyCents)
+    ) {
+      const corridor = resolveRateCorridor(
+        {
+          id: "validation-check",
+          name: normalized.name,
+          category: "loan",
+          status: normalized.status,
+          currentBalanceCents: normalized.currentBalanceCents,
+          balanceAsOfDate: normalized.balanceAsOfDate,
+          monthlyRateCents: normalized.monthlyRateCents,
+          interestRateBps: normalized.interestRateBps,
+          repaymentType: normalized.repaymentType,
+          originalPrincipalCents: normalized.originalPrincipalCents,
+          specialRepaymentRight: normalized.specialRepaymentRight,
+          specialRepaymentBasis: normalized.specialRepaymentBasis,
+          specialRepaymentMaxYearlyCents:
+            normalized.specialRepaymentMaxYearlyCents,
+          specialRepaymentPercentBps: normalized.specialRepaymentPercentBps,
+          specialRepaymentUsedCents: normalized.specialRepaymentUsedCents,
+          specialRepaymentUsedYear: normalized.specialRepaymentUsedYear,
+          rateChangeRight: normalized.rateChangeRight,
+          rateChangeTotalCount: normalized.rateChangeTotalCount,
+          rateChangeScope: normalized.rateChangeScope,
+          rateChangeUsedCount: normalized.rateChangeUsedCount,
+          rateChangeMinRepaymentBps: normalized.rateChangeMinRepaymentBps,
+          rateChangeMaxRepaymentBps: normalized.rateChangeMaxRepaymentBps,
+          rateChangeMinMonthlyCents: normalized.rateChangeMinMonthlyCents,
+          rateChangeMaxMonthlyCents: normalized.rateChangeMaxMonthlyCents,
+          fixedInterestUntil: normalized.fixedInterestUntil,
+        },
+        normalized.balanceAsOfDate,
+      );
+      if (corridor.flags.corridorEmpty) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["rateChangeCorridor"],
+          message:
+            "Tilgungssatz- und Raten-Korridor haben keine gemeinsame Schnittmenge.",
+        });
+      }
+    }
+  }
+}
+
+export const contractCreateSchema = contractBaseObject
+  .superRefine(refineLoanOptionConsistency)
+  .transform(normalizeContractPayload);
 
 export const contractUpdateSchema = z
   .object({
@@ -368,7 +707,7 @@ export const contractUpdateSchema = z
     milestoneDate: nullableOptionalIsoDate,
     milestoneLabel: nullableOptionalTrimmedString(120),
     repaymentType: repaymentTypeSchema.nullable().optional(),
-    specialRepaymentMaxYearlyCents: nonNegativeSafeInt.nullable().optional(),
+    ...loanOptionSchemaFields,
     fixedInterestUntil: nullableOptionalIsoDate,
     targetSumCents: nonNegativeSafeInt.nullable().optional(),
     allocationThresholdPercent: z

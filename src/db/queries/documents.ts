@@ -11,6 +11,7 @@ import {
   resolveDocumentTaxYear,
   type TaxCategory,
 } from "@/lib/domain/documents";
+import { contractCreateSchema } from "@/lib/validation/contracts";
 import type {
   DocumentCreateContractInput,
   DocumentUpdateInput,
@@ -73,6 +74,19 @@ export class DocumentValidationError extends Error {
     super(message);
     this.name = "DocumentValidationError";
     this.field = field;
+  }
+}
+
+export class ContractLoanOptionsValidationError extends Error {
+  readonly fieldErrors: Record<string, string>;
+
+  constructor(fieldErrors: Record<string, string>) {
+    const firstMsg =
+      Object.values(fieldErrors)[0] ??
+      "Darlehensoptionen sind nach der Zusammenführung nicht konsistent.";
+    super(firstMsg);
+    this.name = "ContractLoanOptionsValidationError";
+    this.fieldErrors = fieldErrors;
   }
 }
 
@@ -487,6 +501,149 @@ export function verifyDocumentAndOptionallyCalibrate(
 
       calibratedContract = toContractRow(updatedContract);
       persistedDetectedBalanceCents = targetBalanceCents;
+    }
+
+    if (input.applyLoanOptions) {
+      if (!input.linkedContractId) {
+        throw new DocumentValidationError(
+          "linkedContractId",
+          "Für die Übernahme von Darlehensoptionen muss ein Kredit verknüpft sein.",
+        );
+      }
+      const currentContract = tx
+        .select()
+        .from(financialContracts)
+        .where(eq(financialContracts.id, input.linkedContractId))
+        .get();
+      if (!currentContract) {
+        throw new DocumentLinkedEntityNotFoundError(
+          "linkedContractId",
+          input.linkedContractId,
+        );
+      }
+      if (currentContract.category !== "loan") {
+        throw new DocumentValidationError(
+          "applyLoanOptions",
+          "Darlehensoptionen können nur auf Kredite übernommen werden.",
+        );
+      }
+
+      const patch = input.loanOptions ?? {};
+      const pickNonNull = <T,>(
+        incoming: T | null | undefined,
+        existingVal: T | null,
+      ): T | null => (incoming != null ? incoming : existingVal);
+
+      const mergedCandidate = {
+        name: currentContract.name,
+        provider: currentContract.provider,
+        category: currentContract.category,
+        status: currentContract.status,
+        currentBalanceCents: currentContract.currentBalanceCents,
+        balanceAsOfDate: currentContract.balanceAsOfDate,
+        monthlyRateCents: currentContract.monthlyRateCents,
+        interestRateBps: currentContract.interestRateBps,
+        linkedPropertyId: currentContract.linkedPropertyId,
+        milestoneDate: currentContract.milestoneDate,
+        milestoneLabel: currentContract.milestoneLabel,
+        repaymentType: currentContract.repaymentType,
+        originalPrincipalCents: pickNonNull(
+          patch.originalPrincipalCents,
+          currentContract.originalPrincipalCents,
+        ),
+        specialRepaymentRight:
+          patch.specialRepaymentRight != null
+            ? patch.specialRepaymentRight
+            : currentContract.specialRepaymentRight,
+        specialRepaymentBasis: pickNonNull(
+          patch.specialRepaymentBasis,
+          currentContract.specialRepaymentBasis,
+        ),
+        specialRepaymentMaxYearlyCents: pickNonNull(
+          patch.specialRepaymentMaxYearlyCents,
+          currentContract.specialRepaymentMaxYearlyCents,
+        ),
+        specialRepaymentPercentBps: pickNonNull(
+          patch.specialRepaymentPercentBps,
+          currentContract.specialRepaymentPercentBps,
+        ),
+        // Usage fields are NEVER overwritten by AI/verify
+        specialRepaymentUsedCents: currentContract.specialRepaymentUsedCents,
+        specialRepaymentUsedYear: currentContract.specialRepaymentUsedYear,
+        rateChangeRight:
+          patch.rateChangeRight != null
+            ? patch.rateChangeRight
+            : currentContract.rateChangeRight,
+        rateChangeTotalCount: pickNonNull(
+          patch.rateChangeTotalCount,
+          currentContract.rateChangeTotalCount,
+        ),
+        rateChangeScope: pickNonNull(
+          patch.rateChangeScope,
+          currentContract.rateChangeScope,
+        ),
+        rateChangeUsedCount: currentContract.rateChangeUsedCount,
+        rateChangeMinRepaymentBps: pickNonNull(
+          patch.rateChangeMinRepaymentBps,
+          currentContract.rateChangeMinRepaymentBps,
+        ),
+        rateChangeMaxRepaymentBps: pickNonNull(
+          patch.rateChangeMaxRepaymentBps,
+          currentContract.rateChangeMaxRepaymentBps,
+        ),
+        rateChangeMinMonthlyCents: pickNonNull(
+          patch.rateChangeMinMonthlyCents,
+          currentContract.rateChangeMinMonthlyCents,
+        ),
+        rateChangeMaxMonthlyCents: pickNonNull(
+          patch.rateChangeMaxMonthlyCents,
+          currentContract.rateChangeMaxMonthlyCents,
+        ),
+        loanOptionsNote: currentContract.loanOptionsNote,
+        fixedInterestUntil: currentContract.fixedInterestUntil,
+        targetSumCents: currentContract.targetSumCents,
+        allocationThresholdPercent: currentContract.allocationThresholdPercent,
+        futureLoanInterestRateBps: currentContract.futureLoanInterestRateBps,
+      };
+
+      const validated = contractCreateSchema.safeParse(mergedCandidate);
+      if (!validated.success) {
+        const fieldErrors: Record<string, string> = {};
+        for (const issue of validated.error.issues) {
+          const key = issue.path.join(".") || "loanOptions";
+          if (!fieldErrors[key]) {
+            fieldErrors[key] = issue.message;
+          }
+        }
+        throw new ContractLoanOptionsValidationError(fieldErrors);
+      }
+
+      const now = new Date().toISOString();
+      const [updatedContract] = tx
+        .update(financialContracts)
+        .set({
+          originalPrincipalCents: validated.data.originalPrincipalCents,
+          specialRepaymentRight: validated.data.specialRepaymentRight,
+          specialRepaymentBasis: validated.data.specialRepaymentBasis,
+          specialRepaymentMaxYearlyCents:
+            validated.data.specialRepaymentMaxYearlyCents,
+          specialRepaymentPercentBps: validated.data.specialRepaymentPercentBps,
+          rateChangeRight: validated.data.rateChangeRight,
+          rateChangeTotalCount: validated.data.rateChangeTotalCount,
+          rateChangeScope: validated.data.rateChangeScope,
+          rateChangeMinRepaymentBps: validated.data.rateChangeMinRepaymentBps,
+          rateChangeMaxRepaymentBps: validated.data.rateChangeMaxRepaymentBps,
+          rateChangeMinMonthlyCents: validated.data.rateChangeMinMonthlyCents,
+          rateChangeMaxMonthlyCents: validated.data.rateChangeMaxMonthlyCents,
+          updatedAt: now,
+        })
+        .where(eq(financialContracts.id, currentContract.id))
+        .returning()
+        .all();
+
+      if (updatedContract) {
+        calibratedContract = toContractRow(updatedContract);
+      }
     }
 
     const [updatedDoc] = tx

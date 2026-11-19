@@ -7,6 +7,13 @@ import type {
 import type { VariableExpenseBasis } from "./cashflow";
 import type { ContractCategory, RepaymentType } from "./contracts";
 import { getTodayIsoDate, parseIsoDate } from "./date";
+import type {
+  OptionRight,
+  RateChangeScope,
+  RateCorridor,
+  SpecialRepaymentAllowance,
+  SpecialRepaymentBasis,
+} from "./loan-options";
 import {
   containsEmail,
   containsIban,
@@ -86,6 +93,35 @@ export interface AdvisorReportViewBalance {
   isModeled: boolean;
 }
 
+export interface AdvisorReportViewLoanOptions {
+  originalPrincipalCents: number | null;
+  specialRepayment: {
+    status: OptionRight;
+    basis: SpecialRepaymentBasis | null;
+    percentBps: number | null;
+    capThisYearCents: number | null;
+    usedThisYearCents: number;
+    remainingThisYearCents: number | null;
+    flags: SpecialRepaymentAllowance["flags"];
+  };
+  rateChange: {
+    status: RateCorridor["status"];
+    totalCount: number | null;
+    usedCount: number;
+    remainingChanges: number | null;
+    scope: RateChangeScope | null;
+    minRepaymentBps: number | null;
+    maxRepaymentBps: number | null;
+    minMonthlyCents: number | null;
+    maxMonthlyCents: number | null;
+    currentRepaymentBpsApprox: number | null;
+    latestChangeDateDisplay: string | null;
+    flags: RateCorridor["flags"];
+  };
+  hasNote: boolean;
+  note: string | null;
+}
+
 export interface AdvisorReportViewContract {
   ref: string;
   displayName: string;
@@ -102,6 +138,7 @@ export interface AdvisorReportViewContract {
   fixedInterestUntilDisplay: string | null;
   futureLoanInterestRateBps: number | null;
   specialRepaymentMaxYearlyCents: number | null;
+  loanOptions: AdvisorReportViewLoanOptions | null;
   targetSumCents: number | null;
   targetProgressBps: number | null;
   linkedPropertyRef: string | null;
@@ -520,6 +557,84 @@ export function buildAdvisorReportView(
           ? (refByEntityKey.get(contract.linkedPropertyKey) ?? null)
           : null;
 
+      const loanOptions: AdvisorReportViewLoanOptions | null =
+        contract.loanOptions !== null
+          ? {
+              originalPrincipalCents:
+                contract.loanOptions.originalPrincipalCents,
+              specialRepayment: {
+                status: contract.loanOptions.specialRepayment.status,
+                basis: contract.loanOptions.specialRepayment.basis,
+                percentBps: contract.loanOptions.specialRepayment.percentBps,
+                capThisYearCents:
+                  contract.loanOptions.specialRepayment.capThisYearCents,
+                usedThisYearCents:
+                  contract.loanOptions.specialRepayment.usedThisYearCents,
+                remainingThisYearCents:
+                  contract.loanOptions.specialRepayment.remainingThisYearCents,
+                flags: {
+                  capUnknown:
+                    contract.loanOptions.specialRepayment.flags.capUnknown,
+                  missingOriginalPrincipal:
+                    contract.loanOptions.specialRepayment.flags
+                      .missingOriginalPrincipal,
+                  usageFromOtherYear:
+                    contract.loanOptions.specialRepayment.flags
+                      .usageFromOtherYear,
+                },
+              },
+              rateChange: {
+                status: contract.loanOptions.rateChange.status,
+                totalCount: contract.loanOptions.rateChange.totalCount,
+                usedCount: contract.loanOptions.rateChange.usedCount,
+                remainingChanges:
+                  contract.loanOptions.rateChange.remainingChanges,
+                scope: contract.loanOptions.rateChange.scope,
+                minRepaymentBps:
+                  contract.loanOptions.rateChange.minRepaymentBps,
+                maxRepaymentBps:
+                  contract.loanOptions.rateChange.maxRepaymentBps,
+                minMonthlyCents:
+                  contract.loanOptions.rateChange.minMonthlyCents,
+                maxMonthlyCents:
+                  contract.loanOptions.rateChange.maxMonthlyCents,
+                currentRepaymentBpsApprox:
+                  contract.loanOptions.rateChange.currentRepaymentBpsApprox,
+                latestChangeDateDisplay:
+                  contract.loanOptions.rateChange.latestChangeDate !== null
+                    ? mode === "full"
+                      ? formatIsoDateDE(
+                          contract.loanOptions.rateChange.latestChangeDate,
+                        )
+                      : formatIsoDateMonthYearSlash(
+                          contract.loanOptions.rateChange.latestChangeDate,
+                        )
+                    : null,
+                flags: {
+                  corridorAssumed:
+                    contract.loanOptions.rateChange.flags.corridorAssumed,
+                  approximatedBase:
+                    contract.loanOptions.rateChange.flags.approximatedBase,
+                  currentOutsideCorridor:
+                    contract.loanOptions.rateChange.flags
+                      .currentOutsideCorridor,
+                  minBelowInterest:
+                    contract.loanOptions.rateChange.flags.minBelowInterest,
+                  perYearUsageUntracked:
+                    contract.loanOptions.rateChange.flags.perYearUsageUntracked,
+                  exhausted: contract.loanOptions.rateChange.flags.exhausted,
+                  corridorEmpty:
+                    contract.loanOptions.rateChange.flags.corridorEmpty,
+                },
+              },
+              hasNote: contract.loanOptions.hasNote,
+              note:
+                mode === "full"
+                  ? (sourceLabel?.loanOptionsNote ?? null)
+                  : null,
+            }
+          : null;
+
       return {
         ref,
         displayName,
@@ -536,6 +651,7 @@ export function buildAdvisorReportView(
         fixedInterestUntilDisplay,
         futureLoanInterestRateBps: contract.futureLoanInterestRateBps,
         specialRepaymentMaxYearlyCents: contract.specialRepaymentMaxYearlyCents,
+        loanOptions,
         targetSumCents: contract.targetSumCents,
         targetProgressBps: contract.targetProgressBps,
         linkedPropertyRef,
@@ -727,7 +843,12 @@ function normalizeSensitive(value: string): string {
 export function collectSensitiveStrings(report: AdvisorReport): string[] {
   const unique = new Set<string>();
   for (const label of Object.values(report.labels)) {
-    for (const candidate of [label.name, label.provider, label.milestoneLabel]) {
+    for (const candidate of [
+      label.name,
+      label.provider,
+      label.milestoneLabel,
+      label.loanOptionsNote,
+    ]) {
       if (typeof candidate !== "string") continue;
       const normalized = normalizeSensitive(candidate);
       if (normalized.length >= 3) {

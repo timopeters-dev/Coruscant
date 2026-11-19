@@ -435,3 +435,136 @@ describe("contract schemas without sphere (household only)", () => {
     expect("sphere" in parsed).toBe(false);
   });
 });
+
+describe("loan options validation & normalization (Slice 24)", () => {
+  const baseLoan = {
+    name: "Hauskredit Musterbank",
+    category: "loan" as const,
+    currentBalanceCents: 20_000_000,
+    balanceAsOfDate: "2026-01-01",
+    monthlyRateCents: 110_000,
+    interestRateBps: 350,
+    repaymentType: "annuity" as const,
+  };
+
+  it("normalizes savings_contract loan option fields to defaults/null and clears dependent fields on right=none", () => {
+    const savings = contractCreateSchema.parse({
+      ...baseLoan,
+      category: "savings_contract",
+      originalPrincipalCents: 10_000_000,
+      specialRepaymentRight: "allowed",
+      specialRepaymentBasis: "percent_original",
+      specialRepaymentPercentBps: 500,
+      rateChangeRight: "allowed",
+      rateChangeTotalCount: 2,
+      loanOptionsNote: "Wird verworfen",
+    });
+    expect(savings.originalPrincipalCents).toBeNull();
+    expect(savings.specialRepaymentRight).toBe("unknown");
+    expect(savings.specialRepaymentBasis).toBeNull();
+    expect(savings.specialRepaymentPercentBps).toBeNull();
+    expect(savings.rateChangeRight).toBe("unknown");
+    expect(savings.rateChangeTotalCount).toBeNull();
+    expect(savings.loanOptionsNote).toBeNull();
+
+    const noneRight = contractCreateSchema.parse({
+      ...baseLoan,
+      specialRepaymentRight: "none",
+      specialRepaymentBasis: "fixed_yearly",
+      specialRepaymentMaxYearlyCents: 500_000,
+      specialRepaymentUsedCents: 100_000,
+      specialRepaymentUsedYear: 2026,
+      rateChangeRight: "none",
+      rateChangeTotalCount: 2,
+      rateChangeScope: "fixed_period",
+      rateChangeUsedCount: 1,
+      rateChangeMinRepaymentBps: 100,
+      rateChangeMaxRepaymentBps: 500,
+      loanOptionsNote: "Notiz bleibt",
+    });
+    expect(noneRight.specialRepaymentBasis).toBeNull();
+    expect(noneRight.specialRepaymentMaxYearlyCents).toBeNull();
+    expect(noneRight.specialRepaymentUsedCents).toBe(100_000);
+    expect(noneRight.rateChangeTotalCount).toBeNull();
+    expect(noneRight.rateChangeMinRepaymentBps).toBeNull();
+    expect(noneRight.rateChangeUsedCount).toBe(1);
+    expect(noneRight.loanOptionsNote).toBe("Notiz bleibt");
+  });
+
+  it("rejects each consistency violation including empty corridor intersection and >500 char note", () => {
+    // fixed_yearly without amount
+    expect(
+      contractCreateSchema.safeParse({
+        ...baseLoan,
+        specialRepaymentRight: "allowed",
+        specialRepaymentBasis: "fixed_yearly",
+        specialRepaymentMaxYearlyCents: null,
+      }).success,
+    ).toBe(false);
+
+    // percent_original without percentBps
+    expect(
+      contractCreateSchema.safeParse({
+        ...baseLoan,
+        specialRepaymentRight: "allowed",
+        specialRepaymentBasis: "percent_original",
+        specialRepaymentPercentBps: null,
+      }).success,
+    ).toBe(false);
+
+    // Unpaired usedCents/usedYear
+    expect(
+      contractCreateSchema.safeParse({
+        ...baseLoan,
+        specialRepaymentUsedCents: 100_000,
+      }).success,
+    ).toBe(false);
+
+    // usedCount > totalCount
+    expect(
+      contractCreateSchema.safeParse({
+        ...baseLoan,
+        rateChangeRight: "allowed",
+        rateChangeTotalCount: 2,
+        rateChangeUsedCount: 3,
+        rateChangeScope: "term",
+      }).success,
+    ).toBe(false);
+
+    // Empty corridor intersection
+    const emptyIntersection = contractCreateSchema.safeParse({
+      ...baseLoan,
+      originalPrincipalCents: 24_000_000,
+      interestRateBps: 300,
+      rateChangeRight: "allowed",
+      rateChangeMinRepaymentBps: 500, // 160k
+      rateChangeMaxRepaymentBps: 600, // 180k
+      rateChangeMinMonthlyCents: 80_000,
+      rateChangeMaxMonthlyCents: 120_000,
+    });
+    expect(emptyIntersection.success).toBe(false);
+    if (!emptyIntersection.success) {
+      expect(
+        emptyIntersection.error.issues.some((i) =>
+          i.path.includes("rateChangeCorridor"),
+        ),
+      ).toBe(true);
+    }
+
+    // Note > 500 chars
+    expect(
+      contractCreateSchema.safeParse({
+        ...baseLoan,
+        loanOptionsNote: "x".repeat(501),
+      }).success,
+    ).toBe(false);
+
+    // Note = 500 chars passes
+    expect(
+      contractCreateSchema.safeParse({
+        ...baseLoan,
+        loanOptionsNote: "x".repeat(500),
+      }).success,
+    ).toBe(true);
+  });
+});

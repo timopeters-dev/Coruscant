@@ -562,7 +562,7 @@ describe("Database client and startup migrations", () => {
           const rows = client.sqlite
             .prepare("SELECT * FROM financial_contracts ORDER BY id")
             .all();
-          expect(rows).toEqual(expected);
+          expect(rows).toMatchObject(expected);
         } finally {
           client.sqlite.close();
         }
@@ -580,6 +580,161 @@ describe("Database client and startup migrations", () => {
         ).toEqual({ n: 0 });
       } finally {
         client.sqlite.close();
+      }
+    });
+  });
+
+  describe("migration 0014_loan_options", () => {
+    function buildDirUpTo13(dbPath: string): string {
+      const sourceDrizzleDir = path.resolve(process.cwd(), "drizzle");
+      const tempDrizzleDir = path.join(path.dirname(dbPath), "drizzle-0013");
+      fs.mkdirSync(path.join(tempDrizzleDir, "meta"), { recursive: true });
+      const fullJournal = JSON.parse(
+        fs.readFileSync(path.join(sourceDrizzleDir, "meta/_journal.json"), "utf-8"),
+      ) as { entries: Array<{ idx: number; tag: string }> };
+      const kept = fullJournal.entries.filter((entry) => entry.idx <= 13);
+      for (const entry of kept) {
+        fs.copyFileSync(
+          path.join(sourceDrizzleDir, `${entry.tag}.sql`),
+          path.join(tempDrizzleDir, `${entry.tag}.sql`),
+        );
+      }
+      fs.writeFileSync(
+        path.join(tempDrizzleDir, "meta/_journal.json"),
+        JSON.stringify({ ...fullJournal, entries: kept }),
+      );
+      return tempDrizzleDir;
+    }
+
+    it("backfills special_repayment_right/basis for NULL, 0, >0 loans and savings contracts while preserving FKs", () => {
+      const dbPath = makeTempDbPath("loan-options-backfill.db");
+      const oldDir = buildDirUpTo13(dbPath);
+      const oldClient = createDbClient(dbPath, oldDir);
+      const now = "2026-11-19T10:00:00.000Z";
+      try {
+        const insertStmt = oldClient.sqlite.prepare(
+          `INSERT INTO financial_contracts (
+             id, name, provider, sphere, category, status,
+             current_balance_cents, balance_as_of_date, monthly_rate_cents,
+             interest_rate_bps, repayment_type, special_repayment_max_yearly_cents, updated_at
+           ) VALUES (?, ?, 'Musterbank', 'household', ?, 'active', 20000000, '2026-01-01', 100000, 350, ?, ?, ?)`,
+        );
+        insertStmt.run("loan-null", "Kredit Unbekannt", "loan", "annuity", null, now);
+        insertStmt.run("loan-zero", "Kredit Keine", "loan", "annuity", 0, now);
+        insertStmt.run("loan-cap", "Kredit Deckel", "loan", "annuity", 1_200_000, now);
+        insertStmt.run("savings-1", "Bausparer Muster", "savings_contract", null, null, now);
+
+        oldClient.sqlite
+          .prepare(
+            `INSERT INTO cashflow_items (id, name, direction, amount_cents, frequency, source, linked_contract_id, active, updated_at)
+             VALUES ('cf-loan-cap', 'Rate', 'outflow', 100000, 'monthly', 'contract_linked', 'loan-cap', 1, ?)`,
+          )
+          .run(now);
+      } finally {
+        oldClient.sqlite.close();
+      }
+
+      const upgraded = createDbClient(dbPath);
+      try {
+        expect(upgraded.sqlite.pragma("foreign_keys", { simple: true })).toBe(1);
+
+        const byId = new Map(
+          upgraded.db
+            .select()
+            .from(financialContracts)
+            .all()
+            .map((r) => [r.id, r]),
+        );
+
+        const loanNull = byId.get("loan-null")!;
+        expect(loanNull.specialRepaymentRight).toBe("unknown");
+        expect(loanNull.specialRepaymentBasis).toBeNull();
+        expect(loanNull.specialRepaymentMaxYearlyCents).toBeNull();
+        expect(loanNull.rateChangeRight).toBe("unknown");
+        expect(loanNull.rateChangeUsedCount).toBe(0);
+
+        const loanZero = byId.get("loan-zero")!;
+        expect(loanZero.specialRepaymentRight).toBe("none");
+        expect(loanZero.specialRepaymentBasis).toBeNull();
+        expect(loanZero.specialRepaymentMaxYearlyCents).toBeNull();
+
+        const loanCap = byId.get("loan-cap")!;
+        expect(loanCap.specialRepaymentRight).toBe("allowed");
+        expect(loanCap.specialRepaymentBasis).toBe("fixed_yearly");
+        expect(loanCap.specialRepaymentMaxYearlyCents).toBe(1_200_000);
+
+        const savings = byId.get("savings-1")!;
+        expect(savings.specialRepaymentRight).toBe("unknown");
+        expect(savings.specialRepaymentBasis).toBeNull();
+
+        // Linked cashflow item still intact
+        const cf = upgraded.db
+          .select()
+          .from(cashflowItems)
+          .where(eq(cashflowItems.id, "cf-loan-cap"))
+          .get();
+        expect(cf?.linkedContractId).toBe("loan-cap");
+      } finally {
+        upgraded.sqlite.close();
+      }
+    });
+
+    it("enforces CHECK constraints on new loan option columns", () => {
+      const { db, sqlite } = createDbClient(":memory:");
+      const now = "2026-11-19T10:00:00.000Z";
+      const base = {
+        name: "Musterkredit",
+        category: "loan" as const,
+        currentBalanceCents: 10_000_000,
+        balanceAsOfDate: "2026-01-01",
+        monthlyRateCents: 100_000,
+        interestRateBps: 300,
+        updatedAt: now,
+      };
+      try {
+        expect(() =>
+          db
+            .insert(financialContracts)
+            .values({ ...base, id: "bad-orig", originalPrincipalCents: 0 })
+            .run(),
+        ).toThrow();
+
+        expect(() =>
+          db
+            .insert(financialContracts)
+            .values({ ...base, id: "bad-pct-0", specialRepaymentPercentBps: 0 })
+            .run(),
+        ).toThrow();
+
+        expect(() =>
+          db
+            .insert(financialContracts)
+            .values({ ...base, id: "bad-pct-hi", specialRepaymentPercentBps: 10001 })
+            .run(),
+        ).toThrow();
+
+        expect(() =>
+          db
+            .insert(financialContracts)
+            .values({ ...base, id: "bad-used-pair", specialRepaymentUsedCents: 50_000 })
+            .run(),
+        ).toThrow();
+
+        expect(() =>
+          db
+            .insert(financialContracts)
+            .values({ ...base, id: "bad-rc-count", rateChangeTotalCount: 51 })
+            .run(),
+        ).toThrow();
+
+        expect(() =>
+          db
+            .insert(financialContracts)
+            .values({ ...base, id: "bad-rc-used", rateChangeUsedCount: -1 })
+            .run(),
+        ).toThrow();
+      } finally {
+        sqlite.close();
       }
     });
   });

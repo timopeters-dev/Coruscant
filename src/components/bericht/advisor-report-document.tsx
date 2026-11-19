@@ -5,7 +5,11 @@ import type {
   AdvisorReportView,
   AdvisorReportViewRecommendation,
 } from "@/lib/domain/advisor-report-anonymize";
-import { formatDataQualityHintDE } from "@/lib/domain/advisor-report-text";
+import {
+  formatDataQualityHintDE,
+  formatLoanRateChangeLineDE,
+  formatLoanSpecialRepaymentLineDE,
+} from "@/lib/domain/advisor-report-text";
 import { formatBpsDE, formatEuroDE } from "@/lib/domain/money";
 
 interface AdvisorReportDocumentProps {
@@ -428,7 +432,7 @@ export function AdvisorReportDocument({
                   <th className="py-2 px-3 text-right font-medium">Stand</th>
                   <th className="py-2 px-3 text-right font-medium">Rate/Mon.</th>
                   <th className="py-2 px-3 text-right font-medium">Zins</th>
-                  <th className="py-2 pl-3 font-medium">Details</th>
+                  <th className="py-2 pl-3 font-medium">Optionen</th>
                 </tr>
               </thead>
               <tbody>
@@ -477,13 +481,24 @@ export function AdvisorReportDocument({
                     <td className="py-2 pl-3 text-[11px] text-[var(--text-secondary)]">
                       <div className="space-y-0.5">
                         {c.fixedInterestUntilDisplay ? (
-                          <div>Zinsbindung bis {c.fixedInterestUntilDisplay}</div>
-                        ) : null}
-                        {c.specialRepaymentMaxYearlyCents !== null ? (
                           <div>
-                            Sondertilgung max.{" "}
-                            {formatEuroDE(c.specialRepaymentMaxYearlyCents)}/J.
+                            Zinsbindung bis {c.fixedInterestUntilDisplay}
                           </div>
+                        ) : null}
+                        {c.loanOptions !== null ? (
+                          <>
+                            <div>
+                              {formatLoanSpecialRepaymentLineDE(c.loanOptions)}
+                            </div>
+                            <div>
+                              {formatLoanRateChangeLineDE(c.loanOptions)}
+                            </div>
+                            {isFull && c.loanOptions.note ? (
+                              <div className="pt-0.5 text-[10px] italic text-[var(--text-secondary)]">
+                                Notiz: {c.loanOptions.note}
+                              </div>
+                            ) : null}
+                          </>
                         ) : null}
                         {c.targetSumCents !== null ? (
                           <div>

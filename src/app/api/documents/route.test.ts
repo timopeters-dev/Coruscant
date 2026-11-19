@@ -11,6 +11,7 @@ import {
 } from "@/db/queries/contracts";
 import { getDocumentById } from "@/db/queries/documents";
 import * as extractorModule from "@/lib/integrations/gemini-document-extractor";
+import { contractCreateSchema } from "@/lib/validation/contracts";
 import { POST as analyzeDocument } from "./[id]/analyze/route";
 import { POST as createContractFromDocumentRoute } from "./[id]/create-contract/route";
 import { GET as downloadDocumentFile } from "./[id]/file/route";
@@ -113,6 +114,21 @@ describe("/api/documents integration", () => {
       targetSumCents: null,
       allocationThresholdPercent: null,
       futureLoanInterestRateBps: null,
+      originalPrincipalCents: null,
+      specialRepaymentRight: "unknown",
+      specialRepaymentBasis: null,
+      specialRepaymentPercentBps: null,
+      specialRepaymentUsedCents: null,
+      specialRepaymentUsedYear: null,
+      rateChangeRight: "unknown",
+      rateChangeTotalCount: null,
+      rateChangeScope: null,
+      rateChangeUsedCount: 0,
+      rateChangeMinRepaymentBps: null,
+      rateChangeMaxRepaymentBps: null,
+      rateChangeMinMonthlyCents: null,
+      rateChangeMaxMonthlyCents: null,
+      loanOptionsNote: null,
     });
 
     const uploadRes = await uploadDocument(makePdfRequest());
@@ -230,6 +246,21 @@ describe("/api/documents integration", () => {
       targetSumCents: null,
       allocationThresholdPercent: null,
       futureLoanInterestRateBps: null,
+      originalPrincipalCents: null,
+      specialRepaymentRight: "unknown",
+      specialRepaymentBasis: null,
+      specialRepaymentPercentBps: null,
+      specialRepaymentUsedCents: null,
+      specialRepaymentUsedYear: null,
+      rateChangeRight: "unknown",
+      rateChangeTotalCount: null,
+      rateChangeScope: null,
+      rateChangeUsedCount: 0,
+      rateChangeMinRepaymentBps: null,
+      rateChangeMaxRepaymentBps: null,
+      rateChangeMinMonthlyCents: null,
+      rateChangeMaxMonthlyCents: null,
+      loanOptionsNote: null,
     });
 
     const uploadRes = await uploadDocument(makePdfRequest());
@@ -879,5 +910,114 @@ describe("/api/documents integration", () => {
       { params: Promise.resolve({ id: doc2.id }) },
     );
     expect(invalidUnitsRes.status).toBe(400);
+  });
+
+  it("applies non-null loanOptions during verify in the same transaction without touching usage, and rolls back calibration on 422", async () => {
+    vi.spyOn(
+      extractorModule,
+      "createDefaultDocumentExtractor",
+    ).mockReturnValue({
+      extract: async () => ({
+        ok: false,
+        code: "not_configured",
+        message: "Kein Key",
+      }),
+    });
+
+    const loan = createContract(
+      contractCreateSchema.parse({
+        name: "Hauskredit Musterstraße 1",
+        category: "loan",
+        currentBalanceCents: 20_000_000,
+        balanceAsOfDate: "2026-01-01",
+        monthlyRateCents: 110_000,
+        interestRateBps: 350,
+        repaymentType: "annuity",
+        originalPrincipalCents: 24_000_000,
+        specialRepaymentUsedCents: 200_000,
+        specialRepaymentUsedYear: 2026,
+        rateChangeRight: "allowed",
+        rateChangeTotalCount: 2,
+        rateChangeUsedCount: 1,
+        rateChangeMinMonthlyCents: 80_000,
+        rateChangeMaxMonthlyCents: 120_000,
+      }),
+    );
+
+    const upload1 = await uploadDocument(
+      makePdfRequest(
+        Buffer.from("%PDF-1.4\n%verify-rollback\n%%EOF"),
+        "Darlehen_Konflikt.pdf",
+      ),
+    );
+    const { document: doc1 } = (await upload1.json()) as {
+      document: { id: string };
+    };
+
+    // Conflict: calibrate + applyLoanOptions with bps corridor (160k..180k) that has empty intersection with existing 80k..120k
+    const conflictRes = await verifyDocument(
+      new Request(`http://localhost/api/documents/${doc1.id}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          documentType: "contract",
+          documentDate: "2026-06-01",
+          isTaxRelevant: false,
+          linkedContractId: loan.id,
+          calibrateContract: true,
+          calibratedBalanceCents: 19_000_000,
+          calibrationDate: "2026-06-01",
+          applyLoanOptions: true,
+          loanOptions: {
+            rateChangeRight: "allowed",
+            rateChangeMinRepaymentBps: 500,
+            rateChangeMaxRepaymentBps: 600,
+          },
+        }),
+      }),
+      { params: Promise.resolve({ id: doc1.id }) },
+    );
+    expect(conflictRes.status).toBe(422);
+
+    // Entire transaction rolled back (calibration AND document status!)
+    const loanAfterConflict = getContractById(loan.id)!;
+    expect(loanAfterConflict.currentBalanceCents).toBe(20_000_000);
+    expect(loanAfterConflict.balanceAsOfDate).toBe("2026-01-01");
+    expect(getDocumentById(doc1.id)?.status).toBe("pending_review");
+
+    // Valid verify with calibrate + applyLoanOptions updates only non-null fields and preserves usage
+    const okRes = await verifyDocument(
+      new Request(`http://localhost/api/documents/${doc1.id}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          documentType: "contract",
+          documentDate: "2026-06-01",
+          isTaxRelevant: false,
+          linkedContractId: loan.id,
+          calibrateContract: true,
+          calibratedBalanceCents: 19_000_000,
+          calibrationDate: "2026-06-01",
+          applyLoanOptions: true,
+          loanOptions: {
+            specialRepaymentRight: "allowed",
+            specialRepaymentBasis: "percent_original",
+            specialRepaymentPercentBps: 500,
+          },
+        }),
+      }),
+      { params: Promise.resolve({ id: doc1.id }) },
+    );
+    expect(okRes.status).toBe(200);
+
+    const loanAfterOk = getContractById(loan.id)!;
+    expect(loanAfterOk.currentBalanceCents).toBe(19_000_000);
+    expect(loanAfterOk.originalPrincipalCents).toBe(24_000_000); // preserved
+    expect(loanAfterOk.specialRepaymentRight).toBe("allowed");
+    expect(loanAfterOk.specialRepaymentBasis).toBe("percent_original");
+    expect(loanAfterOk.specialRepaymentPercentBps).toBe(500);
+    expect(loanAfterOk.specialRepaymentUsedCents).toBe(200_000); // usage untouched
+    expect(loanAfterOk.rateChangeUsedCount).toBe(1); // usage untouched
+    expect(getDocumentById(doc1.id)?.status).toBe("verified");
   });
 });

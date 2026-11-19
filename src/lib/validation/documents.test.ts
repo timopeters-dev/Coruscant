@@ -293,4 +293,82 @@ describe("extractedContractSchema, parseExtractedContractJson & documentCreateCo
       }),
     ).toThrow();
   });
+
+  it("validates loan option fields tolerantly (.catch(null)) while keeping core fields strict, and validates verify applyLoanOptions", () => {
+    // Invalid option fields become null while core fields remain intact
+    const tolerant = aiDocumentExtractionSchema.parse({
+      documentType: "contract",
+      extractedContract: {
+        name: "Hauskredit Musterbank",
+        category: "loan",
+        currentBalanceCents: 20_000_000,
+        interestRateBps: 350,
+        specialRepaymentRight: "allowed",
+        specialRepaymentPercentBps: 25_000, // out of range -> null
+        rateChangeTotalCount: "5%", // wrong type -> null
+        originalPrincipalCents: -100, // invalid -> null
+      },
+    });
+    expect(tolerant.extractedContract?.name).toBe("Hauskredit Musterbank");
+    expect(tolerant.extractedContract?.interestRateBps).toBe(350);
+    expect(tolerant.extractedContract?.specialRepaymentRight).toBe("allowed");
+    expect(tolerant.extractedContract?.specialRepaymentPercentBps).toBeNull();
+    expect(tolerant.extractedContract?.rateChangeTotalCount).toBeNull();
+    expect(tolerant.extractedContract?.originalPrincipalCents).toBeNull();
+
+    // Invalid core field still fails (regression)
+    expect(
+      aiDocumentExtractionSchema.safeParse({
+        extractedContract: {
+          name: "Hauskredit Musterbank",
+          interestRateBps: 3.5,
+          specialRepaymentRight: "allowed",
+        },
+      }).success,
+    ).toBe(false);
+
+    // Legacy JSON without new fields still parses
+    const legacy = parseExtractedContractJson(
+      JSON.stringify({ name: "Altkredit", interestRateBps: 300 }),
+    );
+    expect(legacy?.name).toBe("Altkredit");
+
+    // Verify with applyLoanOptions without linkedContractId is rejected
+    expect(
+      documentVerifySchema.safeParse({
+        documentType: "contract",
+        isTaxRelevant: false,
+        linkedContractId: null,
+        applyLoanOptions: true,
+        loanOptions: { specialRepaymentRight: "allowed" },
+      }).success,
+    ).toBe(false);
+
+    // Verify with applyLoanOptions + linkedContractId + valid loanOptions passes
+    const validVerify = documentVerifySchema.parse({
+      documentType: "contract",
+      isTaxRelevant: false,
+      linkedContractId: "loan-1",
+      applyLoanOptions: true,
+      loanOptions: {
+        originalPrincipalCents: 25_000_000,
+        specialRepaymentRight: "allowed",
+        specialRepaymentBasis: "percent_original",
+        specialRepaymentPercentBps: 500,
+      },
+    });
+    expect(validVerify.applyLoanOptions).toBe(true);
+    expect(validVerify.loanOptions?.specialRepaymentPercentBps).toBe(500);
+
+    // Invalid specialRepaymentMaxYearlyCents falls back to null while core fields remain intact
+    const badMaxYearly = aiDocumentExtractionSchema.parse({
+      extractedContract: {
+        name: "Hauskredit Musterbank",
+        interestRateBps: 350,
+        specialRepaymentMaxYearlyCents: "12.500 €",
+      },
+    });
+    expect(badMaxYearly.extractedContract?.name).toBe("Hauskredit Musterbank");
+    expect(badMaxYearly.extractedContract?.specialRepaymentMaxYearlyCents).toBeNull();
+  });
 });

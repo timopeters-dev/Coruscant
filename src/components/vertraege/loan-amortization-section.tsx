@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
 import { ChartDataTable } from "@/components/charts/chart-data-table";
-import { formatWholeEuroDE, pickDateTicks } from "@/components/charts/chart-scale";
+import {
+  formatWholeEuroDE,
+  pickDateTicks,
+} from "@/components/charts/chart-scale";
 import {
   LineChart,
   type LineChartAnchor,
@@ -11,57 +13,34 @@ import {
   type LineSeries,
 } from "@/components/charts/line-chart";
 import { StatusBadge } from "@/components/status-badge";
-import { Button } from "@/components/ui/button";
 import type { FinancialContractRow } from "@/db/queries/contracts";
-import type { DomainContract } from "@/lib/domain/contracts";
+import { contractRecordToDomain } from "@/lib/domain/contracts";
 import {
   buildAmortizationSeries,
-  compareSpecialRepayment,
   effectiveAsOf,
+  type LoanAdjustmentEffect,
 } from "@/lib/domain/contract-series";
-import {
-  addMonthsToYearMonth,
-  dayNumberToIsoDate,
-  isoDateToDayNumber,
-} from "@/lib/domain/date";
+import { dayNumberToIsoDate, isoDateToDayNumber } from "@/lib/domain/date";
 import { formatCentsDE } from "@/lib/domain/money";
-import {
-  AMORTIZATION_MARKER_LABELS,
-  formatDurationMonthsDE,
-  formatMonthYearDE,
-} from "./labels";
+import { AMORTIZATION_MARKER_LABELS, formatMonthYearDE } from "./labels";
+import { LoanAdjustmentSimulator } from "./loan-adjustment-simulator";
+import { PaymentSplitSection } from "./payment-split-section";
 
 interface LoanAmortizationSectionProps {
   contract: FinancialContractRow;
   asOfDate: string;
-}
-
-function toDomainContract(row: FinancialContractRow): DomainContract {
-  return {
-    id: row.id,
-    name: row.name,
-    category: row.category,
-    status: row.status,
-    currentBalanceCents: row.currentBalanceCents,
-    balanceAsOfDate: row.balanceAsOfDate,
-    monthlyRateCents: row.monthlyRateCents,
-    interestRateBps: row.interestRateBps,
-    repaymentType: row.repaymentType,
-    milestoneDate: row.milestoneDate,
-    milestoneLabel: row.milestoneLabel,
-    fixedInterestUntil: row.fixedInterestUntil,
-    targetSumCents: row.targetSumCents,
-    allocationThresholdPercent: row.allocationThresholdPercent,
-    specialRepaymentMaxYearlyCents: row.specialRepaymentMaxYearlyCents,
-  };
+  defaultSimulatorOpen?: boolean;
+  defaultSplitOpen?: boolean;
 }
 
 export function LoanAmortizationSection({
   contract,
   asOfDate,
+  defaultSimulatorOpen = false,
+  defaultSplitOpen = false,
 }: LoanAmortizationSectionProps) {
   const domainContract = React.useMemo(
-    () => toDomainContract(contract),
+    () => contractRecordToDomain(contract),
     [contract],
   );
 
@@ -70,64 +49,14 @@ export function LoanAmortizationSection({
     [asOfDate, contract.balanceAsOfDate],
   );
 
-  const minMonth = safeAsOfDate.slice(0, 7);
-  const defaultSpecialMonth = React.useMemo(
-    () => addMonthsToYearMonth(minMonth, 1),
-    [minMonth],
-  );
-
-  const [simOpen, setSimOpen] = React.useState(false);
-  const [amountEuros, setAmountEuros] = React.useState(0);
-  const [specialMonth, setSpecialMonth] = React.useState(defaultSpecialMonth);
-  const [repeatYearly, setRepeatYearly] = React.useState(false);
-
-  const amountCents = Math.max(0, Math.round(amountEuros) * 100);
-  const safeMonth = specialMonth >= minMonth ? specialMonth : minMonth;
-  const specialDate = `${safeMonth}-01`;
-  const effectiveSpecialDate =
-    specialDate >= safeAsOfDate ? specialDate : safeAsOfDate;
-
-  const isSpecialActive =
-    contract.status === "active" && amountCents > 0;
-
-  const comparison = React.useMemo(() => {
-    if (!isSpecialActive) {
-      return null;
-    }
-    return compareSpecialRepayment(domainContract, {
-      asOfDate: safeAsOfDate,
-      specialRepayment: {
-        amountCents,
-        date: effectiveSpecialDate,
-        repeatYearly,
-      },
-    });
-  }, [
-    isSpecialActive,
-    domainContract,
-    safeAsOfDate,
-    amountCents,
-    effectiveSpecialDate,
-    repeatYearly,
-  ]);
+  const [effect, setEffect] = React.useState<LoanAdjustmentEffect | null>(null);
 
   const baseline = React.useMemo(
     () =>
-      comparison?.baseline ??
+      effect?.baseline ??
       buildAmortizationSeries(domainContract, { asOfDate: safeAsOfDate }),
-    [comparison, domainContract, safeAsOfDate],
+    [effect, domainContract, safeAsOfDate],
   );
-
-  const maxSliderEuros = React.useMemo(() => {
-    const cap = contract.specialRepaymentMaxYearlyCents;
-    if (cap != null && cap > 0) {
-      return Math.max(100, Math.round(cap / 100));
-    }
-    return Math.max(
-      1000,
-      Math.round(contract.currentBalanceCents / 100),
-    );
-  }, [contract.specialRepaymentMaxYearlyCents, contract.currentBalanceCents]);
 
   const chartSeries = React.useMemo<LineSeries[]>(() => {
     const beforeFixed: { x: number; y: number }[] = [];
@@ -175,13 +104,13 @@ export function LoanAmortizationSection({
       });
     }
 
-    if (comparison) {
+    if (effect) {
       result.push({
-        id: "withSpecial",
-        label: "Mit Sondertilgung",
+        id: "adjusted",
+        label: "Mit Anpassung",
         role: "scenario",
         dashed: true,
-        points: comparison.withSpecial.points.map((pt) => ({
+        points: effect.adjusted.points.map((pt) => ({
           x: isoDateToDayNumber(pt.date),
           y: pt.balanceCents,
         })),
@@ -189,7 +118,7 @@ export function LoanAmortizationSection({
     }
 
     return result;
-  }, [baseline, comparison]);
+  }, [baseline, effect]);
 
   const firstPoint = baseline.points[0]!;
   const lastPoint = baseline.points[baseline.points.length - 1]!;
@@ -213,7 +142,7 @@ export function LoanAmortizationSection({
   );
 
   const markers = React.useMemo<LineChartMarker[]>(() => {
-    return baseline.markers
+    const baseMarkers: LineChartMarker[] = baseline.markers
       .filter(
         (m) =>
           m.kind === "today" ||
@@ -234,13 +163,26 @@ export function LoanAmortizationSection({
               ? "milestone"
               : "axisText",
       }));
-  }, [baseline.markers]);
+
+    const rateChangeMarker = effect?.adjusted.markers.find(
+      (m) => m.kind === "rate_change",
+    );
+    if (rateChangeMarker) {
+      baseMarkers.push({
+        x: isoDateToDayNumber(rateChangeMarker.date),
+        label: AMORTIZATION_MARKER_LABELS.rate_change,
+        role: "scenario",
+      });
+    }
+
+    return baseMarkers;
+  }, [baseline.markers, effect]);
 
   const dataTableRows = React.useMemo(() => {
-    const withSpecMap = new Map<number, number>();
-    if (comparison) {
-      for (const pt of comparison.withSpecial.points) {
-        withSpecMap.set(pt.monthIndex, pt.balanceCents);
+    const adjustedMap = new Map<number, number>();
+    if (effect) {
+      for (const pt of effect.adjusted.points) {
+        adjustedMap.set(pt.monthIndex, pt.balanceCents);
       }
     }
     const lastIdx = baseline.points.length - 1;
@@ -252,15 +194,13 @@ export function LoanAmortizationSection({
       .map((pt) => ({
         date: pt.date,
         baseline: formatWholeEuroDE(pt.balanceCents),
-        ...(comparison
+        ...(effect
           ? {
-              withSpecial: formatWholeEuroDE(
-                withSpecMap.get(pt.monthIndex) ?? 0,
-              ),
+              adjusted: formatWholeEuroDE(adjustedMap.get(pt.monthIndex) ?? 0),
             }
           : {}),
       }));
-  }, [baseline.points, comparison]);
+  }, [baseline.points, effect]);
 
   const showFixedTiles =
     !baseline.flags.notProjected &&
@@ -298,13 +238,13 @@ export function LoanAmortizationSection({
           <ChartDataTable
             summary={`Jährliche Stützwerte anzeigen (${contract.name})`}
             columns={
-              comparison
+              effect
                 ? [
                     { key: "date", header: "Datum" },
                     { key: "baseline", header: "Restschuld", align: "right" },
                     {
-                      key: "withSpecial",
-                      header: "Mit Sondertilgung",
+                      key: "adjusted",
+                      header: "Mit Anpassung",
                       align: "right",
                     },
                   ]
@@ -374,192 +314,19 @@ export function LoanAmortizationSection({
             ) : null}
           </div>
 
-          {/* Progressive Disclosure: Special Repayment Simulator */}
-          <div className="border-t border-[var(--border)] pt-3">
-            <button
-              type="button"
-              onClick={() => setSimOpen((v) => !v)}
-              aria-expanded={simOpen}
-              className="flex w-full items-center justify-between text-left text-xs font-medium text-[var(--text-primary)] hover:text-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-            >
-              <span>Sondertilgung simulieren</span>
-              {simOpen ? (
-                <ChevronDown className="h-4 w-4" />
-              ) : (
-                <ChevronRight className="h-4 w-4" />
-              )}
-            </button>
+          <LoanAdjustmentSimulator
+            contract={domainContract}
+            asOfDate={safeAsOfDate}
+            defaultOpen={defaultSimulatorOpen}
+            onEffectChange={setEffect}
+          />
 
-            {simOpen ? (
-              <div className="mt-3 space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <label
-                      htmlFor={`sr-amount-${contract.id}`}
-                      className="block text-xs text-[var(--text-secondary)]"
-                    >
-                      Betrag (€)
-                    </label>
-                    <input
-                      id={`sr-amount-${contract.id}`}
-                      type="range"
-                      min={0}
-                      max={maxSliderEuros}
-                      step={100}
-                      value={Math.min(amountEuros, maxSliderEuros)}
-                      onChange={(e) => setAmountEuros(Number(e.target.value))}
-                      className="w-full accent-[var(--accent)]"
-                    />
-                    <input
-                      type="number"
-                      min={0}
-                      step={100}
-                      value={amountEuros}
-                      onChange={(e) =>
-                        setAmountEuros(Math.max(0, Number(e.target.value) || 0))
-                      }
-                      aria-label="Sondertilgung Betrag in Euro"
-                      className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-sm tabular-nums text-[var(--text-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label
-                      htmlFor={`sr-month-${contract.id}`}
-                      className="block text-xs text-[var(--text-secondary)]"
-                    >
-                      Monat
-                    </label>
-                    <input
-                      id={`sr-month-${contract.id}`}
-                      type="month"
-                      min={minMonth}
-                      value={safeMonth}
-                      onChange={(e) => setSpecialMonth(e.target.value)}
-                      className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-sm tabular-nums text-[var(--text-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                    />
-                    <label className="flex items-center gap-2 pt-1 text-xs text-[var(--text-primary)]">
-                      <input
-                        type="checkbox"
-                        checked={repeatYearly}
-                        onChange={(e) => setRepeatYearly(e.target.checked)}
-                        className="rounded border-[var(--border)] accent-[var(--accent)]"
-                      />
-                      jährlich wiederholen
-                    </label>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[11px] text-[var(--text-secondary)]">
-                    Bereits geleistete Sondertilgungen dieses Jahres sind nicht
-                    berücksichtigt.
-                  </p>
-                  {amountEuros > 0 ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setAmountEuros(0);
-                        setSpecialMonth(defaultSpecialMonth);
-                        setRepeatYearly(false);
-                      }}
-                    >
-                      <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                      Zurücksetzen
-                    </Button>
-                  ) : null}
-                </div>
-
-                {comparison ? (
-                  <div className="space-y-2 rounded-xl border border-dashed border-[var(--border-sub)] bg-[var(--surface-elevated)]/40 p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-medium text-[var(--text-primary)]">
-                        Simulierte Wirkung
-                      </span>
-                      <StatusBadge variant="modeled" label="Modelliert" />
-                    </div>
-                    <div className="space-y-1 text-xs tabular-nums text-[var(--text-primary)]">
-                      {comparison.balanceAtFixedEndDeltaCents !== null ? (
-                        <p>
-                          Restschuld zum Zinsbindungsende{" "}
-                          <span className="font-semibold text-[var(--emerald)]">
-                            −{formatCentsDE(comparison.balanceAtFixedEndDeltaCents)}
-                          </span>
-                        </p>
-                      ) : null}
-                      {comparison.interestSavedUntilFixedEndCents !== null ? (
-                        <p>
-                          Gesparte Zinsen bis Zinsbindungsende{" "}
-                          <span className="font-semibold text-[var(--emerald)]">
-                            {formatCentsDE(
-                              comparison.interestSavedUntilFixedEndCents,
-                            )}
-                          </span>{" "}
-                          (gesamt {formatCentsDE(comparison.interestSavedTotalCents)})
-                        </p>
-                      ) : (
-                        <p>
-                          Gesparte Zinsen gesamt{" "}
-                          <span className="font-semibold text-[var(--emerald)]">
-                            {formatCentsDE(comparison.interestSavedTotalCents)}
-                          </span>
-                        </p>
-                      )}
-                      <p>
-                        Laufzeit{" "}
-                        {comparison.monthsSaved !== null ? (
-                          <span className="font-semibold text-[var(--emerald)]">
-                            −{formatDurationMonthsDE(comparison.monthsSaved)}
-                          </span>
-                        ) : (
-                          "nicht absehbar"
-                        )}
-                      </p>
-                    </div>
-
-                    {/* Overflow / Edge Notices */}
-                    <div className="space-y-1 pt-1 text-[11px] text-[var(--amber)]">
-                      {comparison.withSpecial.special &&
-                      comparison.withSpecial.special.capOverflowCents > 0 ? (
-                        <p>
-                          {formatCentsDE(
-                            comparison.withSpecial.special.capOverflowCents,
-                          )}{" "}
-                          über dem Jahreslimit, nicht angerechnet.
-                        </p>
-                      ) : null}
-                      {comparison.withSpecial.special &&
-                      comparison.withSpecial.special.exceedsDebtCents > 0 ? (
-                        <p>
-                          {formatCentsDE(
-                            comparison.withSpecial.special.exceedsDebtCents,
-                          )}{" "}
-                          über der Restschuld, nicht benötigt.
-                        </p>
-                      ) : null}
-                      {comparison.withSpecial.special &&
-                      comparison.withSpecial.special.afterPayoffIgnoredCents >
-                        0 ? (
-                        <p>
-                          Zahlung nach Schuldenfreiheit (
-                          {formatCentsDE(
-                            comparison.withSpecial.special
-                              .afterPayoffIgnoredCents,
-                          )}
-                          ) ignoriert.
-                        </p>
-                      ) : null}
-                      {comparison.withSpecial.flags.capUnknown ? (
-                        <p>Sondertilgungsrecht im Vertrag prüfen.</p>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
+          <PaymentSplitSection
+            contractName={contract.name}
+            baseline={baseline}
+            adjusted={effect?.adjusted ?? null}
+            defaultOpen={defaultSplitOpen}
+          />
         </>
       )}
     </section>

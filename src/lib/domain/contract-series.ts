@@ -12,6 +12,12 @@ import {
   parseIsoDate,
 } from "./date";
 import {
+  remainingSpecialRepaymentCents,
+  resolveRateCorridor,
+  resolveYearlyCapCents,
+  specialRepaymentRule,
+} from "./loan-options";
+import {
   assertNonNegativeInteger,
   assertSafeInteger,
   roundHalfUpBigInt,
@@ -28,9 +34,15 @@ export interface SpecialRepaymentOption {
   usedThisYearCents?: number;
 }
 
+export interface RateChangeOption {
+  date: string;
+  newMonthlyRateCents: number;
+}
+
 export interface AmortizationOptions {
   asOfDate: string;
   specialRepayment?: SpecialRepaymentOption | null;
+  rateChange?: RateChangeOption | null;
   maxMonths?: number;
 }
 
@@ -40,6 +52,10 @@ export interface AmortizationPoint {
   balanceCents: number;
   cumulativeInterestCents: number;
   cumulativeSpecialCents: number;
+  interestCents: number;
+  principalCents: number;
+  specialCents: number;
+  monthlyRateCents: number;
   phase: "calibrated" | "since_calibration" | "future";
   afterFixedInterestEnd: boolean;
 }
@@ -51,7 +67,8 @@ export type AmortizationMarkerKind =
   | "paid_off"
   | "allocation_threshold"
   | "target_reached"
-  | "special_repayment";
+  | "special_repayment"
+  | "rate_change";
 
 export interface AmortizationMarker {
   kind: AmortizationMarkerKind;
@@ -59,6 +76,14 @@ export interface AmortizationMarker {
   monthIndex: number;
   label: string;
   balanceCents: number | null;
+}
+
+export interface RateChangeSummary {
+  requestedCents: number;
+  appliedCents: number;
+  clamped: boolean;
+  notAllowed: boolean;
+  afterLatestDate: boolean;
 }
 
 export interface AmortizationSeriesResult {
@@ -84,6 +109,7 @@ export interface AmortizationSeriesResult {
     exceedsDebtCents: number;
     afterPayoffIgnoredCents: number;
   } | null;
+  rateChange: RateChangeSummary | null;
   flags: {
     notProjected: boolean;
     neverPaysOff: boolean;
@@ -99,6 +125,34 @@ export interface AmortizationSeriesResult {
   };
 }
 
+export interface YearlyPaymentSplitRow {
+  year: number;
+  interestCents: number;
+  principalCents: number;
+  specialCents: number;
+  endBalanceCents: number;
+}
+
+export interface YearlyPaymentSplitSummary {
+  rows: YearlyPaymentSplitRow[];
+  crossoverDate: string | null;
+}
+
+export interface LoanAdjustmentEffect {
+  baseline: AmortizationSeriesResult;
+  adjusted: AmortizationSeriesResult;
+  balanceAtFixedEndDeltaCents: number | null;
+  interestSavedUntilFixedEndCents: number | null;
+  interestSavedTotalCents: number;
+  monthsSaved: number | null;
+  extraPaidUntilFixedEndCents: number | null;
+  extraPaidTotalCents: number;
+  crossover: {
+    baseline: string | null;
+    adjusted: string | null;
+  };
+}
+
 export interface SpecialRepaymentEffect {
   baseline: AmortizationSeriesResult;
   withSpecial: AmortizationSeriesResult;
@@ -106,6 +160,16 @@ export interface SpecialRepaymentEffect {
   interestSavedUntilFixedEndCents: number | null;
   interestSavedTotalCents: number;
   monthsSaved: number | null;
+}
+
+export interface RateChangeTimingPoint {
+  startDate: string;
+  interestSavedCents: number;
+}
+
+export interface RateChangeTimingResult {
+  points: RateChangeTimingPoint[];
+  costPerYearDelayCents: number | null;
 }
 
 export interface ContractOverview {
@@ -232,8 +296,26 @@ export function buildAmortizationSeries(
     );
   }
 
+  const rc = options.rateChange ?? null;
+  if (rc !== null) {
+    if (contract.category === "savings_contract") {
+      throw new RangeError("rateChange is not supported for savings_contract");
+    }
+    assertNonNegativeInteger(
+      rc.newMonthlyRateCents,
+      "rateChange.newMonthlyRateCents",
+    );
+    parseIsoDate(rc.date, "rateChange.date");
+    if (rc.date < options.asOfDate) {
+      throw new RangeError(
+        `rateChange.date (${rc.date}) must be >= asOfDate (${options.asOfDate})`,
+      );
+    }
+  }
+
   const startDate = contract.balanceAsOfDate;
   const asOfMonthIndex = countCompletedMonths(startDate, options.asOfDate);
+  const asOfYear = parseIsoDate(options.asOfDate, "asOfDate").year;
   const { months: calibrationAgeMonths, isStale: staleCalibration } =
     getCalibrationAge(contract, options.asOfDate);
 
@@ -243,10 +325,73 @@ export function buildAmortizationSeries(
   const isAfterFixedEnd = (date: string): boolean =>
     fixedEnd !== null && date > fixedEnd;
 
+  const srRule =
+    contract.category === "loan"
+      ? specialRepaymentRule(contract)
+      : ({ kind: "none" } as const);
   const capUnknown =
     sr !== null &&
     sr.amountCents > 0 &&
-    contract.specialRepaymentMaxYearlyCents == null;
+    (srRule.kind === "unknown" || srRule.kind === "allowed_unknown_amount");
+
+  const persistedAllowance =
+    contract.category === "loan"
+      ? remainingSpecialRepaymentCents(contract, options.asOfDate)
+      : null;
+  const defaultUsedInAsOfYear = persistedAllowance?.usedCents ?? 0;
+
+  // Resolve rate change against contractual corridor
+  let rateChangeResult: RateChangeSummary | null = null;
+  let rcStartIndex = -1;
+  let rcEffectiveRateCents: number | null = null;
+  if (rc !== null) {
+    const corridor = resolveRateCorridor(contract, options.asOfDate);
+    if (
+      corridor.status === "none" ||
+      corridor.status === "not_applicable" ||
+      corridor.flags.exhausted ||
+      corridor.flags.corridorEmpty
+    ) {
+      rateChangeResult = {
+        requestedCents: rc.newMonthlyRateCents,
+        appliedCents: contract.monthlyRateCents,
+        clamped: false,
+        notAllowed: true,
+        afterLatestDate: false,
+      };
+    } else if (
+      corridor.latestChangeDate !== null &&
+      rc.date > corridor.latestChangeDate
+    ) {
+      rateChangeResult = {
+        requestedCents: rc.newMonthlyRateCents,
+        appliedCents: contract.monthlyRateCents,
+        clamped: false,
+        notAllowed: false,
+        afterLatestDate: true,
+      };
+    } else {
+      const minRate = corridor.minMonthlyCents!;
+      const maxRate = corridor.maxMonthlyCents!;
+      const appliedCents = Math.min(
+        maxRate,
+        Math.max(minRate, rc.newMonthlyRateCents),
+      );
+      const rawRcIdx = countCompletedMonths(startDate, rc.date);
+      rcStartIndex =
+        addMonthsToIsoDate(startDate, rawRcIdx) < rc.date
+          ? rawRcIdx + 1
+          : rawRcIdx;
+      rcEffectiveRateCents = appliedCents;
+      rateChangeResult = {
+        requestedCents: rc.newMonthlyRateCents,
+        appliedCents,
+        clamped: appliedCents !== rc.newMonthlyRateCents,
+        notAllowed: false,
+        afterLatestDate: false,
+      };
+    }
+  }
 
   const allocationThresholdCents =
     contract.category === "savings_contract" &&
@@ -274,6 +419,10 @@ export function buildAmortizationSeries(
         balanceCents: contract.currentBalanceCents,
         cumulativeInterestCents: 0,
         cumulativeSpecialCents: 0,
+        interestCents: 0,
+        principalCents: 0,
+        specialCents: 0,
+        monthlyRateCents: 0,
         phase: "calibrated",
         afterFixedInterestEnd: isAfterFixedEnd(startDate),
       },
@@ -283,6 +432,10 @@ export function buildAmortizationSeries(
         balanceCents: contract.currentBalanceCents,
         cumulativeInterestCents: 0,
         cumulativeSpecialCents: 0,
+        interestCents: 0,
+        principalCents: 0,
+        specialCents: 0,
+        monthlyRateCents: 0,
         phase: "since_calibration",
         afterFixedInterestEnd: isAfterFixedEnd(options.asOfDate),
       },
@@ -319,6 +472,7 @@ export function buildAmortizationSeries(
       allocationThresholdDate: null,
       allocationThresholdCents,
       special: null,
+      rateChange: rateChangeResult,
       flags: {
         notProjected: true,
         neverPaysOff: false,
@@ -412,24 +566,33 @@ export function buildAmortizationSeries(
         ? rawSrStartIndex + 1
         : rawSrStartIndex
       : -1;
-  const srFirstYear = sr !== null ? parseIsoDate(sr.date, "specialRepayment.date").year : 0;
-  const yearlyCap =
-    contract.specialRepaymentMaxYearlyCents ?? Number.MAX_SAFE_INTEGER;
+  const srFirstYear =
+    sr !== null ? parseIsoDate(sr.date, "specialRepayment.date").year : 0;
   const capUsedByYear = new Map<number, number>();
+  const yearStartBalanceMap = new Map<number, number>();
   let srRequested = 0;
   let srApplied = 0;
   let srCapOverflow = 0;
   let srExceedsDebt = 0;
   let srAfterPayoffIgnored = 0;
-  let firstSpecialMarker: { monthIndex: number; date: string; balanceCents: number } | null =
-    null;
+  let firstSpecialMarker: {
+    monthIndex: number;
+    date: string;
+    balanceCents: number;
+  } | null = null;
+  let rateChangeMarker: {
+    monthIndex: number;
+    date: string;
+    balanceCents: number;
+  } | null = null;
+  let rateBelowInterestFromChange = false;
 
-  const applySpecialAt = (m: number, stepDate: string): void => {
-    if (!sr || !specialActive) return;
+  const applySpecialAt = (m: number, stepDate: string): number => {
+    if (!sr || !specialActive) return 0;
     const isMatch =
       m === srStartIndex ||
       (sr.repeatYearly && m > srStartIndex && (m - srStartIndex) % 12 === 0);
-    if (!isMatch) return;
+    if (!isMatch) return 0;
 
     const paymentDate =
       m === srStartIndex
@@ -439,12 +602,20 @@ export function buildAmortizationSeries(
 
     if (balance === 0) {
       srAfterPayoffIgnored += sr.amountCents;
-      return;
+      return 0;
     }
+
+    const balanceForCap = yearStartBalanceMap.get(payYear) ?? balance;
+    const resolvedCap = resolveYearlyCapCents(srRule, balanceForCap);
+    const yearlyCap = resolvedCap ?? Number.MAX_SAFE_INTEGER;
 
     const usedBefore =
       capUsedByYear.get(payYear) ??
-      (payYear === srFirstYear ? (sr.usedThisYearCents ?? 0) : 0);
+      (payYear === srFirstYear && sr.usedThisYearCents !== undefined
+        ? sr.usedThisYearCents
+        : payYear === asOfYear
+          ? defaultUsedInAsOfYear
+          : 0);
     const capRemaining = Math.max(0, yearlyCap - usedBefore);
     const res = applyCappedSpecialRepayment(
       balance,
@@ -473,24 +644,33 @@ export function buildAmortizationSeries(
       paidOffMonthIndex = m;
       paidOffDate = stepDate;
     }
+
+    return res.appliedCents;
   };
 
   // Month 0 (calibrated)
-  if (srStartIndex === 0) {
-    applySpecialAt(0, startDate);
+  if (asOfMonthIndex === 0) {
+    yearStartBalanceMap.set(asOfYear, balance);
   }
+  const specialAt0 = srStartIndex === 0 ? applySpecialAt(0, startDate) : 0;
   points.push({
     monthIndex: 0,
     date: startDate,
     balanceCents: balance,
     cumulativeInterestCents: 0,
     cumulativeSpecialCents: cumulativeSpecial,
+    interestCents: 0,
+    principalCents: 0,
+    specialCents: specialAt0,
+    monthlyRateCents: 0,
     phase: "calibrated",
     afterFixedInterestEnd: isAfterFixedEnd(startDate),
   });
   checkSavingsMilestones(0, startDate);
 
   let horizonCapped = false;
+  const rcEffectiveMonth =
+    rcEffectiveRateCents !== null ? Math.max(1, rcStartIndex) : -1;
 
   for (let m = 1; m <= maxHorizon; m += 1) {
     // Stop conditions evaluated before advancing to month m:
@@ -504,34 +684,85 @@ export function buildAmortizationSeries(
     }
 
     const date = addMonthsToIsoDate(startDate, m);
+    const stepYear = parseIsoDate(date, "stepDate").year;
+
+    // Track first simulated balance per future calendar year (after asOfYear)
+    if (stepYear > asOfYear && !yearStartBalanceMap.has(stepYear)) {
+      yearStartBalanceMap.set(stepYear, balance);
+    }
 
     if (contract.category === "loan" && balance === 0) {
       // Loan already paid off before asOfMonthIndex; pad flat 0 up to asOfMonthIndex
-      if (m === srStartIndex || (sr?.repeatYearly && m > srStartIndex && (m - srStartIndex) % 12 === 0)) {
-        applySpecialAt(m, date);
+      if (m === asOfMonthIndex) {
+        yearStartBalanceMap.set(asOfYear, 0);
       }
+      const appliedZero =
+        m === srStartIndex ||
+        (sr?.repeatYearly &&
+          m > srStartIndex &&
+          (m - srStartIndex) % 12 === 0)
+          ? applySpecialAt(m, date)
+          : 0;
       points.push({
         monthIndex: m,
         date,
         balanceCents: 0,
         cumulativeInterestCents: cumulativeInterest,
         cumulativeSpecialCents: cumulativeSpecial,
+        interestCents: 0,
+        principalCents: 0,
+        specialCents: appliedZero,
+        monthlyRateCents: 0,
         phase: m <= asOfMonthIndex ? "since_calibration" : "future",
         afterFixedInterestEnd: isAfterFixedEnd(date),
       });
       continue;
     }
 
-    const step = stepContractMonth(contract, balance);
+    const useNewRate =
+      rcEffectiveRateCents !== null && m >= rcEffectiveMonth;
+    const stepInput = useNewRate
+      ? { ...contract, monthlyRateCents: rcEffectiveRateCents! }
+      : contract;
+
+    const step = stepContractMonth(stepInput, balance);
     balance = step.balanceCents;
     cumulativeInterest += step.interestCents;
+
+    if (
+      useNewRate &&
+      m === rcEffectiveMonth &&
+      rcEffectiveRateCents !== contract.monthlyRateCents
+    ) {
+      if (
+        (contract.repaymentType == null ||
+          contract.repaymentType === "annuity") &&
+        rcEffectiveRateCents! < step.interestCents
+      ) {
+        rateBelowInterestFromChange = true;
+      }
+      rateChangeMarker = {
+        monthIndex: m,
+        date: rc!.date,
+        balanceCents: balance,
+      };
+    }
 
     if (step.paidOff && paidOffMonthIndex === null) {
       paidOffMonthIndex = m;
       paidOffDate = date;
     }
 
-    applySpecialAt(m, date);
+    if (m === asOfMonthIndex) {
+      yearStartBalanceMap.set(asOfYear, balance);
+    }
+
+    const appliedSpecial = applySpecialAt(m, date);
+
+    const pointMonthlyRateCents =
+      contract.category === "loan" && contract.repaymentType === "installment"
+        ? step.principalCents
+        : step.paymentCents;
 
     points.push({
       monthIndex: m,
@@ -539,6 +770,10 @@ export function buildAmortizationSeries(
       balanceCents: balance,
       cumulativeInterestCents: cumulativeInterest,
       cumulativeSpecialCents: cumulativeSpecial,
+      interestCents: step.interestCents,
+      principalCents: step.principalCents,
+      specialCents: appliedSpecial,
+      monthlyRateCents: pointMonthlyRateCents,
       phase: m <= asOfMonthIndex ? "since_calibration" : "future",
       afterFixedInterestEnd: isAfterFixedEnd(date),
     });
@@ -606,7 +841,10 @@ export function buildAmortizationSeries(
     fixedEnd >= startDate &&
     fixedEnd <= horizonEndDate
   ) {
-    const idx = Math.min(countCompletedMonths(startDate, fixedEnd), points.length - 1);
+    const idx = Math.min(
+      countCompletedMonths(startDate, fixedEnd),
+      points.length - 1,
+    );
     markers.push({
       kind: "fixed_interest_end",
       date: fixedEnd,
@@ -683,6 +921,21 @@ export function buildAmortizationSeries(
     });
   }
 
+  const rcMarker = rateChangeMarker as {
+    monthIndex: number;
+    date: string;
+    balanceCents: number;
+  } | null;
+  if (rcMarker !== null) {
+    markers.push({
+      kind: "rate_change",
+      date: rcMarker.date,
+      monthIndex: rcMarker.monthIndex,
+      label: "Ratenänderung",
+      balanceCents: rcMarker.balanceCents,
+    });
+  }
+
   markers.sort(
     (a, b) =>
       compareStrings(a.date, b.date) ||
@@ -694,8 +947,8 @@ export function buildAmortizationSeries(
   const isAnnuityLike =
     contract.category === "loan" &&
     (contract.repaymentType == null || contract.repaymentType === "annuity");
-  let rateBelowInterest = false;
-  if (isAnnuityLike && contract.currentBalanceCents > 0) {
+  let rateBelowInterest = rateBelowInterestFromChange;
+  if (!rateBelowInterest && isAnnuityLike && contract.currentBalanceCents > 0) {
     const firstStep = stepContractMonth(contract, contract.currentBalanceCents);
     rateBelowInterest = contract.monthlyRateCents < firstStep.interestCents;
   }
@@ -728,6 +981,7 @@ export function buildAmortizationSeries(
           afterPayoffIgnoredCents: srAfterPayoffIgnored,
         }
       : null,
+    rateChange: rateChangeResult,
     flags: {
       notProjected: false,
       neverPaysOff,
@@ -749,56 +1003,268 @@ export function buildAmortizationSeries(
 }
 
 /**
+ * Aggregates monthly amortization points into calendar-year payment splits
+ * and finds the crossover date (first month with principalCents >= interestCents).
+ */
+export function summarizeYearlyPaymentSplit(
+  points: readonly AmortizationPoint[],
+): YearlyPaymentSplitSummary {
+  const byYear = new Map<number, YearlyPaymentSplitRow>();
+  let crossoverDate: string | null = null;
+
+  for (const pt of points) {
+    if (
+      crossoverDate === null &&
+      pt.monthIndex > 0 &&
+      pt.principalCents > 0 &&
+      pt.principalCents >= pt.interestCents
+    ) {
+      crossoverDate = pt.date;
+    }
+
+    if (pt.monthIndex === 0 && pt.specialCents === 0) {
+      continue;
+    }
+
+    const year = parseIsoDate(pt.date, "point.date").year;
+    const existing = byYear.get(year);
+    if (existing) {
+      existing.interestCents += pt.interestCents;
+      existing.principalCents += pt.principalCents;
+      existing.specialCents += pt.specialCents;
+      existing.endBalanceCents = pt.balanceCents;
+    } else {
+      byYear.set(year, {
+        year,
+        interestCents: pt.interestCents,
+        principalCents: pt.principalCents,
+        specialCents: pt.specialCents,
+        endBalanceCents: pt.balanceCents,
+      });
+    }
+  }
+
+  const rows = [...byYear.values()].sort((a, b) => a.year - b.year);
+  return { rows, crossoverDate };
+}
+
+function sumCashOutUntil(
+  points: readonly AmortizationPoint[],
+  maxMonthIndex: number,
+): number {
+  let total = 0;
+  for (const pt of points) {
+    if (pt.monthIndex > maxMonthIndex) break;
+    total += pt.interestCents + pt.principalCents + pt.specialCents;
+  }
+  return total;
+}
+
+/**
+ * Compares baseline vs. adjusted loan series (special repayment, rate change, or both).
+ */
+export function compareLoanAdjustments(
+  contract: DomainContract,
+  options: AmortizationOptions,
+): LoanAdjustmentEffect {
+  const baseline = buildAmortizationSeries(contract, {
+    asOfDate: options.asOfDate,
+    maxMonths: options.maxMonths,
+  });
+  const adjusted = buildAmortizationSeries(contract, options);
+
+  const balanceAtFixedEndDeltaCents =
+    baseline.balanceAtFixedInterestEndCents !== null &&
+    adjusted.balanceAtFixedInterestEndCents !== null
+      ? baseline.balanceAtFixedInterestEndCents -
+        adjusted.balanceAtFixedInterestEndCents
+      : null;
+
+  const interestSavedUntilFixedEndCents =
+    baseline.interestUntilFixedEndCents !== null &&
+    adjusted.interestUntilFixedEndCents !== null
+      ? baseline.interestUntilFixedEndCents -
+        adjusted.interestUntilFixedEndCents
+      : null;
+
+  const interestSavedTotalCents =
+    baseline.totalInterestCents - adjusted.totalInterestCents;
+
+  const monthsSaved =
+    baseline.paidOffMonthIndex !== null && adjusted.paidOffMonthIndex !== null
+      ? baseline.paidOffMonthIndex - adjusted.paidOffMonthIndex
+      : null;
+
+  let extraPaidUntilFixedEndCents: number | null = null;
+  if (
+    contract.fixedInterestUntil != null &&
+    contract.fixedInterestUntil >= baseline.startDate
+  ) {
+    const fixedIdx = countCompletedMonths(
+      baseline.startDate,
+      contract.fixedInterestUntil,
+    );
+    extraPaidUntilFixedEndCents =
+      sumCashOutUntil(adjusted.points, fixedIdx) -
+      sumCashOutUntil(baseline.points, fixedIdx);
+  }
+
+  const maxIdx = Math.max(
+    baseline.points[baseline.points.length - 1]!.monthIndex,
+    adjusted.points[adjusted.points.length - 1]!.monthIndex,
+  );
+  const extraPaidTotalCents =
+    sumCashOutUntil(adjusted.points, maxIdx) -
+    sumCashOutUntil(baseline.points, maxIdx);
+
+  const baselineSplit = summarizeYearlyPaymentSplit(baseline.points);
+  const adjustedSplit = summarizeYearlyPaymentSplit(adjusted.points);
+
+  return {
+    baseline,
+    adjusted,
+    balanceAtFixedEndDeltaCents,
+    interestSavedUntilFixedEndCents,
+    interestSavedTotalCents,
+    monthsSaved,
+    extraPaidUntilFixedEndCents,
+    extraPaidTotalCents,
+    crossover: {
+      baseline: baselineSplit.crossoverDate,
+      adjusted: adjustedSplit.crossoverDate,
+    },
+  };
+}
+
+/**
  * Compares a contract series with and without a simulated special repayment.
+ * Thin wrapper around compareLoanAdjustments for backward compatibility.
  */
 export function compareSpecialRepayment(
   contract: DomainContract,
   options: AmortizationOptions & { specialRepayment: SpecialRepaymentOption },
 ): SpecialRepaymentEffect {
-  const baseline = buildAmortizationSeries(contract, {
-    asOfDate: options.asOfDate,
-    maxMonths: options.maxMonths,
-  });
-  const withSpecial = buildAmortizationSeries(contract, options);
-
-  const baselineLastIdx = baseline.points[baseline.points.length - 1]!.monthIndex;
-  const withSpecialAtBaselineHorizon =
-    withSpecial.points[
-      Math.min(baselineLastIdx, withSpecial.points.length - 1)
-    ]!;
-
-  const balanceAtFixedEndDeltaCents =
-    baseline.balanceAtFixedInterestEndCents !== null &&
-    withSpecial.balanceAtFixedInterestEndCents !== null
-      ? baseline.balanceAtFixedInterestEndCents -
-        withSpecial.balanceAtFixedInterestEndCents
-      : null;
-
-  const interestSavedUntilFixedEndCents =
-    baseline.interestUntilFixedEndCents !== null &&
-    withSpecial.interestUntilFixedEndCents !== null
-      ? baseline.interestUntilFixedEndCents -
-        withSpecial.interestUntilFixedEndCents
-      : null;
-
-  const interestSavedTotalCents =
-    baseline.totalInterestCents -
-    withSpecialAtBaselineHorizon.cumulativeInterestCents;
-
-  const monthsSaved =
-    baseline.paidOffMonthIndex !== null &&
-    withSpecial.paidOffMonthIndex !== null
-      ? baseline.paidOffMonthIndex - withSpecial.paidOffMonthIndex
-      : null;
-
+  const effect = compareLoanAdjustments(contract, options);
   return {
-    baseline,
-    withSpecial,
-    balanceAtFixedEndDeltaCents,
-    interestSavedUntilFixedEndCents,
-    interestSavedTotalCents,
-    monthsSaved,
+    baseline: effect.baseline,
+    withSpecial: effect.adjusted,
+    balanceAtFixedEndDeltaCents: effect.balanceAtFixedEndDeltaCents,
+    interestSavedUntilFixedEndCents: effect.interestSavedUntilFixedEndCents,
+    interestSavedTotalCents: effect.interestSavedTotalCents,
+    monthsSaved: effect.monthsSaved,
   };
+}
+
+/**
+ * Computes interest saved until horizonEndDate as a function of rate-change start month,
+ * plus costPerYearDelayCents (difference between starting now vs. 12 months later).
+ */
+export function buildRateChangeTimingSeries(
+  contract: DomainContract,
+  options: {
+    asOfDate: string;
+    newMonthlyRateCents: number;
+    horizonEndDate: string;
+    maxPoints?: number;
+  },
+): RateChangeTimingResult {
+  validateContract(contract);
+  parseIsoDate(options.asOfDate, "asOfDate");
+  parseIsoDate(options.horizonEndDate, "horizonEndDate");
+  assertNonNegativeInteger(options.newMonthlyRateCents, "newMonthlyRateCents");
+  const maxPoints =
+    options.maxPoints !== undefined
+      ? assertSafeInteger(options.maxPoints, "maxPoints")
+      : 60;
+  if (maxPoints < 2) {
+    throw new RangeError(`maxPoints must be >= 2, received: ${maxPoints}`);
+  }
+
+  const corridor = resolveRateCorridor(contract, options.asOfDate);
+  if (
+    contract.status !== "active" ||
+    corridor.status === "none" ||
+    corridor.status === "not_applicable" ||
+    corridor.flags.exhausted ||
+    corridor.flags.corridorEmpty
+  ) {
+    return { points: [], costPerYearDelayCents: null };
+  }
+
+  const maxStartDate =
+    corridor.latestChangeDate !== null &&
+    corridor.latestChangeDate < options.horizonEndDate
+      ? corridor.latestChangeDate
+      : options.horizonEndDate;
+
+  const firstCandidate = addMonthsToIsoDate(options.asOfDate, 1);
+  if (firstCandidate > maxStartDate) {
+    return { points: [], costPerYearDelayCents: null };
+  }
+
+  const candidateDates: string[] = [];
+  for (let offset = 1; offset <= MAX_SERIES_MONTHS; offset += 1) {
+    const d = addMonthsToIsoDate(options.asOfDate, offset);
+    if (d > maxStartDate) break;
+    candidateDates.push(d);
+  }
+  if (candidateDates.length === 0) {
+    return { points: [], costPerYearDelayCents: null };
+  }
+
+  const horizonMonths = Math.min(
+    MAX_SERIES_MONTHS,
+    Math.max(1, countCompletedMonths(contract.balanceAsOfDate, options.horizonEndDate)),
+  );
+
+  // Sample candidate dates to at most maxPoints, always preserving first and last
+  let selectedDates: string[];
+  if (candidateDates.length <= maxPoints) {
+    selectedDates = candidateDates;
+  } else {
+    selectedDates = [];
+    const lastIdx = candidateDates.length - 1;
+    const lastSample = maxPoints - 1;
+    let prevIdx = -1;
+    for (let i = 0; i < maxPoints; i += 1) {
+      const idx = Math.round((i * lastIdx) / lastSample);
+      if (idx !== prevIdx) {
+        selectedDates.push(candidateDates[idx]!);
+        prevIdx = idx;
+      }
+    }
+  }
+
+  const savedAtDate = (startDate: string): number => {
+    const cmp = compareLoanAdjustments(contract, {
+      asOfDate: options.asOfDate,
+      rateChange: {
+        date: startDate,
+        newMonthlyRateCents: options.newMonthlyRateCents,
+      },
+      maxMonths: horizonMonths,
+    });
+    return cmp.interestSavedTotalCents;
+  };
+
+  const points: RateChangeTimingPoint[] = selectedDates.map((startDate) => ({
+    startDate,
+    interestSavedCents: savedAtDate(startDate),
+  }));
+
+  let costPerYearDelayCents: number | null = null;
+  const horizonFromAsOfMonths = countCompletedMonths(
+    options.asOfDate,
+    options.horizonEndDate,
+  );
+  if (horizonFromAsOfMonths >= 12) {
+    const savedNow = points[0]!.interestSavedCents;
+    const date12m = addMonthsToIsoDate(options.asOfDate, 13);
+    const saved12m = date12m <= maxStartDate ? savedAtDate(date12m) : 0;
+    costPerYearDelayCents = savedNow - saved12m;
+  }
+
+  return { points, costPerYearDelayCents };
 }
 
 /**

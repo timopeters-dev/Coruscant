@@ -14,6 +14,15 @@ import {
   parseYearMonth,
 } from "./date";
 import {
+  type RateCorridor,
+  remainingSpecialRepaymentCents,
+  resolveRateCorridor,
+  resolveYearlyCapCents,
+  type SpecialRepaymentAllowance,
+  type SpecialRepaymentRule,
+  specialRepaymentRule,
+} from "./loan-options";
+import {
   assertNonNegativeInteger,
   assertSafeInteger,
   roundHalfUpBigInt,
@@ -185,13 +194,20 @@ export function calculateEtfLiquidationTax(
 // Sondertilgung vs. ETF
 // ---------------------------------------------------------------------------
 
+export type PrepaymentMonthlyChannel = "special_repayment" | "rate_increase";
+
 export interface PrepaymentLoanInput {
   balanceCents: number;
   interestRateBps: number;
   monthlyRateCents: number;
   repaymentType: RepaymentType | null;
-  /** null = unbegrenzt */
+  /** null = unbegrenzt (Legacy; specialRepaymentRule hat Vorrang, wenn gesetzt) */
   specialRepaymentMaxYearlyCents: number | null;
+  specialRepaymentRule?: SpecialRepaymentRule;
+  /** Optional upper bound on monthly rate from contractual corridor. */
+  maxMonthlyRateCents?: number | null;
+  /** Optional 1-based latest month index at which a rate change may start (0 = none allowed). */
+  latestChangeMonth?: number | null;
 }
 
 export interface PrepaymentVsEtfInput {
@@ -200,6 +216,9 @@ export interface PrepaymentVsEtfInput {
   horizonEndDate: string;
   oneTimeAmountCents: number;
   monthlyAmountCents: number;
+  monthlyChannel?: PrepaymentMonthlyChannel;
+  /** 1-based month index from which monthlyAmountCents applies (default 1). */
+  monthlyStartMonth?: number;
   specialRepaymentUsedThisYearCents?: number;
   etfAnnualReturnBps: number;
   saverAllowanceCents: number;
@@ -239,8 +258,10 @@ export interface PrepaymentVsEtfResult {
   winner: "etf" | "prepayment" | "equal";
   interestSavedCents: number;
   capLimitedOverflowCents: number;
+  rateLimitedOverflowCents: number;
   flags: {
     capUnknown: boolean;
+    capNone: boolean;
     rateBelowInterest: boolean;
     horizonElapsed: boolean;
   };
@@ -311,14 +332,50 @@ function validatePrepaymentInput(input: PrepaymentVsEtfInput): void {
       "loan.specialRepaymentMaxYearlyCents",
     );
   }
+  if (loan.maxMonthlyRateCents != null) {
+    assertNonNegativeInteger(
+      loan.maxMonthlyRateCents,
+      "loan.maxMonthlyRateCents",
+    );
+  }
+  if (loan.latestChangeMonth != null) {
+    assertNonNegativeInteger(
+      loan.latestChangeMonth,
+      "loan.latestChangeMonth",
+    );
+  }
   assertNonNegativeInteger(input.oneTimeAmountCents, "oneTimeAmountCents");
   assertNonNegativeInteger(input.monthlyAmountCents, "monthlyAmountCents");
+  if (input.monthlyStartMonth !== undefined) {
+    const startMonth = assertSafeInteger(
+      input.monthlyStartMonth,
+      "monthlyStartMonth",
+    );
+    if (startMonth < 1) {
+      throw new RangeError(
+        `monthlyStartMonth must be >= 1, received: ${startMonth}`,
+      );
+    }
+  }
   assertNonNegativeInteger(
     input.specialRepaymentUsedThisYearCents ?? 0,
     "specialRepaymentUsedThisYearCents",
   );
   parseIsoDate(input.startDate, "startDate");
   parseIsoDate(input.horizonEndDate, "horizonEndDate");
+}
+
+function resolveEffectiveRule(loan: PrepaymentLoanInput): SpecialRepaymentRule {
+  if (loan.specialRepaymentRule !== undefined) {
+    return loan.specialRepaymentRule;
+  }
+  if (loan.specialRepaymentMaxYearlyCents === null) {
+    return { kind: "unknown" };
+  }
+  if (loan.specialRepaymentMaxYearlyCents === 0) {
+    return { kind: "none" };
+  }
+  return { kind: "fixed", capCents: loan.specialRepaymentMaxYearlyCents };
 }
 
 export function simulatePrepaymentVsEtf(
@@ -345,15 +402,24 @@ export function simulatePrepaymentVsEtf(
     );
   }
 
-  const capUnknown = loan.specialRepaymentMaxYearlyCents === null;
-  const cap = loan.specialRepaymentMaxYearlyCents ?? Number.MAX_SAFE_INTEGER;
-  const startYear = parseIsoDate(input.startDate, "startDate").year;
-  let capYear = startYear;
-  let capUsed = input.specialRepaymentUsedThisYearCents ?? 0;
-  let capLimitedOverflowCents = 0;
+  const effectiveRule = resolveEffectiveRule(loan);
+  const capUnknown =
+    effectiveRule.kind === "unknown" ||
+    effectiveRule.kind === "allowed_unknown_amount";
+  const capNone = effectiveRule.kind === "none";
+  const monthlyChannel: PrepaymentMonthlyChannel =
+    input.monthlyChannel ?? "special_repayment";
+  const monthlyStartMonth = input.monthlyStartMonth ?? 1;
 
   const a = newVariantState(loan.balanceCents);
   const b = newVariantState(loan.balanceCents);
+
+  const startYear = parseIsoDate(input.startDate, "startDate").year;
+  let capYear = startYear;
+  let cap = resolveYearlyCapCents(effectiveRule, a.debt) ?? Number.MAX_SAFE_INTEGER;
+  let capUsed = input.specialRepaymentUsedThisYearCents ?? 0;
+  let capLimitedOverflowCents = 0;
+  let rateLimitedOverflowCents = 0;
 
   const taxNet = (etf: number, contributions: number): number =>
     calculateEtfLiquidationTax({
@@ -417,22 +483,59 @@ export function simulatePrepaymentVsEtf(
     if (yearOfMonth !== capYear) {
       capYear = yearOfMonth;
       capUsed = 0;
+      cap =
+        resolveYearlyCapCents(effectiveRule, a.debt) ?? Number.MAX_SAFE_INTEGER;
     }
 
     a.etf = applyMonthlyGrowth(a.etf, factor);
     b.etf = applyMonthlyGrowth(b.etf, factor);
 
-    const paymentA = payRegular(a, loan, t);
-    const paymentB = payRegular(b, loan, t);
-    const budget = paymentB + input.monthlyAmountCents;
-    const freeA = Math.max(0, budget - paymentA);
+    const activeMonthly = t >= monthlyStartMonth ? input.monthlyAmountCents : 0;
 
-    applyToA(freeA, t);
-    a.cashOut += paymentA + freeA;
+    if (monthlyChannel === "rate_increase") {
+      const startAllowed =
+        loan.latestChangeMonth == null ||
+        monthlyStartMonth <= loan.latestChangeMonth;
+      const maxIncrease = !startAllowed
+        ? 0
+        : loan.maxMonthlyRateCents != null
+          ? Math.max(0, loan.maxMonthlyRateCents - loan.monthlyRateCents)
+          : activeMonthly;
+      const appliedIncrease = Math.min(activeMonthly, maxIncrease);
+      rateLimitedOverflowCents += activeMonthly - appliedIncrease;
 
-    b.etf += input.monthlyAmountCents;
-    b.contributions += input.monthlyAmountCents;
-    b.cashOut += paymentB + input.monthlyAmountCents;
+      const loanForA: PrepaymentLoanInput =
+        appliedIncrease > 0
+          ? {
+              ...loan,
+              monthlyRateCents: loan.monthlyRateCents + appliedIncrease,
+            }
+          : loan;
+      const paymentA = payRegular(a, loanForA, t);
+      const paymentB = payRegular(b, loan, t);
+      const budget = paymentB + activeMonthly;
+      const freeA = Math.max(0, budget - paymentA);
+
+      a.etf += freeA;
+      a.contributions += freeA;
+      a.cashOut += paymentA + freeA;
+
+      b.etf += activeMonthly;
+      b.contributions += activeMonthly;
+      b.cashOut += paymentB + activeMonthly;
+    } else {
+      const paymentA = payRegular(a, loan, t);
+      const paymentB = payRegular(b, loan, t);
+      const budget = paymentB + activeMonthly;
+      const freeA = Math.max(0, budget - paymentA);
+
+      applyToA(freeA, t);
+      a.cashOut += paymentA + freeA;
+
+      b.etf += activeMonthly;
+      b.contributions += activeMonthly;
+      b.cashOut += paymentB + activeMonthly;
+    }
 
     pushPoint(t);
   }
@@ -482,8 +585,10 @@ export function simulatePrepaymentVsEtf(
           : "prepayment",
     interestSavedCents: etf.totalInterestCents - prepayment.totalInterestCents,
     capLimitedOverflowCents,
+    rateLimitedOverflowCents,
     flags: {
       capUnknown,
+      capNone,
       rateBelowInterest,
       horizonElapsed: input.horizonEndDate <= input.startDate,
     },
@@ -498,11 +603,9 @@ export type BreakEvenResult =
 
 /**
  * Smallest integer-bps ETF return in [0, MAX_ETF_RETURN_BPS] at which the ETF
- * path is at least as good as special repayment. Assumes the advantage grows
- * (practically) monotonically with the return; cent-level rounding dips are
- * tolerated.
- * - identical: the advantage does not depend on the return (A never prepays,
- *   or there is no horizon), so there is no break-even.
+ * path is at least as good as special repayment / rate increase.
+ * - identical: A and B have identical debt/payment trajectories (never prepays
+ *   or raises rate, or no horizon), so there is no break-even.
  * - unreachable: even at MAX_ETF_RETURN_BPS the ETF stays behind.
  */
 export function findBreakEvenReturnBps(
@@ -512,12 +615,13 @@ export function findBreakEvenReturnBps(
     simulatePrepaymentVsEtf({ ...input, etfAnnualReturnBps: bps });
 
   const atZero = run(0);
-  // Special repayment is independent of the ETF return (no feedback on the
-  // loan), so "never prepays" or "no horizon" means identical for all returns.
-  if (
-    atZero.prepayment.totalSpecialRepaymentCents === 0 ||
-    atZero.horizonMonths === 0
-  ) {
+  const pathsIdentical =
+    atZero.horizonMonths === 0 ||
+    (atZero.prepayment.totalSpecialRepaymentCents === 0 &&
+      atZero.prepayment.totalRegularPaymentCents ===
+        atZero.etf.totalRegularPaymentCents &&
+      atZero.prepayment.remainingDebtCents === atZero.etf.remainingDebtCents);
+  if (pathsIdentical) {
     return { kind: "identical" };
   }
   if (atZero.netAdvantageEtfCents >= 0) {
@@ -546,6 +650,8 @@ export interface PrepaymentDefaults {
   horizonEndDate: string;
   horizonEstimated: boolean;
   capUnknown: boolean;
+  specialAllowance: SpecialRepaymentAllowance;
+  rateCorridor: RateCorridor;
 }
 
 export function buildPrepaymentDefaults(
@@ -559,8 +665,32 @@ export function buildPrepaymentDefaults(
   }
   parseIsoDate(asOfDate, "asOfDate");
   const projection = projectContractBalance(contract, asOfDate);
-  const cap = contract.specialRepaymentMaxYearlyCents ?? null;
+  const rule = specialRepaymentRule(contract);
+  const specialAllowance = remainingSpecialRepaymentCents(
+    contract,
+    asOfDate,
+    projection.projectedBalanceCents,
+  );
+  const rateCorridor = resolveRateCorridor(
+    contract,
+    asOfDate,
+    projection.projectedBalanceCents,
+  );
   const horizonEstimated = contract.fixedInterestUntil == null;
+
+  const maxMonthlyRateCents =
+    rateCorridor.status === "none" ||
+    rateCorridor.status === "not_applicable" ||
+    rateCorridor.flags.exhausted ||
+    rateCorridor.flags.corridorEmpty
+      ? contract.monthlyRateCents
+      : rateCorridor.maxMonthlyCents;
+  const latestChangeMonth =
+    rateCorridor.latestChangeDate != null
+      ? rateCorridor.latestChangeDate >= asOfDate
+        ? countCompletedMonths(asOfDate, rateCorridor.latestChangeDate)
+        : 0
+      : null;
 
   return {
     loan: {
@@ -568,14 +698,19 @@ export function buildPrepaymentDefaults(
       interestRateBps: contract.interestRateBps,
       monthlyRateCents: contract.monthlyRateCents,
       repaymentType: contract.repaymentType ?? null,
-      specialRepaymentMaxYearlyCents: cap,
+      specialRepaymentMaxYearlyCents: specialAllowance.capCents,
+      specialRepaymentRule: rule,
+      maxMonthlyRateCents,
+      latestChangeMonth,
     },
     startDate: asOfDate,
     horizonEndDate:
       contract.fixedInterestUntil ??
       addMonthsToIsoDate(asOfDate, DEFAULT_ESTIMATED_HORIZON_MONTHS),
     horizonEstimated,
-    capUnknown: cap === null,
+    capUnknown: specialAllowance.flags.capUnknown,
+    specialAllowance,
+    rateCorridor,
   };
 }
 

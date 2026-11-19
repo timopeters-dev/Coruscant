@@ -16,6 +16,7 @@ import {
   createSalaryState,
   freeMoneyReducer,
   parsePlanningEntry,
+  parsePlanningLoanId,
   parsePlanningView,
   recommendationReducer,
   salaryReducer,
@@ -32,6 +33,7 @@ import { SavingsPanel } from "./savings-panel";
 interface PlanungWorkspaceProps {
   initialEntry?: PlanningEntry | null;
   initialView?: PlanningView;
+  initialLoanId?: string | null;
   asOfDate: string;
   loanOptions: LoanOption[];
   baseSurplusCents: number;
@@ -49,12 +51,13 @@ interface PlanungWorkspaceProps {
 const GELD_TABS: Array<{ id: PlanningView; label: string }> = [
   { id: "empfehlung", label: "Wohin mit X €?" },
   { id: "sparrate", label: "Sparrate empfehlen" },
-  { id: "vergleich", label: "Sondertilgung vs. ETF" },
+  { id: "vergleich", label: "Darlehen & ETF" },
 ];
 
 export function PlanungWorkspace({
   initialEntry = null,
   initialView = "empfehlung",
+  initialLoanId = null,
   asOfDate,
   loanOptions,
   baseSurplusCents,
@@ -77,6 +80,10 @@ export function PlanungWorkspace({
     searchParams !== null
       ? parsePlanningView(searchParams?.get("ansicht"))
       : initialView;
+  const resolvedLoanId = parsePlanningLoanId(
+    searchParams !== null ? searchParams?.get("kredit") : initialLoanId,
+    loanOptions,
+  );
 
   const [viewOverride, setViewOverride] = React.useState<PlanningView | null>(
     null,
@@ -90,7 +97,7 @@ export function PlanungWorkspace({
     (s: ReturnType<typeof createFreeMoneyState>, a: FreeMoneyAction) =>
       freeMoneyReducer(s, a, loanOptions),
     undefined,
-    () => createFreeMoneyState(loanOptions, asOfDate),
+    () => createFreeMoneyState(loanOptions, asOfDate, resolvedLoanId),
   );
 
   const [salaryState, salaryDispatch] = React.useReducer(
@@ -130,8 +137,11 @@ export function PlanungWorkspace({
           interestRateBps: l.defaults.loan.interestRateBps,
           monthlyRateCents: l.defaults.loan.monthlyRateCents,
           repaymentType: l.defaults.loan.repaymentType,
-          specialRepaymentMaxYearlyCents:
-            l.defaults.loan.specialRepaymentMaxYearlyCents,
+          specialRepaymentMaxYearlyCents: l.defaults.specialAllowance.capCents,
+          specialRepaymentRule: l.defaults.specialAllowance.rule,
+          specialRepaymentUsedThisYearCents: l.defaults.specialAllowance.usedCents,
+          rateCorridor: l.defaults.rateCorridor,
+          rateChangeScope: l.contract?.rateChangeScope ?? null,
           fixedInterestUntil: l.defaults.horizonEstimated
             ? null
             : l.defaults.horizonEndDate,

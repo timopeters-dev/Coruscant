@@ -138,9 +138,36 @@ export const financialContracts = sqliteTable(
     repaymentType: text("repayment_type", {
       enum: ["annuity", "installment", "lump_sum"],
     }),
+    originalPrincipalCents: integer("original_principal_cents"),
+    specialRepaymentRight: text("special_repayment_right", {
+      enum: ["unknown", "none", "allowed"],
+    })
+      .notNull()
+      .default("unknown"),
+    specialRepaymentBasis: text("special_repayment_basis", {
+      enum: ["fixed_yearly", "percent_original", "percent_balance"],
+    }),
     specialRepaymentMaxYearlyCents: integer(
       "special_repayment_max_yearly_cents",
     ),
+    specialRepaymentPercentBps: integer("special_repayment_percent_bps"),
+    specialRepaymentUsedCents: integer("special_repayment_used_cents"),
+    specialRepaymentUsedYear: integer("special_repayment_used_year"),
+    rateChangeRight: text("rate_change_right", {
+      enum: ["unknown", "none", "allowed"],
+    })
+      .notNull()
+      .default("unknown"),
+    rateChangeTotalCount: integer("rate_change_total_count"),
+    rateChangeScope: text("rate_change_scope", {
+      enum: ["term", "fixed_period", "per_year"],
+    }),
+    rateChangeUsedCount: integer("rate_change_used_count").notNull().default(0),
+    rateChangeMinRepaymentBps: integer("rate_change_min_repayment_bps"),
+    rateChangeMaxRepaymentBps: integer("rate_change_max_repayment_bps"),
+    rateChangeMinMonthlyCents: integer("rate_change_min_monthly_cents"),
+    rateChangeMaxMonthlyCents: integer("rate_change_max_monthly_cents"),
+    loanOptionsNote: text("loan_options_note"),
     fixedInterestUntil: text("fixed_interest_until"),
     targetSumCents: integer("target_sum_cents"),
     allocationThresholdPercent: integer("allocation_threshold_percent"),
@@ -163,6 +190,46 @@ export const financialContracts = sqliteTable(
     check(
       "financial_contracts_allocation_threshold_range",
       sql`${table.allocationThresholdPercent} IS NULL OR (${table.allocationThresholdPercent} >= 0 AND ${table.allocationThresholdPercent} <= 100)`,
+    ),
+    check(
+      "financial_contracts_original_principal_positive",
+      sql`${table.originalPrincipalCents} IS NULL OR ${table.originalPrincipalCents} > 0`,
+    ),
+    check(
+      "financial_contracts_special_repayment_percent_bps_range",
+      sql`${table.specialRepaymentPercentBps} IS NULL OR (${table.specialRepaymentPercentBps} > 0 AND ${table.specialRepaymentPercentBps} <= 10000)`,
+    ),
+    check(
+      "financial_contracts_special_repayment_used_non_negative",
+      sql`${table.specialRepaymentUsedCents} IS NULL OR ${table.specialRepaymentUsedCents} >= 0`,
+    ),
+    check(
+      "financial_contracts_special_repayment_used_pair",
+      sql`(${table.specialRepaymentUsedCents} IS NULL AND ${table.specialRepaymentUsedYear} IS NULL) OR (${table.specialRepaymentUsedCents} IS NOT NULL AND ${table.specialRepaymentUsedYear} IS NOT NULL)`,
+    ),
+    check(
+      "financial_contracts_rate_change_total_count_range",
+      sql`${table.rateChangeTotalCount} IS NULL OR (${table.rateChangeTotalCount} >= 1 AND ${table.rateChangeTotalCount} <= 50)`,
+    ),
+    check(
+      "financial_contracts_rate_change_used_count_non_negative",
+      sql`${table.rateChangeUsedCount} >= 0`,
+    ),
+    check(
+      "financial_contracts_rate_change_min_repayment_bps_range",
+      sql`${table.rateChangeMinRepaymentBps} IS NULL OR (${table.rateChangeMinRepaymentBps} >= 0 AND ${table.rateChangeMinRepaymentBps} <= 10000)`,
+    ),
+    check(
+      "financial_contracts_rate_change_max_repayment_bps_range",
+      sql`${table.rateChangeMaxRepaymentBps} IS NULL OR (${table.rateChangeMaxRepaymentBps} >= 0 AND ${table.rateChangeMaxRepaymentBps} <= 10000)`,
+    ),
+    check(
+      "financial_contracts_rate_change_min_monthly_non_negative",
+      sql`${table.rateChangeMinMonthlyCents} IS NULL OR ${table.rateChangeMinMonthlyCents} >= 0`,
+    ),
+    check(
+      "financial_contracts_rate_change_max_monthly_non_negative",
+      sql`${table.rateChangeMaxMonthlyCents} IS NULL OR ${table.rateChangeMaxMonthlyCents} >= 0`,
     ),
   ],
 );

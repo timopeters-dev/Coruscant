@@ -21,7 +21,10 @@ import {
   RecommendationAssumptionsFields,
   RecommendationResultContent,
 } from "./recommendation-shared";
-import type { RecommendationLabels } from "./recommendation-text";
+import {
+  formatRecommendationNote,
+  type RecommendationLabels,
+} from "./recommendation-text";
 
 interface SavingsPanelProps {
   uiState: RecommendationUiState;
@@ -184,6 +187,15 @@ export function SavingsPanel({
               Aktuell bleibt kein Überschuss – erst Ausgaben oder Einnahmen
               prüfen.
             </p>
+            {result.notes.filter((n) => n.code !== "NO_SURPLUS").length > 0 ? (
+              <ul className="flex flex-col gap-1 text-xs text-[var(--text-secondary)]">
+                {result.notes
+                  .filter((n) => n.code !== "NO_SURPLUS")
+                  .map((n, idx) => (
+                    <li key={idx}>• {formatRecommendationNote(n, labels)}</li>
+                  ))}
+              </ul>
+            ) : null}
             <div>
               <Link
                 href="/allokation"

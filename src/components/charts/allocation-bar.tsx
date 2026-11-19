@@ -21,6 +21,7 @@ const COLOR_BY_KIND: Record<RecommendationItemKind, string> = {
   emergency_fund: CHART_ROLE_COLOR.surplus,
   pot_deadline: CHART_ROLE_COLOR.bound,
   loan_prepayment: CHART_ROLE_COLOR.outflow,
+  loan_rate_increase: CHART_ROLE_COLOR.optionA,
   loan_reserve: CHART_ROLE_COLOR.outflow,
   etf: CHART_ROLE_COLOR.pot,
   keep_liquid: CHART_ROLE_COLOR.baseline,

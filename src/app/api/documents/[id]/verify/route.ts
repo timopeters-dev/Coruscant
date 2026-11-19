@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   ContractCalibrationConflictError,
+  ContractLoanOptionsValidationError,
   DocumentLinkedEntityNotFoundError,
   DocumentNotFoundError,
   DocumentValidationError,
@@ -54,6 +55,15 @@ export async function POST(
       return badRequestResponse(error.message, {
         [error.field]: error.message,
       });
+    }
+    if (error instanceof ContractLoanOptionsValidationError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          fieldErrors: error.fieldErrors,
+        },
+        { status: 422 },
+      );
     }
     if (error instanceof ContractCalibrationConflictError) {
       return NextResponse.json(

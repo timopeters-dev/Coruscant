@@ -473,4 +473,120 @@ describe("advisor-report-anonymize", () => {
       issues: ["iban", "email", "digit_run", "known_name"],
     });
   });
+
+  it("includes loan options in full mode and strips note + formats MM/JJJJ in anonymized mode while passing PII guard", () => {
+    const asOfDate = "2026-11-19";
+    const contracts = [
+      {
+        id: "loan-opts-1",
+        name: "Hauskredit Musterstraße 1",
+        provider: "Musterbank",
+        category: "loan" as const,
+        status: "active" as const,
+        currentBalanceCents: 20_000_000,
+        balanceAsOfDate: "2026-11-01",
+        monthlyRateCents: 120_000,
+        interestRateBps: 380,
+        repaymentType: "annuity" as const,
+        fixedInterestUntil: "2036-06-15",
+        futureLoanInterestRateBps: null,
+        originalPrincipalCents: 25_000_000,
+        specialRepaymentRight: "allowed" as const,
+        specialRepaymentBasis: "percent_original" as const,
+        specialRepaymentPercentBps: 500,
+        specialRepaymentUsedCents: 200_000,
+        specialRepaymentUsedYear: 2026,
+        rateChangeRight: "allowed" as const,
+        rateChangeTotalCount: 2,
+        rateChangeScope: "fixed_period" as const,
+        rateChangeUsedCount: 1,
+        rateChangeMinRepaymentBps: 100,
+        rateChangeMaxRepaymentBps: 500,
+        loanOptionsNote:
+          "Ansprechpartnerin Erika Musterfrau, IBAN DE89 3704 0044 0532 0130 00",
+      },
+      {
+        id: "loan-opts-2",
+        name: "Kredit Beispielkasse",
+        provider: "Beispielkasse",
+        category: "loan" as const,
+        status: "active" as const,
+        currentBalanceCents: 5_000_000,
+        balanceAsOfDate: "2026-11-01",
+        monthlyRateCents: 40_000,
+        interestRateBps: 120,
+        repaymentType: "annuity" as const,
+        fixedInterestUntil: null,
+        futureLoanInterestRateBps: null,
+      },
+    ];
+    const balance = calculateHouseholdBalance({
+      asOfDate,
+      properties: [],
+      contracts,
+      pots: [],
+    });
+    const cashflow = calculateConsolidatedCashflow({
+      household: null,
+      manualItems: [],
+      variableBasis: "budget",
+    });
+    const report = buildAdvisorReport({
+      asOfDate,
+      generatedAt: "2026-11-19T10:00:00.000Z",
+      snapshotFetchedAt: "2026-11-18T10:00:00.000Z",
+      isDummyHousehold: false,
+      balance,
+      properties: [],
+      contracts,
+      pots: [],
+      cashflow,
+      history: [],
+      recommendationState: {
+        asOfDate,
+        monthlyExpensesCents: null,
+        monthlySurplusCents: 0,
+        pots: [],
+        loans: [],
+      },
+      oneTimeAmountCents: null,
+    });
+
+    // Full mode: options, corridor, remaining, note all present
+    const fullView = buildAdvisorReportView(report, "full");
+    const fullLoan1 = fullView.contracts.find((c) => c.ref === "KREDIT-1")!;
+    expect(fullLoan1.loanOptions).not.toBeNull();
+    expect(fullLoan1.loanOptions!.originalPrincipalCents).toBe(25_000_000);
+    expect(fullLoan1.loanOptions!.specialRepayment.capThisYearCents).toBe(
+      1_250_000,
+    );
+    expect(fullLoan1.loanOptions!.specialRepayment.remainingThisYearCents).toBe(
+      1_050_000,
+    );
+    expect(fullLoan1.loanOptions!.rateChange.remainingChanges).toBe(1);
+    expect(fullLoan1.loanOptions!.rateChange.latestChangeDateDisplay).toBe(
+      "15.06.2036",
+    );
+    expect(fullLoan1.loanOptions!.hasNote).toBe(true);
+    expect(fullLoan1.loanOptions!.note).toContain("Erika Musterfrau");
+
+    // Anonymized mode: note is null even with PII inside, hasNote is true, dates MM/JJJJ, PII guard passes
+    const anonView = buildAdvisorReportView(report, "anonymized");
+    const anonLoan1 = anonView.contracts.find((c) => c.ref === "KREDIT-1")!;
+    expect(anonLoan1.loanOptions!.hasNote).toBe(true);
+    expect(anonLoan1.loanOptions!.note).toBeNull();
+    expect(anonLoan1.loanOptions!.rateChange.latestChangeDateDisplay).toBe(
+      "06/2036",
+    );
+    const anonLoan2 = anonView.contracts.find((c) => c.ref === "KREDIT-2")!;
+    expect(anonLoan2.loanOptions!.specialRepayment.status).toBe("unknown");
+    expect(anonLoan2.loanOptions!.rateChange.status).toBe("unknown");
+
+    const serialized = JSON.stringify(anonView);
+    expect(serialized).not.toContain("Erika Musterfrau");
+    expect(serialized).not.toContain("DE89");
+
+    const sensitive = collectSensitiveStrings(report);
+    expect(() => assertAnonymizedViewClean(anonView, sensitive)).not.toThrow();
+  });
 });

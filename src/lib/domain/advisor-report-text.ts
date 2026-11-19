@@ -1,9 +1,11 @@
 import type { AdvisorDataQualityHint } from "./advisor-report";
 import type {
   AdvisorReportView,
+  AdvisorReportViewLoanOptions,
   AdvisorReportViewRecommendation,
 } from "./advisor-report-anonymize";
-import { formatBpsDE, formatEuroDE } from "./money";
+import type { RateChangeScope } from "./loan-options";
+import { formatBpsDE, formatEuroDE, formatWholeEuroDE } from "./money";
 
 export const ADVISOR_STARTER_PROMPT = [
   "Du bist ein unabhängiger, honorarbasierter Finanzberater in Deutschland.",
@@ -75,6 +77,87 @@ function formatDeadlineStatusDE(
     case "at_risk":
       return "gefährdet";
   }
+}
+
+const RATE_CHANGE_SCOPE_DE: Record<RateChangeScope, string> = {
+  term: "Laufzeit",
+  fixed_period: "je Zinsbindung",
+  per_year: "pro Jahr",
+};
+
+export function formatLoanSpecialRepaymentLineDE(
+  opts: AdvisorReportViewLoanOptions,
+): string {
+  const sr = opts.specialRepayment;
+  if (sr.status === "none") {
+    return "Sondertilgung: nicht möglich";
+  }
+  if (sr.status === "unknown") {
+    return "Sondertilgungsrecht: unbekannt";
+  }
+  if (sr.capThisYearCents !== null) {
+    const basisPrefix =
+      sr.basis === "percent_original" && sr.percentBps !== null
+        ? `${formatBpsDE(sr.percentBps)} vom Ursprungsbetrag = `
+        : sr.basis === "percent_balance" && sr.percentBps !== null
+          ? `${formatBpsDE(sr.percentBps)} der Restschuld = `
+          : "";
+    const remaining = sr.remainingThisYearCents ?? 0;
+    return `Sondertilgung: ${basisPrefix}${formatWholeEuroDE(sr.capThisYearCents)}/Jahr, genutzt ${formatWholeEuroDE(sr.usedThisYearCents)}, frei ${formatWholeEuroDE(remaining)}`;
+  }
+  if (sr.flags.missingOriginalPrincipal) {
+    return "Sondertilgung: möglich (Höhe unbekannt, Ursprungsbetrag fehlt)";
+  }
+  return "Sondertilgung: möglich (Höhe unbekannt)";
+}
+
+export function formatLoanRateChangeLineDE(
+  opts: AdvisorReportViewLoanOptions,
+): string {
+  const rc = opts.rateChange;
+  if (rc.status === "not_applicable") {
+    return "Tilgungssatzwechsel: nicht anwendbar (endfällig)";
+  }
+  if (rc.status === "none") {
+    return "Tilgungssatzwechsel: nicht möglich";
+  }
+  if (rc.status === "unknown") {
+    return "Tilgungssatzwechsel: unbekannt";
+  }
+
+  let countText: string;
+  if (rc.flags.exhausted) {
+    countText =
+      rc.totalCount !== null
+        ? `erschöpft (${rc.usedCount}/${rc.totalCount})`
+        : "erschöpft";
+  } else if (rc.remainingChanges !== null && rc.totalCount !== null) {
+    countText = `${rc.remainingChanges} von ${rc.totalCount} übrig`;
+  } else {
+    countText = "Anzahl unbekannt";
+  }
+
+  const scopePart = rc.scope ? ` (${RATE_CHANGE_SCOPE_DE[rc.scope]})` : "";
+
+  let corridorPart = "";
+  if (rc.minMonthlyCents !== null && rc.maxMonthlyCents !== null) {
+    const bpsPart =
+      rc.minRepaymentBps !== null && rc.maxRepaymentBps !== null
+        ? `${formatBpsDE(rc.minRepaymentBps)}–${formatBpsDE(rc.maxRepaymentBps)} Tilgung ≈ `
+        : "";
+    const assumedPart = rc.flags.corridorAssumed ? " (angenommen)" : "";
+    corridorPart = `, Korridor ${bpsPart}${formatWholeEuroDE(rc.minMonthlyCents)}–${formatWholeEuroDE(rc.maxMonthlyCents)}/Monat${assumedPart}`;
+  }
+
+  const currentPart =
+    rc.currentRepaymentBpsApprox !== null
+      ? `, aktuell ≈ ${formatBpsDE(rc.currentRepaymentBpsApprox)}`
+      : "";
+  const latestPart = rc.latestChangeDateDisplay
+    ? `, bis ${rc.latestChangeDateDisplay}`
+    : "";
+
+  return `Tilgungssatzwechsel: ${countText}${scopePart}${corridorPart}${currentPart}${latestPart}`;
 }
 
 function renderRecommendationBlock(
@@ -224,9 +307,9 @@ export function renderAdvisorReportText(
       if (c.fixedInterestUntilDisplay) {
         details.push(`Zinsbindung bis ${c.fixedInterestUntilDisplay}`);
       }
-      if (c.specialRepaymentMaxYearlyCents !== null) {
+      if (c.loanOptions?.originalPrincipalCents != null) {
         details.push(
-          `Sondertilgung max. ${formatEuroDE(c.specialRepaymentMaxYearlyCents)}/Jahr`,
+          `Ursprungsbetrag: ${formatEuroDE(c.loanOptions.originalPrincipalCents)}`,
         );
       }
       if (c.targetSumCents !== null) {
@@ -242,6 +325,13 @@ export function renderAdvisorReportText(
       lines.push(
         `- **${c.displayName}**${providerPart}${refPart}${statusTag}: ${details.join(" · ")}`,
       );
+      if (c.loanOptions !== null) {
+        lines.push(`  - ${formatLoanSpecialRepaymentLineDE(c.loanOptions)}`);
+        lines.push(`  - ${formatLoanRateChangeLineDE(c.loanOptions)}`);
+        if (view.meta.mode === "full" && c.loanOptions.note) {
+          lines.push(`  - Notiz: ${c.loanOptions.note}`);
+        }
+      }
     }
   }
 

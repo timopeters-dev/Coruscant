@@ -329,6 +329,114 @@ describe("simulatePrepaymentVsEtf", () => {
     expect(() => simulatePrepaymentVsEtf(makeInput({ etfAnnualReturnBps: 3001 }))).toThrow(RangeError);
     expect(() => simulatePrepaymentVsEtf(makeInput({ saverAllowanceCents: 200_001 }))).toThrow(RangeError);
   });
+
+  it("supports monthlyChannel=rate_increase with equal cash-out, no special cap, post-payoff ETF routing, and monthlyStartMonth", () => {
+    // Even with specialRepaymentRule=none (cap 0), rate_increase works at full monthlyAmountCents
+    const res = simulatePrepaymentVsEtf(
+      makeInput(
+        {
+          oneTimeAmountCents: 0,
+          monthlyAmountCents: 50_000,
+          monthlyChannel: "rate_increase",
+          etfAnnualReturnBps: 500,
+        },
+        {
+          specialRepaymentMaxYearlyCents: 0,
+          specialRepaymentRule: { kind: "none" },
+        },
+      ),
+    );
+    expect(res.prepayment.totalCashOutCents).toBe(res.etf.totalCashOutCents);
+    expect(res.prepayment.totalSpecialRepaymentCents).toBe(0);
+    expect(res.prepayment.totalRegularPaymentCents).toBeGreaterThan(
+      res.etf.totalRegularPaymentCents,
+    );
+    expect(res.interestSavedCents).toBeGreaterThan(0);
+    expect(res.capLimitedOverflowCents).toBe(0);
+    expect(res.flags.capNone).toBe(true);
+
+    // After payoff, remaining budget flows into ETF A
+    const fastPayoff = simulatePrepaymentVsEtf(
+      makeInput(
+        {
+          oneTimeAmountCents: 0,
+          monthlyAmountCents: 100_000,
+          monthlyChannel: "rate_increase",
+        },
+        {
+          balanceCents: 2_000_000,
+          monthlyRateCents: 60_000,
+          specialRepaymentRule: { kind: "none" },
+        },
+      ),
+    );
+    expect(fastPayoff.prepayment.paidOffAtMonth).not.toBeNull();
+    expect(fastPayoff.prepayment.paidOffAtMonth!).toBeLessThan(
+      fastPayoff.horizonMonths,
+    );
+    expect(fastPayoff.prepayment.etfContributionsCents).toBeGreaterThan(0);
+    expect(fastPayoff.prepayment.totalCashOutCents).toBe(
+      fastPayoff.etf.totalCashOutCents,
+    );
+
+    // monthlyStartMonth > horizon has no effect
+    const lateStart = simulatePrepaymentVsEtf(
+      makeInput({
+        oneTimeAmountCents: 0,
+        monthlyAmountCents: 50_000,
+        monthlyChannel: "rate_increase",
+        monthlyStartMonth: 99,
+      }),
+    );
+    expect(lateStart.netAdvantageEtfCents).toBe(0);
+    expect(lateStart.interestSavedCents).toBe(0);
+
+    // monthlyAmountCents = 0 yields identical
+    const zeroAmt = simulatePrepaymentVsEtf(
+      makeInput({
+        oneTimeAmountCents: 0,
+        monthlyAmountCents: 0,
+        monthlyChannel: "rate_increase",
+      }),
+    );
+    expect(zeroAmt.netAdvantageEtfCents).toBe(0);
+  });
+
+  it("supports specialRepaymentRule percent_balance dynamically per calendar year and none", () => {
+    const dyn = simulatePrepaymentVsEtf(
+      makeInput(
+        {
+          startDate: "2026-01-15",
+          horizonEndDate: "2028-06-15",
+          oneTimeAmountCents: 0,
+          monthlyAmountCents: 200_000,
+        },
+        {
+          balanceCents: 10_000_000,
+          specialRepaymentMaxYearlyCents: null,
+          specialRepaymentRule: { kind: "percent_balance", bps: 500 },
+        },
+      ),
+    );
+    expect(dyn.flags.capUnknown).toBe(false);
+    expect(dyn.flags.capNone).toBe(false);
+    // 2026 cap = 500k, 2027 cap < 500k, 2028 cap < 2027 cap -> total strictly < 1.5M
+    expect(dyn.prepayment.totalSpecialRepaymentCents).toBeGreaterThan(1_000_000);
+    expect(dyn.prepayment.totalSpecialRepaymentCents).toBeLessThan(1_500_000);
+
+    const noneRule = simulatePrepaymentVsEtf(
+      makeInput(
+        { oneTimeAmountCents: 500_000, monthlyAmountCents: 20_000 },
+        {
+          specialRepaymentMaxYearlyCents: 1_000_000,
+          specialRepaymentRule: { kind: "none" },
+        },
+      ),
+    );
+    expect(noneRule.flags.capNone).toBe(true);
+    expect(noneRule.prepayment.totalSpecialRepaymentCents).toBe(0);
+    expect(noneRule.netAdvantageEtfCents).toBe(0);
+  });
 });
 
 describe("findBreakEvenReturnBps", () => {
@@ -422,6 +530,41 @@ describe("findBreakEvenReturnBps", () => {
       }
       expectBreakEvenProperty(rest);
     }
+  });
+
+  it("finds plausible break-even bps for monthlyChannel=rate_increase and identical when amount is 0", () => {
+    const rateInput = withoutReturn(
+      makeInput(
+        {
+          oneTimeAmountCents: 0,
+          monthlyAmountCents: 30_000,
+          monthlyChannel: "rate_increase",
+        },
+        {
+          interestRateBps: 350,
+          specialRepaymentRule: { kind: "none" },
+        },
+      ),
+    );
+    const be = expectBreakEvenProperty(rateInput);
+    expect(be.kind).toBe("bps");
+    if (be.kind === "bps") {
+      // With 3.50% loan interest and ETF liquidation tax, break-even is above 350 bps and below 600 bps
+      expect(be.bps).toBeGreaterThanOrEqual(350);
+      expect(be.bps).toBeLessThan(600);
+    }
+
+    expect(
+      findBreakEvenReturnBps(
+        withoutReturn(
+          makeInput({
+            oneTimeAmountCents: 0,
+            monthlyAmountCents: 0,
+            monthlyChannel: "rate_increase",
+          }),
+        ),
+      ),
+    ).toEqual({ kind: "identical" });
   });
 });
 
@@ -652,5 +795,85 @@ describe("simulateCashflowChange", () => {
     expect(() => simulateCashflowChange({ ...base, startMonth: "2026-13" })).toThrow(RangeError);
     expect(() => simulateCashflowChange({ ...base, baseMonthlySurplusCents: 1.5 })).toThrow(RangeError);
     expect(() => simulateCashflowChange({ ...base, pots: [pot({ id: "d" }), pot({ id: "d" })] })).toThrow(RangeError);
+  });
+});
+
+describe("simulatePrepaymentVsEtf rate_increase corridor clamping", () => {
+  it("clamps rate_increase to maxMonthlyRateCents, reports rateLimitedOverflowCents, and matches break-even for capped vs uncapped amounts", () => {
+    const baseLoan = {
+      balanceCents: 20_000_000,
+      interestRateBps: 380,
+      monthlyRateCents: 110_000,
+      repaymentType: "annuity" as const,
+      specialRepaymentMaxYearlyCents: 1_000_000,
+      maxMonthlyRateCents: 162_892, // max increase = 52_892
+    };
+    const common = {
+      loan: baseLoan,
+      startDate: "2026-11-19",
+      horizonEndDate: "2036-11-19",
+      oneTimeAmountCents: 0,
+      monthlyChannel: "rate_increase" as const,
+      monthlyStartMonth: 1,
+      saverAllowanceCents: 0,
+      churchTaxBps: 0 as const,
+    };
+
+    const uncappedInput = simulatePrepaymentVsEtf({
+      ...common,
+      monthlyAmountCents: 500_000, // 5.000 €/month -> way above corridor
+      etfAnnualReturnBps: 600,
+    });
+    expect(uncappedInput.rateLimitedOverflowCents).toBeGreaterThan(0);
+    // Variant A and B must have identical cashOut
+    expect(uncappedInput.prepayment.totalCashOutCents).toBe(
+      uncappedInput.etf.totalCashOutCents,
+    );
+
+    const cappedInput = simulatePrepaymentVsEtf({
+      ...common,
+      monthlyAmountCents: 52_892,
+      etfAnnualReturnBps: 600,
+    });
+    expect(cappedInput.rateLimitedOverflowCents).toBe(0);
+    expect(uncappedInput.interestSavedCents).toBe(
+      cappedInput.interestSavedCents,
+    );
+
+    const beUncapped = findBreakEvenReturnBps({
+      ...common,
+      monthlyAmountCents: 500_000,
+    });
+    const beCapped = findBreakEvenReturnBps({
+      ...common,
+      monthlyAmountCents: 52_892,
+    });
+    expect(beUncapped).toEqual(beCapped);
+  });
+
+  it("buildPrepaymentDefaults populates maxMonthlyRateCents and does not throw when approximated corridor becomes empty", () => {
+    const calibrated = {
+      id: "loan-cal",
+      name: "Musterbank Kredit",
+      category: "loan" as const,
+      status: "active" as const,
+      currentBalanceCents: 15_000_000,
+      balanceAsOfDate: "2026-11-01",
+      monthlyRateCents: 120_000,
+      interestRateBps: 380,
+      repaymentType: "annuity" as const,
+      fixedInterestUntil: "2036-11-01",
+      originalPrincipalCents: null,
+      rateChangeRight: "allowed" as const,
+      rateChangeTotalCount: 2,
+      rateChangeScope: "fixed_period" as const,
+      rateChangeMinRepaymentBps: 100,
+      rateChangeMaxRepaymentBps: 300,
+      rateChangeMinMonthlyCents: 100_000,
+      rateChangeMaxMonthlyCents: 160_000,
+    };
+    const defaults = buildPrepaymentDefaults(calibrated, "2026-11-19");
+    expect(defaults.rateCorridor.flags.corridorEmpty).toBe(true);
+    expect(defaults.loan.maxMonthlyRateCents).toBe(120_000);
   });
 });

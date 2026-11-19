@@ -11,9 +11,9 @@ import {
 } from "@/components/charts/line-chart";
 import { StatusBadge } from "@/components/status-badge";
 import type { FinancialContractRow } from "@/db/queries/contracts";
-import type {
-  ContractProjectionResult,
-  DomainContract,
+import {
+  contractRecordToDomain,
+  type ContractProjectionResult,
 } from "@/lib/domain/contracts";
 import {
   buildAmortizationSeries,
@@ -29,33 +29,13 @@ interface SavingsProgressSectionProps {
   asOfDate: string;
 }
 
-function toDomainContract(row: FinancialContractRow): DomainContract {
-  return {
-    id: row.id,
-    name: row.name,
-    category: row.category,
-    status: row.status,
-    currentBalanceCents: row.currentBalanceCents,
-    balanceAsOfDate: row.balanceAsOfDate,
-    monthlyRateCents: row.monthlyRateCents,
-    interestRateBps: row.interestRateBps,
-    repaymentType: row.repaymentType,
-    milestoneDate: row.milestoneDate,
-    milestoneLabel: row.milestoneLabel,
-    fixedInterestUntil: row.fixedInterestUntil,
-    targetSumCents: row.targetSumCents,
-    allocationThresholdPercent: row.allocationThresholdPercent,
-    specialRepaymentMaxYearlyCents: row.specialRepaymentMaxYearlyCents,
-  };
-}
-
 export function SavingsProgressSection({
   contract,
   projection,
   asOfDate,
 }: SavingsProgressSectionProps) {
   const domainContract = React.useMemo(
-    () => toDomainContract(contract),
+    () => contractRecordToDomain(contract),
     [contract],
   );
 

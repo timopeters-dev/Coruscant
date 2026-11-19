@@ -23,6 +23,17 @@ import {
   toYearMonth,
 } from "./date";
 import {
+  getLoanOptions,
+  type OptionRight,
+  type RateChangeScope,
+  type RateCorridor,
+  remainingSpecialRepaymentCents,
+  repaymentBpsFromRate,
+  resolveRateCorridor,
+  type SpecialRepaymentAllowance,
+  type SpecialRepaymentBasis,
+} from "./loan-options";
+import {
   assertNonNegativeInteger,
   assertSafeInteger,
   parseEuroInputToCents,
@@ -126,6 +137,34 @@ export interface AdvisorReportBalance extends BalanceSummary {
   isModeled: boolean;
 }
 
+export interface AdvisorReportLoanOptions {
+  originalPrincipalCents: number | null;
+  specialRepayment: {
+    status: OptionRight;
+    basis: SpecialRepaymentBasis | null;
+    percentBps: number | null;
+    capThisYearCents: number | null;
+    usedThisYearCents: number;
+    remainingThisYearCents: number | null;
+    flags: SpecialRepaymentAllowance["flags"];
+  };
+  rateChange: {
+    status: RateCorridor["status"];
+    totalCount: number | null;
+    usedCount: number;
+    remainingChanges: number | null;
+    scope: RateChangeScope | null;
+    minRepaymentBps: number | null;
+    maxRepaymentBps: number | null;
+    minMonthlyCents: number | null;
+    maxMonthlyCents: number | null;
+    currentRepaymentBpsApprox: number | null;
+    latestChangeDate: string | null;
+    flags: RateCorridor["flags"];
+  };
+  hasNote: boolean;
+}
+
 export interface AdvisorReportContract {
   entityKey: `contract:${string}`;
   category: ContractCategory;
@@ -140,6 +179,7 @@ export interface AdvisorReportContract {
   fixedInterestUntil: string | null;
   futureLoanInterestRateBps: number | null;
   specialRepaymentMaxYearlyCents: number | null;
+  loanOptions: AdvisorReportLoanOptions | null;
   targetSumCents: number | null;
   targetProgressBps: number | null;
   linkedPropertyKey: `property:${string}` | null;
@@ -231,6 +271,7 @@ export interface AdvisorReportEntityLabel {
   name: string;
   provider?: string | null;
   milestoneLabel?: string | null;
+  loanOptionsNote?: string | null;
 }
 
 export interface AdvisorReport {
@@ -375,12 +416,56 @@ export function buildAdvisorReport(input: AdvisorReportInput): AdvisorReport {
       );
     }
 
+    const opts = contract.category === "loan" ? getLoanOptions(contract) : null;
+    const trimmedNote = opts?.loanOptionsNote?.trim() ?? "";
+
     const entityKey: `contract:${string}` = `contract:${contract.id}`;
     labels[entityKey] = {
       name: contract.name,
       provider: contract.provider ?? null,
       milestoneLabel: contract.milestoneLabel ?? null,
+      loanOptionsNote: trimmedNote.length > 0 ? trimmedNote : null,
     };
+
+    let loanOptions: AdvisorReportLoanOptions | null = null;
+    let resolvedCapCents: number | null = null;
+    if (contract.category === "loan" && opts !== null) {
+      const allowance = remainingSpecialRepaymentCents(
+        contract,
+        input.asOfDate,
+      );
+      const corridor = resolveRateCorridor(contract, input.asOfDate);
+      const currentRepaymentBpsApprox =
+        repaymentBpsFromRate(contract, contract.monthlyRateCents)?.bps ?? null;
+      resolvedCapCents = allowance.capCents;
+      loanOptions = {
+        originalPrincipalCents: opts.originalPrincipalCents,
+        specialRepayment: {
+          status: allowance.status,
+          basis: allowance.basis,
+          percentBps: allowance.percentBps,
+          capThisYearCents: allowance.capCents,
+          usedThisYearCents: allowance.usedCents,
+          remainingThisYearCents: allowance.remainingCents,
+          flags: { ...allowance.flags },
+        },
+        rateChange: {
+          status: corridor.status,
+          totalCount: opts.rateChangeTotalCount,
+          usedCount: opts.rateChangeUsedCount,
+          remainingChanges: corridor.remainingChanges,
+          scope: opts.rateChangeScope,
+          minRepaymentBps: corridor.minRepaymentBps,
+          maxRepaymentBps: corridor.maxRepaymentBps,
+          minMonthlyCents: corridor.minMonthlyCents,
+          maxMonthlyCents: corridor.maxMonthlyCents,
+          currentRepaymentBpsApprox,
+          latestChangeDate: corridor.latestChangeDate,
+          flags: { ...corridor.flags },
+        },
+        hasNote: trimmedNote.length > 0,
+      };
+    }
 
     const item: AdvisorReportContract = {
       entityKey,
@@ -395,8 +480,8 @@ export function buildAdvisorReport(input: AdvisorReportInput): AdvisorReport {
       repaymentType: contract.repaymentType ?? null,
       fixedInterestUntil: contract.fixedInterestUntil ?? null,
       futureLoanInterestRateBps: contract.futureLoanInterestRateBps ?? null,
-      specialRepaymentMaxYearlyCents:
-        contract.specialRepaymentMaxYearlyCents ?? null,
+      specialRepaymentMaxYearlyCents: resolvedCapCents,
+      loanOptions,
       targetSumCents: contract.targetSumCents ?? null,
       targetProgressBps: projection.targetProgressBps,
       linkedPropertyKey:

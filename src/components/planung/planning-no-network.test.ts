@@ -24,6 +24,7 @@ function collectFiles(dir: string, predicate: (name: string) => boolean): string
 
 describe("planning-no-network", () => {
   const planungDir = path.resolve(process.cwd(), "src/components/planung");
+  const vertraegeDir = path.resolve(process.cwd(), "src/components/vertraege");
   const chartsDir = path.resolve(process.cwd(), "src/components/charts");
   const domainDir = path.resolve(process.cwd(), "src/lib/domain");
 
@@ -33,12 +34,17 @@ describe("planning-no-network", () => {
       (name) =>
         !name.includes(".test.") &&
         (name === "free-money-panel.tsx" ||
+          name === "loan-comparison-table.tsx" ||
           name === "salary-panel.tsx" ||
           name === "planung-workspace.tsx" ||
           name === "recommendation-text.ts" ||
           name.startsWith("planning-")),
     ),
+    path.join(vertraegeDir, "loan-adjustment-simulator.tsx"),
+    path.join(vertraegeDir, "payment-split-section.tsx"),
     ...collectFiles(chartsDir, (name) => !name.includes(".test.")),
+    path.join(domainDir, "loan-comparison.ts"),
+    path.join(domainDir, "loan-options.ts"),
     path.join(domainDir, "recommendation.ts"),
     path.join(domainDir, "recommendation-llm.ts"),
     path.join(domainDir, "recommendation-text.ts"),

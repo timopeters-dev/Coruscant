@@ -33,25 +33,29 @@ vi.mock("next/link", () => ({
   },
 }));
 
+import { buildPrepaymentDefaults } from "@/lib/domain/scenarios";
 import { PlanungWorkspace } from "./planung-workspace";
 
 const sampleLoan: LoanOption = {
   id: "loan-1",
   name: "Musterbank Kredit",
   provider: "Musterbank",
-  defaults: {
-    loan: {
-      balanceCents: 10_000_000,
+  defaults: buildPrepaymentDefaults(
+    {
+      id: "loan-1",
+      name: "Musterbank Kredit",
+      category: "loan",
+      status: "active",
+      currentBalanceCents: 10_000_000,
+      balanceAsOfDate: "2026-11-19",
       monthlyRateCents: 80_000,
       interestRateBps: 350,
       repaymentType: "annuity",
+      fixedInterestUntil: "2036-11-19",
       specialRepaymentMaxYearlyCents: 500_000,
     },
-    startDate: "2026-11-19",
-    horizonEndDate: "2036-11-19",
-    horizonEstimated: false,
-    capUnknown: false,
-  },
+    "2026-11-19",
+  ),
 };
 
 const emptyCoachContext = buildInvestmentContext({
@@ -106,7 +110,7 @@ describe("PlanungWorkspace", () => {
     expect(html).toContain('role="tablist"');
     expect(html).toContain("Wohin mit X €?");
     expect(html).toContain("Sparrate empfehlen");
-    expect(html).toContain("Sondertilgung vs. ETF");
+    expect(html).toContain("Darlehen &amp; ETF");
     expect(html).toContain("Orientierung, keine Anlageberatung");
 
     const sparrateHtml = renderWorkspace("geld", [sampleLoan], "sparrate");

@@ -1,4 +1,5 @@
 import { loadPlanningBase, type PlanningBase } from "@/db/queries/planning-base";
+import { contractRecordToDomain } from "@/lib/domain/contracts";
 import type {
   RecommendationLoan,
   RecommendationPot,
@@ -22,7 +23,8 @@ export function loadRecommendationState(
     if (contract.category !== "loan" || contract.status !== "active") {
       continue;
     }
-    const defaults = buildPrepaymentDefaults(contract, options.asOfDate);
+    const domainContract = contractRecordToDomain(contract);
+    const defaults = buildPrepaymentDefaults(domainContract, options.asOfDate);
     if (defaults.loan.balanceCents <= 0) {
       continue;
     }
@@ -32,8 +34,11 @@ export function loadRecommendationState(
       interestRateBps: defaults.loan.interestRateBps,
       monthlyRateCents: defaults.loan.monthlyRateCents,
       repaymentType: defaults.loan.repaymentType,
-      specialRepaymentMaxYearlyCents:
-        contract.specialRepaymentMaxYearlyCents ?? null,
+      specialRepaymentMaxYearlyCents: defaults.specialAllowance.capCents,
+      specialRepaymentRule: defaults.specialAllowance.rule,
+      specialRepaymentUsedThisYearCents: defaults.specialAllowance.usedCents,
+      rateCorridor: defaults.rateCorridor,
+      rateChangeScope: contract.rateChangeScope ?? null,
       fixedInterestUntil: contract.fixedInterestUntil ?? null,
       futureLoanInterestRateBps: contract.futureLoanInterestRateBps ?? null,
     });

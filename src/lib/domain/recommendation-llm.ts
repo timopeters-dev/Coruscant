@@ -222,6 +222,7 @@ export type RecommendationLlmArt =
   | "notgroschen"
   | "ziel_topf"
   | "sondertilgung"
+  | "ratenerhoehung"
   | "tilgungsreserve"
   | "etf"
   | "liquiditaet";
@@ -231,6 +232,7 @@ const ITEM_KIND_TO_LLM_ART: Record<RecommendationItemKind, RecommendationLlmArt>
     emergency_fund: "notgroschen",
     pot_deadline: "ziel_topf",
     loan_prepayment: "sondertilgung",
+    loan_rate_increase: "ratenerhoehung",
     loan_reserve: "tilgungsreserve",
     etf: "etf",
     keep_liquid: "liquiditaet",
@@ -309,6 +311,14 @@ export function buildRecommendationLlmView(
   const posten = result.items.map((item) => {
     const betragKey = `${item.ref}.betrag`;
     werte[betragKey] = formatEuroDE(item.amountCents);
+    if (item.currentMonthlyRateCents !== undefined) {
+      werte[`${item.ref}.aktuelleRate`] = formatEuroDE(
+        item.currentMonthlyRateCents,
+      );
+    }
+    if (item.newMonthlyRateCents !== undefined) {
+      werte[`${item.ref}.neueRate`] = formatEuroDE(item.newMonthlyRateCents);
+    }
 
     let ziel = "KONTO";
     if (item.target.type === "pot") {
@@ -399,6 +409,36 @@ export function buildRecommendationLlmView(
           addVal("rate", formatEuroDE(reason.requiredMonthlyCents));
           addVal("termin", formatMonthYearDE(reason.targetMonth));
           break;
+        case "RATE_INCREASE_BEATS_ETF":
+          addVal("zins", formatBpsDE(reason.interestRateBps));
+          if (reason.breakEvenBps !== null) {
+            addVal("breakEven", formatBpsDE(reason.breakEvenBps));
+          }
+          addVal("rendite", formatBpsDE(reason.expectedReturnBps));
+          addVal("aktuelleRate", formatEuroDE(reason.currentMonthlyRateCents));
+          addVal("neueRate", formatEuroDE(reason.newMonthlyRateCents));
+          if (reason.remainingChangesAfter !== null) {
+            addVal("restWechsel", `${reason.remainingChangesAfter} Wechsel`);
+          }
+          if (reason.latestChangeDate !== null) {
+            addVal(
+              "wechselBis",
+              formatIsoDateMonthYearDE(reason.latestChangeDate),
+            );
+          }
+          break;
+        case "RATE_CHANGE_CORRIDOR_LIMIT":
+          addVal("maxRate", formatEuroDE(reason.maxMonthlyCents));
+          break;
+        case "RATE_CHANGE_SHARE_LIMIT":
+          addVal("anteilLimit", formatBpsDE(reason.shareBps));
+          break;
+        case "RATE_CHANGE_COUNT_UNKNOWN":
+          break;
+        case "PREPAYMENT_CAP_PERCENT_OF_BALANCE":
+          addVal("prozentLimit", formatBpsDE(reason.percentBps));
+          addVal("limit", formatEuroDE(reason.capCents));
+          break;
       }
 
       return { code: reason.code, platzhalter };
@@ -459,7 +499,7 @@ export type ValidateExplanationResult =
 function extractAllowedLiterals(view: RecommendationLlmView): Set<number> {
   const allowed = new Set<number>();
   for (const val of Object.values(view.werte)) {
-    const monateMatch = val.match(/^(\d+)\s+(?:Monate|Monatsausgaben)$/);
+    const monateMatch = val.match(/^(\d+)\s+(?:Monate|Monatsausgaben|Wechsel)$/);
     if (monateMatch) {
       const n = Number(monateMatch[1]);
       if (Number.isSafeInteger(n) && n <= 120) {

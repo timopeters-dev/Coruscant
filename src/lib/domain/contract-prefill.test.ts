@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildContractPrefillFromExtraction } from "./contract-prefill";
+import {
+  buildContractPrefillFromExtraction,
+  buildLoanOptionsDiff,
+} from "./contract-prefill";
 
 describe("buildContractPrefillFromExtraction", () => {
-  it("maps complete loan extraction without review hints", () => {
+  it("maps complete loan extraction with option hint and full values", () => {
     const result = buildContractPrefillFromExtraction({
       documentDate: "2026-01-15",
       issuer: "Fallback Bank",
@@ -25,7 +28,10 @@ describe("buildContractPrefillFromExtraction", () => {
     });
 
     expect(result.hasExtractedContract).toBe(true);
-    expect(result.reviewHints).toEqual([]);
+    expect(result.hasExtractedLoanOptions).toBe(true);
+    expect(result.reviewHints).toEqual([
+      "Darlehensoptionen aus dem Dokument – bitte prüfen",
+    ]);
     expect(result.values).toEqual({
       name: "Hauskredit Musterbank",
       provider: "Musterbank AG",
@@ -35,7 +41,18 @@ describe("buildContractPrefillFromExtraction", () => {
       monthlyRateCents: 140_000,
       interestRateBps: 345,
       repaymentType: "annuity",
+      originalPrincipalCents: null,
+      specialRepaymentRight: "allowed",
+      specialRepaymentBasis: "fixed_yearly",
       specialRepaymentMaxYearlyCents: 1_000_000,
+      specialRepaymentPercentBps: null,
+      rateChangeRight: "unknown",
+      rateChangeTotalCount: null,
+      rateChangeScope: null,
+      rateChangeMinRepaymentBps: null,
+      rateChangeMaxRepaymentBps: null,
+      rateChangeMinMonthlyCents: null,
+      rateChangeMaxMonthlyCents: null,
       fixedInterestUntil: "2034-02-01",
       targetSumCents: null,
       allocationThresholdPercent: null,
@@ -150,5 +167,74 @@ describe("buildContractPrefillFromExtraction", () => {
       "Monatsrate",
       "Zinssatz",
     ]);
+  });
+
+  it("cleans inconsistent extracted loan option groups, adds hints, never sets usage fields, and builds diff for existing loans", () => {
+    const cleaned = buildContractPrefillFromExtraction({
+      documentDate: "2026-01-01",
+      issuer: "Musterbank",
+      detectedBalanceCents: 20_000_000,
+      todayIsoDate: "2026-11-19",
+      extractedContract: {
+        name: "Hauskredit Musterstraße 1",
+        provider: "Musterbank",
+        category: "loan",
+        currentBalanceCents: 20_000_000,
+        balanceAsOfDate: "2026-01-01",
+        monthlyRateCents: 110_000,
+        interestRateBps: 350,
+        originalPrincipalCents: 25_000_000,
+        specialRepaymentRight: "allowed",
+        specialRepaymentBasis: "percent_original",
+        specialRepaymentPercentBps: null, // inconsistent!
+        rateChangeRight: "allowed",
+        rateChangeTotalCount: 2,
+        rateChangeScope: "fixed_period",
+        rateChangeMinRepaymentBps: 500,
+        rateChangeMaxRepaymentBps: 100, // inverted!
+      },
+    });
+    expect(cleaned.values.specialRepaymentBasis).toBeNull();
+    expect(cleaned.values.rateChangeMinRepaymentBps).toBeNull();
+    expect(cleaned.values.rateChangeMaxRepaymentBps).toBeNull();
+    expect(cleaned.reviewHints).toContain(
+      "Sondertilgungshöhe nicht eindeutig erkannt",
+    );
+    expect(cleaned.reviewHints).toContain(
+      "Tilgungssatz-Korridor nicht eindeutig erkannt",
+    );
+    expect(cleaned.reviewHints).toContain(
+      "Darlehensoptionen aus dem Dokument – bitte prüfen",
+    );
+    expect("specialRepaymentUsedCents" in cleaned.values).toBe(false);
+    expect("rateChangeUsedCount" in cleaned.values).toBe(false);
+
+    // Diff only includes changed fields for loans
+    const diff = buildLoanOptionsDiff(
+      {
+        category: "loan",
+        repaymentType: "annuity",
+        originalPrincipalCents: 25_000_000,
+        specialRepaymentRight: "unknown",
+        specialRepaymentBasis: null,
+        specialRepaymentPercentBps: null,
+      },
+      {
+        originalPrincipalCents: 25_000_000, // unchanged -> omitted
+        specialRepaymentRight: "allowed",
+        specialRepaymentBasis: "percent_original",
+        specialRepaymentPercentBps: 500,
+      },
+    );
+    expect(diff.diffs.map((d) => d.field)).toEqual([
+      "specialRepaymentRight",
+      "specialRepaymentBasis",
+      "specialRepaymentPercentBps",
+    ]);
+    expect(diff.patch).toEqual({
+      specialRepaymentRight: "allowed",
+      specialRepaymentBasis: "percent_original",
+      specialRepaymentPercentBps: 500,
+    });
   });
 });

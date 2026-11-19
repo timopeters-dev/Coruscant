@@ -29,7 +29,10 @@ import {
 import type { FinancialContractRow, PropertyRow } from "@/db/queries/contracts";
 import type { DocumentRow } from "@/db/queries/documents";
 import { suggestTaxCategoryForPropertyUsage } from "@/lib/domain/rental";
-import { buildContractPrefillFromExtraction } from "@/lib/domain/contract-prefill";
+import {
+  buildContractPrefillFromExtraction,
+  buildLoanOptionsDiff,
+} from "@/lib/domain/contract-prefill";
 import {
   type ContractCalibrationEvaluation,
   type DocumentType,
@@ -225,6 +228,11 @@ function DocumentReviewSplitView({
     React.useState<boolean>(false);
   const [allowOlderCalibrationDate, setAllowOlderCalibrationDate] =
     React.useState<boolean>(false);
+  const [applyLoanOptions, setApplyLoanOptions] =
+    React.useState<boolean>(false);
+  const [extractedContractJson, setExtractedContractJson] = React.useState<
+    string | null
+  >(doc.extractedContractJson);
 
   const [isAnalyzing, setIsAnalyzing] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -253,6 +261,7 @@ function DocumentReviewSplitView({
         prefill,
       ),
       reviewHints: prefill.reviewHints,
+      hasExtractedLoanOptions: prefill.hasExtractedLoanOptions,
     };
   }
 
@@ -268,11 +277,31 @@ function DocumentReviewSplitView({
   const [contractReviewHints, setContractReviewHints] = React.useState<
     string[]
   >(initialPrefill.reviewHints);
+  const [hasPrefilledLoanOptions, setHasPrefilledLoanOptions] =
+    React.useState<boolean>(initialPrefill.hasExtractedLoanOptions);
 
   const selectedContract = React.useMemo(
     () => contracts.find((c) => c.id === linkedContractId) ?? null,
     [contracts, linkedContractId],
   );
+
+  const parsedExtractedContract = React.useMemo(
+    () => parseExtractedContractJson(extractedContractJson),
+    [extractedContractJson],
+  );
+
+  const loanOptionsDiff = React.useMemo(
+    () =>
+      selectedContract
+        ? buildLoanOptionsDiff(selectedContract, parsedExtractedContract)
+        : { diffs: [], patch: {} },
+    [selectedContract, parsedExtractedContract],
+  );
+
+  const effectiveApplyLoanOptions =
+    applyLoanOptions &&
+    selectedContract?.category === "loan" &&
+    loanOptionsDiff.diffs.length > 0;
 
   const parsedBalanceCents = React.useMemo(() => {
     if (!detectedBalanceInput.trim()) return null;
@@ -349,9 +378,12 @@ function DocumentReviewSplitView({
     }
     setAllowOlderCalibrationDate(false);
     setCalibrateContract(false);
+    setApplyLoanOptions(false);
+    setExtractedContractJson(updatedDoc.extractedContractJson);
     const nextPrefill = computeContractPrefillState(updatedDoc);
     setNewContractValues(nextPrefill.values);
     setContractReviewHints(nextPrefill.reviewHints);
+    setHasPrefilledLoanOptions(nextPrefill.hasExtractedLoanOptions);
     setNewContractErrors({});
   }
 
@@ -542,6 +574,8 @@ function DocumentReviewSplitView({
           allowOlderCalibrationDate: effectiveCalibrateContract
             ? allowOlderCalibrationDate
             : false,
+          applyLoanOptions: effectiveApplyLoanOptions,
+          loanOptions: effectiveApplyLoanOptions ? loanOptionsDiff.patch : null,
         }),
       });
 
@@ -803,6 +837,7 @@ function DocumentReviewSplitView({
                       setLinkedContractId(nextId);
                       setCalibrateContract(false);
                       setAllowOlderCalibrationDate(false);
+                      setApplyLoanOptions(false);
                     }
                   }}
                 >
@@ -1055,6 +1090,37 @@ function DocumentReviewSplitView({
                     eichen
                   </span>
                 </label>
+
+                {selectedContract.category === "loan" &&
+                loanOptionsDiff.diffs.length > 0 ? (
+                  <div className="space-y-2 rounded-lg border border-[var(--amber)]/50 bg-[var(--amber)]/10 p-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-[var(--text-primary)]">
+                        <input
+                          type="checkbox"
+                          checked={applyLoanOptions}
+                          onChange={(e) => setApplyLoanOptions(e.target.checked)}
+                          className="h-4 w-4 rounded accent-[var(--amber)]"
+                        />
+                        <span>Darlehensoptionen übernehmen</span>
+                      </label>
+                      <StatusBadge variant="ai_suggestion" />
+                    </div>
+                    <ul className="space-y-1 pl-6 text-xs text-[var(--text-secondary)]">
+                      {loanOptionsDiff.diffs.map((entry) => (
+                        <li key={entry.field} className="tabular-nums">
+                          <span className="font-medium text-[var(--text-primary)]">
+                            {entry.label}:
+                          </span>{" "}
+                          {entry.before} →{" "}
+                          <span className="font-medium text-[var(--text-primary)]">
+                            {entry.after}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -1082,6 +1148,7 @@ function DocumentReviewSplitView({
                   properties={properties}
                   disabled={isSubmitting || isAnalyzing}
                   idPrefix="doc-new-contract"
+                  hasPrefilledLoanOptions={hasPrefilledLoanOptions}
                 />
               </div>
             ) : null}

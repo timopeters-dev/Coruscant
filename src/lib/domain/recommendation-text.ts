@@ -27,6 +27,7 @@ export const KIND_LABEL_DE: Record<RecommendationItemKind, string> = {
   emergency_fund: "Notgroschen",
   pot_deadline: "Ziel-Topf",
   loan_prepayment: "Sondertilgung",
+  loan_rate_increase: "Ratenerhöhung",
   loan_reserve: "Tilgungsreserve",
   etf: "Breit gestreuter ETF",
   keep_liquid: "Liquidität / Puffer",
@@ -105,6 +106,18 @@ const REASON_FORMATTERS = {
     `Erforderliche Monatsrate von ${formatEuroDE(r.requiredMonthlyCents)} für Termin ${formatYearMonthDE(r.targetMonth)}.`,
   POT_MONTHLY_INSUFFICIENT: (r) =>
     `Der freie Überschuss deckt nur ${formatEuroDE(r.allocatedCents)} statt ${formatEuroDE(r.requiredMonthlyCents)} für Termin ${formatYearMonthDE(r.targetMonth)}.`,
+  RATE_INCREASE_BEATS_ETF: (r) =>
+    r.breakEvenBps !== null
+      ? `Rate von ${formatEuroDE(r.currentMonthlyRateCents)} auf ${formatEuroDE(r.newMonthlyRateCents)} erhöhen: Kreditzins (${formatBpsDE(r.interestRateBps)}) schlägt die erwartete ETF-Rendite (${formatBpsDE(r.expectedReturnBps)}) inkl. ${formatBpsDE(r.safetyMarginBps)} Sicherheitsaufschlag (Break-even ${formatBpsDE(r.breakEvenBps)}).`
+      : `Rate von ${formatEuroDE(r.currentMonthlyRateCents)} auf ${formatEuroDE(r.newMonthlyRateCents)} erhöhen: Ratenerhöhung liegt über der erwarteten ETF-Rendite (${formatBpsDE(r.expectedReturnBps)}).`,
+  RATE_CHANGE_CORRIDOR_LIMIT: (r) =>
+    `Begrenzt durch die vertragliche Maximalrate von ${formatEuroDE(r.maxMonthlyCents)} pro Monat.`,
+  RATE_CHANGE_SHARE_LIMIT: (r) =>
+    `Begrenzt auf höchstens ${formatBpsDE(r.shareBps)} des monatlichen Überschusses.`,
+  RATE_CHANGE_COUNT_UNKNOWN: () =>
+    "Anzahl erlaubter Tilgungssatzwechsel im Vertrag nicht hinterlegt – bitte vor Beantragung prüfen.",
+  PREPAYMENT_CAP_PERCENT_OF_BALANCE: (r) =>
+    `Sondertilgungsdeckel entspricht ${formatBpsDE(r.percentBps)} der aktuellen Restschuld (${formatEuroDE(r.capCents)} pro Jahr).`,
 } satisfies ReasonFormatterMap;
 
 export function formatRecommendationReason(reason: RecommendationReason): string {
@@ -137,6 +150,20 @@ const NOTE_FORMATTERS = {
     `Bei „${labels.loanNames[n.loanId] ?? "Kredit"}“ deckt die Monatsrate die laufenden Zinsen nicht.`,
   POT_DUE_ONE_TIME: (n, labels) =>
     `Topf „${labels.potNames[n.potId] ?? "Ziel-Topf"}“ ist diesen Monat fällig (${formatEuroDE(n.shortfallCents)} offen – prüfe „Wohin mit X €?“).`,
+  RATE_DECREASE_POSSIBLE: (n, labels) =>
+    `Bei „${labels.loanNames[n.loanId] ?? "Kredit"}“ wäre eine Ratensenkung von ${formatEuroDE(n.currentMonthlyRateCents)} auf bis zu ${formatEuroDE(n.minMonthlyCents)} möglich (Entlastung bis ${formatEuroDE(n.reliefCents)} pro Monat).`,
+  RATE_CHANGE_ALTERNATIVE: (n, labels) =>
+    n.remainingChanges !== null
+      ? `Bei „${labels.loanNames[n.loanId] ?? "Kredit"}“ ist eine monatliche Ratenerhöhung bis ${formatEuroDE(n.maxMonthlyCents)} pro Monat als Alternative möglich (${n.remainingChanges} Wechsel übrig).`
+      : `Bei „${labels.loanNames[n.loanId] ?? "Kredit"}“ ist eine monatliche Ratenerhöhung bis ${formatEuroDE(n.maxMonthlyCents)} pro Monat als Alternative möglich.`,
+  RATE_CHANGE_RIGHT_UNKNOWN: (n, labels) =>
+    `Bei „${labels.loanNames[n.loanId] ?? "Kredit"}“ könnte eine Ratenerhöhung lohnen – Tilgungssatzwechsel im Vertrag prüfen.`,
+  RATE_CHANGE_SKIPPED_FIXED_END_SOON: (n, labels) =>
+    `Bei „${labels.loanNames[n.loanId] ?? "Kredit"}“ endet die Zinsbindung bald (${formatIsoDateMonthYearDE(n.fixedInterestUntil)}) – keinen Tilgungssatzwechsel mehr vorgeschlagen.`,
+  SPECIAL_REPAYMENT_AMOUNT_UNKNOWN: (n, labels) =>
+    n.missingOriginalPrincipal
+      ? `Bei „${labels.loanNames[n.loanId] ?? "Kredit"}“ fehlt der Ursprungsbetrag – Sondertilgungshöhe daher unbekannt.`
+      : `Bei „${labels.loanNames[n.loanId] ?? "Kredit"}“ ist die Höhe des Sondertilgungsrechts nicht hinterlegt.`,
 } satisfies NoteFormatterMap;
 
 export function formatRecommendationNote(
@@ -172,6 +199,10 @@ export function formatRecommendationHeadline(
         return `${amt} in „${label}“`;
       case "loan_prepayment":
         return `${amt} Sondertilgung ${label}`;
+      case "loan_rate_increase":
+        return item.newMonthlyRateCents !== undefined
+          ? `${amt} höhere Rate (${label} auf ${formatEuroDE(item.newMonthlyRateCents)})`
+          : `${amt} Ratenerhöhung ${label}`;
       case "loan_reserve":
         return `${amt} Tilgungsreserve (${label})`;
       case "etf":

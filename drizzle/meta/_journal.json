@@ -99,6 +99,13 @@
       "when": 1795072794087,
       "tag": "0013_balance_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1795084986848,
+      "tag": "0014_loan_options",
+      "breakpoints": true
     }
   ]
 }

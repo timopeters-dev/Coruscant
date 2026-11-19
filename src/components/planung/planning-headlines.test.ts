@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { PrepaymentVsEtfResult } from "@/lib/domain/scenarios";
+import {
+  buildPrepaymentDefaults,
+  type PrepaymentVsEtfResult,
+} from "@/lib/domain/scenarios";
 import {
   buildFreeMoneyHeadlines,
   buildSalaryHeadlines,
@@ -12,19 +15,22 @@ const dummyLoan: LoanOption = {
   id: "loan-1",
   name: "Musterbank Kredit",
   provider: "Musterbank",
-  defaults: {
-    loan: {
-      balanceCents: 10_000_000,
+  defaults: buildPrepaymentDefaults(
+    {
+      id: "loan-1",
+      name: "Musterbank Kredit",
+      category: "loan",
+      status: "active",
+      currentBalanceCents: 10_000_000,
+      balanceAsOfDate: "2026-03-01",
       monthlyRateCents: 80_000,
       interestRateBps: 350,
       repaymentType: "annuity",
+      fixedInterestUntil: "2041-03-01",
       specialRepaymentMaxYearlyCents: 500_000,
     },
-    startDate: "2026-03-01",
-    horizonEndDate: "2041-03-01",
-    horizonEstimated: false,
-    capUnknown: false,
-  },
+    "2026-03-01",
+  ),
 };
 
 function makeFreeMoneyOk(

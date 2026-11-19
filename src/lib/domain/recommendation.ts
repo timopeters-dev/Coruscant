@@ -4,6 +4,12 @@ import {
   parseIsoDate,
 } from "./date";
 import {
+  type RateChangeScope,
+  type RateCorridor,
+  resolveYearlyCapCents,
+  type SpecialRepaymentRule,
+} from "./loan-options";
+import {
   assertNonNegativeInteger,
   assertSafeInteger,
 } from "./money";
@@ -26,6 +32,8 @@ import {
 import { type PotRuleType } from "./waterfall";
 
 export const FIXED_INTEREST_SOON_MONTHS = 12;
+export const RATE_INCREASE_STEP_CENTS = 1_000;
+export const DEFAULT_RATE_INCREASE_MAX_SURPLUS_SHARE_BPS = 5_000;
 
 export interface RecommendationPot {
   id: string;
@@ -50,6 +58,10 @@ export interface RecommendationLoan {
   specialRepaymentMaxYearlyCents: number | null;
   fixedInterestUntil: string | null;
   futureLoanInterestRateBps: number | null;
+  specialRepaymentRule?: SpecialRepaymentRule;
+  specialRepaymentUsedThisYearCents?: number;
+  rateCorridor?: RateCorridor | null;
+  rateChangeScope?: RateChangeScope | null;
 }
 
 export interface RecommendationState {
@@ -69,6 +81,7 @@ export interface RecommendationAssumptions {
   shortHorizonMonths: number;
   savingsBufferBps: number;
   emergencyFillMonths: number;
+  rateIncreaseMaxSurplusShareBps: number;
   specialRepaymentUsedThisYearCentsByLoanId: Record<string, number>;
 }
 
@@ -81,6 +94,7 @@ export const DEFAULT_RECOMMENDATION_ASSUMPTIONS: RecommendationAssumptions = {
   shortHorizonMonths: 36,
   savingsBufferBps: 1000,
   emergencyFillMonths: 12,
+  rateIncreaseMaxSurplusShareBps: DEFAULT_RATE_INCREASE_MAX_SURPLUS_SHARE_BPS,
   specialRepaymentUsedThisYearCentsByLoanId: {},
 };
 
@@ -181,6 +195,16 @@ export function validateRecommendationAssumptions(
     );
   }
 
+  const rateIncreaseMaxSurplusShareBps = assertNonNegativeInteger(
+    merged.rateIncreaseMaxSurplusShareBps,
+    "rateIncreaseMaxSurplusShareBps",
+  );
+  if (rateIncreaseMaxSurplusShareBps > 10_000) {
+    throw new RangeError(
+      `rateIncreaseMaxSurplusShareBps must be between 0 and 10000, received: ${rateIncreaseMaxSurplusShareBps}`,
+    );
+  }
+
   const normalizedUsed: Record<string, number> = {};
   for (const [loanId, val] of Object.entries(
     merged.specialRepaymentUsedThisYearCentsByLoanId,
@@ -200,6 +224,7 @@ export function validateRecommendationAssumptions(
     shortHorizonMonths,
     savingsBufferBps,
     emergencyFillMonths,
+    rateIncreaseMaxSurplusShareBps,
     specialRepaymentUsedThisYearCentsByLoanId: normalizedUsed,
   };
 }
@@ -208,6 +233,7 @@ export type RecommendationItemKind =
   | "emergency_fund"
   | "pot_deadline"
   | "loan_prepayment"
+  | "loan_rate_increase"
   | "loan_reserve"
   | "etf"
   | "keep_liquid";
@@ -281,6 +307,25 @@ export type RecommendationReason =
       requiredMonthlyCents: number;
       allocatedCents: number;
       targetMonth: string;
+    }
+  | {
+      code: "RATE_INCREASE_BEATS_ETF";
+      interestRateBps: number;
+      breakEvenBps: number | null;
+      expectedReturnBps: number;
+      safetyMarginBps: number;
+      currentMonthlyRateCents: number;
+      newMonthlyRateCents: number;
+      remainingChangesAfter: number | null;
+      latestChangeDate: string | null;
+    }
+  | { code: "RATE_CHANGE_CORRIDOR_LIMIT"; maxMonthlyCents: number }
+  | { code: "RATE_CHANGE_SHARE_LIMIT"; shareBps: number }
+  | { code: "RATE_CHANGE_COUNT_UNKNOWN" }
+  | {
+      code: "PREPAYMENT_CAP_PERCENT_OF_BALANCE";
+      percentBps: number;
+      capCents: number;
     };
 
 export type RecommendationNote =
@@ -296,7 +341,31 @@ export type RecommendationNote =
   | { code: "POT_NO_DEADLINE_SKIPPED"; potId: string }
   | { code: "LOAN_NO_PREPAYMENT_RIGHT"; loanId: string }
   | { code: "LOAN_RATE_BELOW_INTEREST"; loanId: string }
-  | { code: "POT_DUE_ONE_TIME"; potId: string; shortfallCents: number };
+  | { code: "POT_DUE_ONE_TIME"; potId: string; shortfallCents: number }
+  | {
+      code: "RATE_DECREASE_POSSIBLE";
+      loanId: string;
+      currentMonthlyRateCents: number;
+      minMonthlyCents: number;
+      reliefCents: number;
+    }
+  | {
+      code: "RATE_CHANGE_ALTERNATIVE";
+      loanId: string;
+      remainingChanges: number | null;
+      maxMonthlyCents: number;
+    }
+  | { code: "RATE_CHANGE_RIGHT_UNKNOWN"; loanId: string }
+  | {
+      code: "RATE_CHANGE_SKIPPED_FIXED_END_SOON";
+      loanId: string;
+      fixedInterestUntil: string;
+    }
+  | {
+      code: "SPECIAL_REPAYMENT_AMOUNT_UNKNOWN";
+      loanId: string;
+      missingOriginalPrincipal: boolean;
+    };
 
 export interface RecommendationItem {
   ref: string;
@@ -304,6 +373,8 @@ export interface RecommendationItem {
   amountCents: number;
   target: RecommendationTarget;
   reasons: RecommendationReason[];
+  currentMonthlyRateCents?: number;
+  newMonthlyRateCents?: number;
 }
 
 export interface RecommendationResult {
@@ -313,6 +384,7 @@ export interface RecommendationResult {
   notes: RecommendationNote[];
   assumptions: RecommendationAssumptions;
   loanOrder: string[];
+  loanOptionsDigest?: string;
 }
 
 type DraftItem = Omit<RecommendationItem, "ref">;
@@ -370,10 +442,19 @@ function addOrMergeItem(drafts: DraftItem[], next: DraftItem): void {
       amountCents: next.amountCents,
       target: next.target,
       reasons: [...next.reasons],
+      ...(next.currentMonthlyRateCents !== undefined
+        ? { currentMonthlyRateCents: next.currentMonthlyRateCents }
+        : {}),
+      ...(next.newMonthlyRateCents !== undefined
+        ? { newMonthlyRateCents: next.newMonthlyRateCents }
+        : {}),
     });
     return;
   }
   existing.amountCents += next.amountCents;
+  if (next.newMonthlyRateCents !== undefined) {
+    existing.newMonthlyRateCents = next.newMonthlyRateCents;
+  }
   for (const r of next.reasons) {
     const serialized = JSON.stringify(r);
     if (!existing.reasons.some((er) => JSON.stringify(er) === serialized)) {
@@ -394,6 +475,12 @@ function finalizeItems(
       amountCents: assertSafeInteger(d.amountCents, `items[${idx}].amountCents`),
       target: d.target,
       reasons: d.reasons,
+      ...(d.currentMonthlyRateCents !== undefined
+        ? { currentMonthlyRateCents: d.currentMonthlyRateCents }
+        : {}),
+      ...(d.newMonthlyRateCents !== undefined
+        ? { newMonthlyRateCents: d.newMonthlyRateCents }
+        : {}),
     }));
 
   const actualSum = items.reduce((acc, item) => acc + item.amountCents, 0);
@@ -403,6 +490,69 @@ function finalizeItems(
     );
   }
   return items;
+}
+
+function resolveLoanSpecialRule(loan: RecommendationLoan): SpecialRepaymentRule {
+  if (loan.specialRepaymentRule !== undefined) {
+    return loan.specialRepaymentRule;
+  }
+  if (loan.specialRepaymentMaxYearlyCents === null) {
+    return { kind: "unknown" };
+  }
+  if (loan.specialRepaymentMaxYearlyCents === 0) {
+    return { kind: "none" };
+  }
+  return { kind: "fixed", capCents: loan.specialRepaymentMaxYearlyCents };
+}
+
+function computeLoanOptionsDigest(
+  loans: readonly RecommendationLoan[],
+): string {
+  return loans
+    .map((loan) => {
+      const rule = resolveLoanSpecialRule(loan);
+      const rc = loan.rateCorridor;
+      const rcPart = rc
+        ? `${rc.status}:${rc.minMonthlyCents ?? "n"}:${rc.maxMonthlyCents ?? "n"}:${rc.remainingChanges ?? "n"}:${rc.flags.corridorAssumed ? 1 : 0}:${rc.flags.exhausted ? 1 : 0}:${rc.flags.corridorEmpty ? 1 : 0}`
+        : "none";
+      const rulePart =
+        rule.kind === "fixed"
+          ? `fixed:${rule.capCents}`
+          : rule.kind === "percent_balance"
+            ? `pctbal:${rule.bps}`
+            : rule.kind === "allowed_unknown_amount"
+              ? `unkamt:${rule.missingOriginalPrincipal ? 1 : 0}`
+              : rule.kind;
+      return `${loan.id}|${rulePart}|${loan.specialRepaymentUsedThisYearCents ?? 0}|${loan.rateChangeScope ?? "n"}|${rcPart}`;
+    })
+    .join(";");
+}
+
+function collectRateDecreaseNotes(
+  sortedLoans: readonly RecommendationLoan[],
+  notes: RecommendationNote[],
+): void {
+  for (const loan of sortedLoans) {
+    const rc = loan.rateCorridor;
+    if (
+      rc != null &&
+      rc.status === "allowed" &&
+      !rc.flags.corridorAssumed &&
+      !rc.flags.exhausted &&
+      !rc.flags.corridorEmpty &&
+      rc.remainingChanges !== 0 &&
+      rc.minMonthlyCents !== null &&
+      rc.minMonthlyCents < loan.monthlyRateCents
+    ) {
+      notes.push({
+        code: "RATE_DECREASE_POSSIBLE",
+        loanId: loan.id,
+        currentMonthlyRateCents: loan.monthlyRateCents,
+        minMonthlyCents: rc.minMonthlyCents,
+        reliefCents: loan.monthlyRateCents - rc.minMonthlyCents,
+      });
+    }
+  }
 }
 
 function isFixedInterestEndingSoon(
@@ -526,19 +676,45 @@ function allocateRemainder(
 
   const today = parseIsoDate(state.asOfDate, "asOfDate");
   const remainingMonthsInYear = Math.max(1, 12 - today.month + 1);
+  const hasEmergencyFundMonthly = drafts.some((d) =>
+    d.reasons.some((r) => r.code === "EMERGENCY_FUND_MONTHLY"),
+  );
+  const maxTotalRateIncreaseCents =
+    mode === "monthly" && state.monthlySurplusCents > 0
+      ? Number(
+          (BigInt(state.monthlySurplusCents) *
+            BigInt(assumptions.rateIncreaseMaxSurplusShareBps)) /
+            10_000n,
+        )
+      : 0;
+  let allocatedRateIncreasesCents = 0;
 
   for (const loan of sortedLoans) {
     if (rest <= 0) break;
 
     const isSoon = isFixedInterestEndingSoon(loan, state.asOfDate);
-    if (!isSoon && loan.specialRepaymentMaxYearlyCents === 0) {
-      notes.push({ code: "LOAN_NO_PREPAYMENT_RIGHT", loanId: loan.id });
-      anyLoanSkippedOrCapped = true;
-      continue;
-    }
 
     if (isSoon && loan.fixedInterestUntil != null) {
       const fixedEnd = loan.fixedInterestUntil;
+      const rc = loan.rateCorridor ?? null;
+      if (
+        mode === "monthly" &&
+        rc !== null &&
+        rc.status === "allowed" &&
+        !rc.flags.corridorAssumed &&
+        !rc.flags.exhausted &&
+        !rc.flags.corridorEmpty &&
+        rc.remainingChanges !== 0 &&
+        rc.maxMonthlyCents !== null &&
+        rc.maxMonthlyCents > loan.monthlyRateCents
+      ) {
+        notes.push({
+          code: "RATE_CHANGE_SKIPPED_FIXED_END_SOON",
+          loanId: loan.id,
+          fixedInterestUntil: fixedEnd,
+        });
+      }
+
       const monthsUntil = countRemainingMonths(state.asOfDate, fixedEnd);
       const effectiveRateBps =
         loan.futureLoanInterestRateBps ?? loan.interestRateBps;
@@ -652,26 +828,19 @@ function allocateRemainder(
       continue;
     }
 
-    // Normal prepayment case
-    const cap = loan.specialRepaymentMaxYearlyCents;
-    const usedThisYear =
-      assumptions.specialRepaymentUsedThisYearCentsByLoanId[loan.id] ?? 0;
-    const annualRoom =
-      cap === null ? Number.MAX_SAFE_INTEGER : Math.max(0, cap - usedThisYear);
-    const effectiveRoom =
-      mode === "one_time" || cap === null
-        ? annualRoom
-        : Math.floor(annualRoom / remainingMonthsInYear);
+    // Normal case (not ending soon)
+    const rule = resolveLoanSpecialRule(loan);
+    const cap =
+      loan.specialRepaymentRule !== undefined
+        ? resolveYearlyCapCents(rule, loan.balanceCents)
+        : loan.specialRepaymentMaxYearlyCents;
 
-    if (effectiveRoom <= 0) {
-      anyLoanSkippedOrCapped = true;
-      continue;
-    }
-
-    const amount = Math.min(rest, effectiveRoom, loan.balanceCents);
-    if (amount <= 0) {
-      anyLoanSkippedOrCapped = true;
-      continue;
+    if (rule.kind === "allowed_unknown_amount") {
+      notes.push({
+        code: "SPECIAL_REPAYMENT_AMOUNT_UNKNOWN",
+        loanId: loan.id,
+        missingOriginalPrincipal: rule.missingOriginalPrincipal,
+      });
     }
 
     const horizonEstimated =
@@ -681,82 +850,348 @@ function allocateRemainder(
       ? addMonthsToIsoDate(state.asOfDate, DEFAULT_ESTIMATED_HORIZON_MONTHS)
       : loan.fixedInterestUntil!;
 
-    const simLoan = {
-      balanceCents: loan.balanceCents,
-      interestRateBps: loan.interestRateBps,
-      monthlyRateCents: loan.monthlyRateCents,
-      repaymentType: loan.repaymentType,
-      specialRepaymentMaxYearlyCents: cap,
-    };
-    const simInput = {
-      loan: simLoan,
-      startDate: state.asOfDate,
-      horizonEndDate,
-      oneTimeAmountCents: mode === "one_time" ? amount : 0,
-      monthlyAmountCents: mode === "monthly" ? amount : 0,
-      specialRepaymentUsedThisYearCents: usedThisYear,
-      saverAllowanceCents: assumptions.saverAllowanceCents,
-      churchTaxBps: assumptions.churchTaxBps,
-    };
+    const usedThisYear =
+      assumptions.specialRepaymentUsedThisYearCentsByLoanId[loan.id] ??
+      loan.specialRepaymentUsedThisYearCents ??
+      0;
 
-    const breakEven = findBreakEvenReturnBps(simInput);
-    const simAtExpected = simulatePrepaymentVsEtf({
-      ...simInput,
-      etfAnnualReturnBps: assumptions.etfAnnualReturnBps,
-    });
-    if (simAtExpected.flags.rateBelowInterest) {
-      notes.push({ code: "LOAN_RATE_BELOW_INTEREST", loanId: loan.id });
+    let specialCappedOrUnavailable = false;
+    let specialEvaluatedLoanWins: boolean | null = null;
+    let rateBelowInterestNoted = false;
+
+    if (rule.kind === "none" || cap === 0) {
+      notes.push({ code: "LOAN_NO_PREPAYMENT_RIGHT", loanId: loan.id });
+      anyLoanSkippedOrCapped = true;
+      specialCappedOrUnavailable = true;
+    } else {
+      const annualRoom =
+        cap === null ? Number.MAX_SAFE_INTEGER : Math.max(0, cap - usedThisYear);
+      const effectiveRoom =
+        mode === "one_time" || cap === null
+          ? annualRoom
+          : Math.floor(annualRoom / remainingMonthsInYear);
+
+      if (effectiveRoom <= 0) {
+        anyLoanSkippedOrCapped = true;
+        specialCappedOrUnavailable = true;
+      } else {
+        const amount = Math.min(rest, effectiveRoom, loan.balanceCents);
+        if (amount <= 0) {
+          anyLoanSkippedOrCapped = true;
+          specialCappedOrUnavailable = true;
+        } else {
+          const simLoan = {
+            balanceCents: loan.balanceCents,
+            interestRateBps: loan.interestRateBps,
+            monthlyRateCents: loan.monthlyRateCents,
+            repaymentType: loan.repaymentType,
+            specialRepaymentMaxYearlyCents: cap,
+            specialRepaymentRule: rule,
+          };
+          const simInput = {
+            loan: simLoan,
+            startDate: state.asOfDate,
+            horizonEndDate,
+            oneTimeAmountCents: mode === "one_time" ? amount : 0,
+            monthlyAmountCents: mode === "monthly" ? amount : 0,
+            specialRepaymentUsedThisYearCents: usedThisYear,
+            saverAllowanceCents: assumptions.saverAllowanceCents,
+            churchTaxBps: assumptions.churchTaxBps,
+          };
+
+          const breakEven = findBreakEvenReturnBps(simInput);
+          const simAtExpected = simulatePrepaymentVsEtf({
+            ...simInput,
+            etfAnnualReturnBps: assumptions.etfAnnualReturnBps,
+          });
+          if (simAtExpected.flags.rateBelowInterest) {
+            notes.push({ code: "LOAN_RATE_BELOW_INTEREST", loanId: loan.id });
+            rateBelowInterestNoted = true;
+          }
+
+          const etfWins =
+            breakEven.kind === "identical" ||
+            (breakEven.kind === "bps" &&
+              assumptions.etfAnnualReturnBps >=
+                breakEven.bps + assumptions.safetyMarginBps);
+
+          specialEvaluatedLoanWins = !etfWins;
+
+          if (!etfWins) {
+            const reasons: RecommendationReason[] = [
+              {
+                code: "PREPAYMENT_BEATS_ETF",
+                interestRateBps: loan.interestRateBps,
+                breakEvenBps: breakEven.kind === "bps" ? breakEven.bps : null,
+                expectedReturnBps: assumptions.etfAnnualReturnBps,
+                safetyMarginBps: assumptions.safetyMarginBps,
+              },
+            ];
+            if (rule.kind === "percent_balance" && cap !== null) {
+              reasons.push({
+                code: "PREPAYMENT_CAP_PERCENT_OF_BALANCE",
+                percentBps: rule.bps,
+                capCents: cap,
+              });
+            }
+            if (cap === null) {
+              reasons.push({ code: "PREPAYMENT_CAP_UNKNOWN" });
+            }
+            if (horizonEstimated) {
+              reasons.push({
+                code: "HORIZON_ESTIMATED",
+                horizonMonths: DEFAULT_ESTIMATED_HORIZON_MONTHS,
+              });
+            }
+            if (cap !== null && rest > amount && amount === effectiveRoom) {
+              reasons.push({
+                code: "PREPAYMENT_CAP_REACHED",
+                capCents: cap,
+                usedCents: usedThisYear,
+                overflowCents: rest - amount,
+              });
+              specialCappedOrUnavailable = true;
+            }
+            addOrMergeItem(drafts, {
+              kind: "loan_prepayment",
+              amountCents: amount,
+              target: { type: "loan", loanId: loan.id },
+              reasons,
+            });
+            rest -= amount;
+            if (rest > 0) {
+              anyLoanSkippedOrCapped = true;
+            }
+          } else {
+            if (breakEven.kind === "bps") {
+              lastEtfWinningLoan = {
+                interestRateBps: loan.interestRateBps,
+                breakEvenBps: breakEven.bps,
+              };
+            }
+          }
+        }
+      }
     }
 
-    const etfWins =
-      breakEven.kind === "identical" ||
-      (breakEven.kind === "bps" &&
-        assumptions.etfAnnualReturnBps >=
-          breakEven.bps + assumptions.safetyMarginBps);
+    // Step 2: Rate increase (monthly mode) or rate-change note (one_time / unknown)
+    const corridor = loan.rateCorridor ?? null;
+    if (rest > 0 && corridor !== null) {
+      if (mode === "monthly") {
+        if (corridor.status === "unknown") {
+          let wouldWin = specialEvaluatedLoanWins;
+          if (wouldWin === null) {
+            const probeAmount = Math.min(rest, loan.balanceCents);
+            if (probeAmount > 0) {
+              const rateBe = findBreakEvenReturnBps({
+                loan: {
+                  balanceCents: loan.balanceCents,
+                  interestRateBps: loan.interestRateBps,
+                  monthlyRateCents: loan.monthlyRateCents,
+                  repaymentType: loan.repaymentType,
+                  specialRepaymentMaxYearlyCents: cap,
+                  specialRepaymentRule: rule,
+                },
+                startDate: state.asOfDate,
+                horizonEndDate,
+                oneTimeAmountCents: 0,
+                monthlyAmountCents: probeAmount,
+                monthlyChannel: "rate_increase",
+                monthlyStartMonth: 1,
+                saverAllowanceCents: assumptions.saverAllowanceCents,
+                churchTaxBps: assumptions.churchTaxBps,
+              });
+              const etfWinsProbe =
+                rateBe.kind === "identical" ||
+                (rateBe.kind === "bps" &&
+                  assumptions.etfAnnualReturnBps >=
+                    rateBe.bps + assumptions.safetyMarginBps);
+              wouldWin = !etfWinsProbe;
+            }
+          }
+          if (wouldWin) {
+            notes.push({ code: "RATE_CHANGE_RIGHT_UNKNOWN", loanId: loan.id });
+          }
+        } else if (
+          corridor.status === "allowed" &&
+          !corridor.flags.corridorAssumed &&
+          !corridor.flags.exhausted &&
+          !corridor.flags.corridorEmpty &&
+          corridor.remainingChanges !== 0 &&
+          corridor.maxMonthlyCents !== null &&
+          corridor.maxMonthlyCents > loan.monthlyRateCents &&
+          !hasEmergencyFundMonthly
+        ) {
+          const corridorHeadroom =
+            corridor.maxMonthlyCents - loan.monthlyRateCents;
+          const shareHeadroom = Math.max(
+            0,
+            maxTotalRateIncreaseCents - allocatedRateIncreasesCents,
+          );
+          const rawIncrease = Math.min(rest, corridorHeadroom, shareHeadroom);
+          const steppedIncrease =
+            Math.floor(rawIncrease / RATE_INCREASE_STEP_CENTS) *
+            RATE_INCREASE_STEP_CENTS;
 
-    if (!etfWins) {
-      const reasons: RecommendationReason[] = [
-        {
-          code: "PREPAYMENT_BEATS_ETF",
-          interestRateBps: loan.interestRateBps,
-          breakEvenBps: breakEven.kind === "bps" ? breakEven.bps : null,
-          expectedReturnBps: assumptions.etfAnnualReturnBps,
-          safetyMarginBps: assumptions.safetyMarginBps,
-        },
-      ];
-      if (cap === null) {
-        reasons.push({ code: "PREPAYMENT_CAP_UNKNOWN" });
-      }
-      if (horizonEstimated) {
-        reasons.push({
-          code: "HORIZON_ESTIMATED",
-          horizonMonths: DEFAULT_ESTIMATED_HORIZON_MONTHS,
-        });
-      }
-      if (cap !== null && rest > amount && amount === effectiveRoom) {
-        reasons.push({
-          code: "PREPAYMENT_CAP_REACHED",
-          capCents: cap,
-          usedCents: usedThisYear,
-          overflowCents: rest - amount,
-        });
-      }
-      addOrMergeItem(drafts, {
-        kind: "loan_prepayment",
-        amountCents: amount,
-        target: { type: "loan", loanId: loan.id },
-        reasons,
-      });
-      rest -= amount;
-      if (rest > 0) {
-        anyLoanSkippedOrCapped = true;
-      }
-    } else {
-      if (breakEven.kind === "bps") {
-        lastEtfWinningLoan = {
-          interestRateBps: loan.interestRateBps,
-          breakEvenBps: breakEven.bps,
-        };
+          if (steppedIncrease > 0) {
+            const rateSimInput = {
+              loan: {
+                balanceCents: loan.balanceCents,
+                interestRateBps: loan.interestRateBps,
+                monthlyRateCents: loan.monthlyRateCents,
+                repaymentType: loan.repaymentType,
+                specialRepaymentMaxYearlyCents: cap,
+                specialRepaymentRule: rule,
+              },
+              startDate: state.asOfDate,
+              horizonEndDate,
+              oneTimeAmountCents: 0,
+              monthlyAmountCents: steppedIncrease,
+              monthlyChannel: "rate_increase" as const,
+              monthlyStartMonth: 1,
+              saverAllowanceCents: assumptions.saverAllowanceCents,
+              churchTaxBps: assumptions.churchTaxBps,
+            };
+            const rateBreakEven = findBreakEvenReturnBps(rateSimInput);
+            if (!rateBelowInterestNoted) {
+              const rateSimAtExpected = simulatePrepaymentVsEtf({
+                ...rateSimInput,
+                etfAnnualReturnBps: assumptions.etfAnnualReturnBps,
+              });
+              if (rateSimAtExpected.flags.rateBelowInterest) {
+                notes.push({
+                  code: "LOAN_RATE_BELOW_INTEREST",
+                  loanId: loan.id,
+                });
+              }
+            }
+
+            const etfWinsRate =
+              rateBreakEven.kind === "identical" ||
+              (rateBreakEven.kind === "bps" &&
+                assumptions.etfAnnualReturnBps >=
+                  rateBreakEven.bps + assumptions.safetyMarginBps);
+
+            if (!etfWinsRate) {
+              const newMonthlyRateCents =
+                loan.monthlyRateCents + steppedIncrease;
+              const remainingChangesAfter =
+                corridor.remainingChanges !== null
+                  ? corridor.flags.perYearUsageUntracked
+                    ? corridor.remainingChanges
+                    : Math.max(0, corridor.remainingChanges - 1)
+                  : null;
+              const reasons: RecommendationReason[] = [
+                {
+                  code: "RATE_INCREASE_BEATS_ETF",
+                  interestRateBps: loan.interestRateBps,
+                  breakEvenBps:
+                    rateBreakEven.kind === "bps" ? rateBreakEven.bps : null,
+                  expectedReturnBps: assumptions.etfAnnualReturnBps,
+                  safetyMarginBps: assumptions.safetyMarginBps,
+                  currentMonthlyRateCents: loan.monthlyRateCents,
+                  newMonthlyRateCents,
+                  remainingChangesAfter,
+                  latestChangeDate: corridor.latestChangeDate,
+                },
+              ];
+              if (corridorHeadroom < rest && rawIncrease === corridorHeadroom) {
+                reasons.push({
+                  code: "RATE_CHANGE_CORRIDOR_LIMIT",
+                  maxMonthlyCents: corridor.maxMonthlyCents,
+                });
+              }
+              if (shareHeadroom < rest && rawIncrease === shareHeadroom) {
+                reasons.push({
+                  code: "RATE_CHANGE_SHARE_LIMIT",
+                  shareBps: assumptions.rateIncreaseMaxSurplusShareBps,
+                });
+              }
+              if (corridor.remainingChanges === null) {
+                reasons.push({ code: "RATE_CHANGE_COUNT_UNKNOWN" });
+              }
+              if (horizonEstimated) {
+                reasons.push({
+                  code: "HORIZON_ESTIMATED",
+                  horizonMonths: DEFAULT_ESTIMATED_HORIZON_MONTHS,
+                });
+              }
+              addOrMergeItem(drafts, {
+                kind: "loan_rate_increase",
+                amountCents: steppedIncrease,
+                target: { type: "loan", loanId: loan.id },
+                currentMonthlyRateCents: loan.monthlyRateCents,
+                newMonthlyRateCents,
+                reasons,
+              });
+              rest -= steppedIncrease;
+              allocatedRateIncreasesCents += steppedIncrease;
+              if (rest > 0) {
+                anyLoanSkippedOrCapped = true;
+              }
+            } else if (
+              rateBreakEven.kind === "bps" &&
+              lastEtfWinningLoan === null
+            ) {
+              lastEtfWinningLoan = {
+                interestRateBps: loan.interestRateBps,
+                breakEvenBps: rateBreakEven.bps,
+              };
+            }
+          }
+        }
+      } else if (
+        mode === "one_time" &&
+        specialCappedOrUnavailable &&
+        corridor.status === "allowed" &&
+        !corridor.flags.corridorAssumed &&
+        !corridor.flags.exhausted &&
+        !corridor.flags.corridorEmpty &&
+        corridor.remainingChanges !== 0 &&
+        corridor.maxMonthlyCents !== null &&
+        corridor.maxMonthlyCents > loan.monthlyRateCents
+      ) {
+        let loanWins = specialEvaluatedLoanWins;
+        if (loanWins === null) {
+          const probeMonthly = Math.min(
+            10_000,
+            corridor.maxMonthlyCents - loan.monthlyRateCents,
+          );
+          if (probeMonthly > 0) {
+            const rateBe = findBreakEvenReturnBps({
+              loan: {
+                balanceCents: loan.balanceCents,
+                interestRateBps: loan.interestRateBps,
+                monthlyRateCents: loan.monthlyRateCents,
+                repaymentType: loan.repaymentType,
+                specialRepaymentMaxYearlyCents: cap,
+                specialRepaymentRule: rule,
+              },
+              startDate: state.asOfDate,
+              horizonEndDate,
+              oneTimeAmountCents: 0,
+              monthlyAmountCents: probeMonthly,
+              monthlyChannel: "rate_increase",
+              monthlyStartMonth: 1,
+              saverAllowanceCents: assumptions.saverAllowanceCents,
+              churchTaxBps: assumptions.churchTaxBps,
+            });
+            const etfWinsProbe =
+              rateBe.kind === "identical" ||
+              (rateBe.kind === "bps" &&
+                assumptions.etfAnnualReturnBps >=
+                  rateBe.bps + assumptions.safetyMarginBps);
+            loanWins = !etfWinsProbe;
+          }
+        }
+        if (loanWins) {
+          notes.push({
+            code: "RATE_CHANGE_ALTERNATIVE",
+            loanId: loan.id,
+            remainingChanges: corridor.remainingChanges,
+            maxMonthlyCents: corridor.maxMonthlyCents,
+          });
+        }
       }
     }
   }
@@ -996,6 +1431,8 @@ export function recommendUse(
     notes,
   );
 
+  const loanOptionsDigest = computeLoanOptionsDigest(sortedLoans);
+
   return {
     mode: "one_time",
     amountCents: safeAmount,
@@ -1003,6 +1440,7 @@ export function recommendUse(
     notes,
     assumptions,
     loanOrder,
+    loanOptionsDigest,
   };
 }
 
@@ -1018,16 +1456,22 @@ export function recommendMonthlySavings(
   const assumptions = validateRecommendationAssumptions(assumptionsInput);
   const sortedLoans = sortLoansForRecommendation(state.loans, state.asOfDate);
   const loanOrder = sortedLoans.map((l) => l.id);
+  const loanOptionsDigest = computeLoanOptionsDigest(sortedLoans);
   const sortedPots = sortPotsByPriority(state.pots);
 
   if (surplus <= 0) {
+    const notes: RecommendationNote[] = [
+      { code: "NO_SURPLUS", surplusCents: surplus },
+    ];
+    collectRateDecreaseNotes(sortedLoans, notes);
     return {
       mode: "monthly",
       amountCents: 0,
       items: [],
-      notes: [{ code: "NO_SURPLUS", surplusCents: surplus }],
+      notes,
       assumptions,
       loanOrder,
+      loanOptionsDigest,
     };
   }
 
@@ -1062,60 +1506,63 @@ export function recommendMonthlySavings(
         currentCents: ef.currentCents,
         targetCents: ef.targetCents,
       });
-    } else if (rest > 0) {
-      const monthlyNeeded = calculateRequiredMonthlyCents(
-        gap,
-        assumptions.emergencyFillMonths,
-      );
-      const alloc = Math.min(rest, monthlyNeeded);
-      const reason: RecommendationReason = {
-        code: "EMERGENCY_FUND_MONTHLY",
-        gapCents: gap,
-        fillMonths: assumptions.emergencyFillMonths,
-      };
-      if (ef.targetSource === "pots") {
-        let remainingAlloc = alloc;
-        for (const pot of ef.emergencyPots) {
-          if (remainingAlloc <= 0) break;
-          const potGap = Math.max(0, pot.targetCents! - pot.currentCents);
-          const potMonthly = calculateRequiredMonthlyCents(
-            potGap,
-            assumptions.emergencyFillMonths,
-          );
-          const potAlloc = Math.min(remainingAlloc, potMonthly);
-          if (potAlloc > 0) {
-            addOrMergeItem(drafts, {
-              kind: "emergency_fund",
-              amountCents: potAlloc,
-              target: { type: "pot", potId: pot.id },
-              reasons: [reason],
-            });
-            remainingAlloc -= potAlloc;
-          }
-        }
-      } else if (ef.emergencyPots.length > 0) {
-        const targetPot = pickEmergencyPotForRule(
-          ef.emergencyPots,
-          alloc,
-          drafts,
+    } else {
+      collectRateDecreaseNotes(sortedLoans, notes);
+      if (rest > 0) {
+        const monthlyNeeded = calculateRequiredMonthlyCents(
+          gap,
+          assumptions.emergencyFillMonths,
         );
-        addOrMergeItem(drafts, {
-          kind: "emergency_fund",
-          amountCents: alloc,
-          target: targetPot
-            ? { type: "pot", potId: targetPot.id }
-            : { type: "none" },
-          reasons: [reason],
-        });
-      } else {
-        addOrMergeItem(drafts, {
-          kind: "emergency_fund",
-          amountCents: alloc,
-          target: { type: "none" },
-          reasons: [reason, { code: "EMERGENCY_FUND_NO_POT" }],
-        });
+        const alloc = Math.min(rest, monthlyNeeded);
+        const reason: RecommendationReason = {
+          code: "EMERGENCY_FUND_MONTHLY",
+          gapCents: gap,
+          fillMonths: assumptions.emergencyFillMonths,
+        };
+        if (ef.targetSource === "pots") {
+          let remainingAlloc = alloc;
+          for (const pot of ef.emergencyPots) {
+            if (remainingAlloc <= 0) break;
+            const potGap = Math.max(0, pot.targetCents! - pot.currentCents);
+            const potMonthly = calculateRequiredMonthlyCents(
+              potGap,
+              assumptions.emergencyFillMonths,
+            );
+            const potAlloc = Math.min(remainingAlloc, potMonthly);
+            if (potAlloc > 0) {
+              addOrMergeItem(drafts, {
+                kind: "emergency_fund",
+                amountCents: potAlloc,
+                target: { type: "pot", potId: pot.id },
+                reasons: [reason],
+              });
+              remainingAlloc -= potAlloc;
+            }
+          }
+        } else if (ef.emergencyPots.length > 0) {
+          const targetPot = pickEmergencyPotForRule(
+            ef.emergencyPots,
+            alloc,
+            drafts,
+          );
+          addOrMergeItem(drafts, {
+            kind: "emergency_fund",
+            amountCents: alloc,
+            target: targetPot
+              ? { type: "pot", potId: targetPot.id }
+              : { type: "none" },
+            reasons: [reason],
+          });
+        } else {
+          addOrMergeItem(drafts, {
+            kind: "emergency_fund",
+            amountCents: alloc,
+            target: { type: "none" },
+            reasons: [reason, { code: "EMERGENCY_FUND_NO_POT" }],
+          });
+        }
+        rest -= alloc;
       }
-      rest -= alloc;
     }
   }
 
@@ -1203,11 +1650,15 @@ export function recommendMonthlySavings(
     notes,
     assumptions,
     loanOrder,
+    loanOptionsDigest,
   };
 }
 
 export function computeRecommendationFingerprint(
-  result: Pick<RecommendationResult, "mode" | "amountCents" | "items">,
+  result: Pick<
+    RecommendationResult,
+    "mode" | "amountCents" | "items" | "loanOptionsDigest"
+  >,
 ): string {
   const itemParts = result.items.map((item) => {
     const targetId =
@@ -1216,7 +1667,15 @@ export function computeRecommendationFingerprint(
         : item.target.type === "loan"
           ? item.target.loanId
           : "none";
-    return `${item.ref}:${item.kind}:${targetId}:${item.amountCents}`;
+    const ratePart =
+      item.newMonthlyRateCents !== undefined
+        ? `@${item.currentMonthlyRateCents ?? 0}->${item.newMonthlyRateCents}`
+        : "";
+    return `${item.ref}:${item.kind}:${targetId}:${item.amountCents}${ratePart}`;
   });
-  return [result.mode, String(result.amountCents), ...itemParts].join("|");
+  const parts = [result.mode, String(result.amountCents), ...itemParts];
+  if (result.loanOptionsDigest) {
+    parts.push(`loans:${result.loanOptionsDigest}`);
+  }
+  return parts.join("|");
 }

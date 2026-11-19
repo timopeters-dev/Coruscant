@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { buildPrepaymentDefaults } from "@/lib/domain/scenarios";
 import type { DomainPot } from "@/lib/domain/waterfall";
 import {
   buildPlanningHref,
@@ -23,37 +24,43 @@ const loans: LoanOption[] = [
     id: "loan-1",
     name: "Musterbank Kredit A",
     provider: "Musterbank",
-    defaults: {
-      loan: {
-        balanceCents: 10_000_000,
+    defaults: buildPrepaymentDefaults(
+      {
+        id: "loan-1",
+        name: "Musterbank Kredit A",
+        category: "loan",
+        status: "active",
+        currentBalanceCents: 10_000_000,
+        balanceAsOfDate: "2026-11-19",
         monthlyRateCents: 80_000,
         interestRateBps: 350,
         repaymentType: "annuity",
+        fixedInterestUntil: "2036-11-19",
         specialRepaymentMaxYearlyCents: 500_000,
       },
-      startDate: "2026-11-19",
-      horizonEndDate: "2036-11-19",
-      horizonEstimated: false,
-      capUnknown: false,
-    },
+      "2026-11-19",
+    ),
   },
   {
     id: "loan-2",
     name: "Musterbank Kredit B",
     provider: "Musterbank",
-    defaults: {
-      loan: {
-        balanceCents: 5_000_000,
+    defaults: buildPrepaymentDefaults(
+      {
+        id: "loan-2",
+        name: "Musterbank Kredit B",
+        category: "loan",
+        status: "active",
+        currentBalanceCents: 5_000_000,
+        balanceAsOfDate: "2026-11-19",
         monthlyRateCents: 40_000,
         interestRateBps: 400,
         repaymentType: "annuity",
+        fixedInterestUntil: "2031-11-19",
         specialRepaymentMaxYearlyCents: 250_000,
       },
-      startDate: "2026-11-19",
-      horizonEndDate: "2031-11-19",
-      horizonEstimated: false,
-      capUnknown: false,
-    },
+      "2026-11-19",
+    ),
   },
 ];
 
@@ -352,5 +359,76 @@ describe("parsePlanningView, buildPlanningHref & recommendationReducer", () => {
 
     s = recommendationReducer(s, { type: "reset" });
     expect(s).toEqual(createRecommendationUiState());
+  });
+});
+
+describe("freeMoneyReducer rate corridor clamping & isFreeMoneyAdvancedModified", () => {
+  const corridorLoan: LoanOption = {
+    id: "loan-corridor",
+    name: "Musterbank Korridor",
+    provider: "Musterbank",
+    defaults: buildPrepaymentDefaults(
+      {
+        id: "loan-corridor",
+        name: "Musterbank Korridor",
+        category: "loan",
+        status: "active",
+        currentBalanceCents: 20_000_000,
+        balanceAsOfDate: "2026-11-19",
+        monthlyRateCents: 110_000,
+        interestRateBps: 380,
+        repaymentType: "annuity",
+        fixedInterestUntil: "2030-06-01",
+        originalPrincipalCents: 25_000_000,
+        specialRepaymentRight: "allowed",
+        specialRepaymentBasis: "fixed_yearly",
+        specialRepaymentMaxYearlyCents: 1_000_000,
+        specialRepaymentUsedCents: 250_000,
+        specialRepaymentUsedYear: 2026,
+        rateChangeRight: "allowed",
+        rateChangeTotalCount: 2,
+        rateChangeScope: "fixed_period",
+        rateChangeUsedCount: 0,
+        rateChangeMinMonthlyCents: 90_000,
+        rateChangeMaxMonthlyCents: 162_892, // headroom = 52_892
+      },
+      "2026-11-19",
+    ),
+  };
+
+  it("clamps monthlyCents in rate_increase channel and rateStartMonth to latestChangeDate", () => {
+    let s = createFreeMoneyState([corridorLoan], "2026-11-19");
+    s = freeMoneyReducer(
+      s,
+      { type: "setMonthlyChannel", channel: "rate_increase" },
+      [corridorLoan],
+    );
+    s = freeMoneyReducer(
+      s,
+      { type: "setField", field: "monthlyCents", value: 500_000 },
+      [corridorLoan],
+    );
+    expect(s.monthlyCents).toBe(52_892);
+
+    s = freeMoneyReducer(
+      s,
+      { type: "setRateStartMonth", month: 120 },
+      [corridorLoan],
+    );
+    // 2026-11 to 2030-06 is 43 months
+    expect(s.rateStartMonth).toBe(43);
+  });
+
+  it("treats persisted usedThisYearCents as unmodified until user changes it", () => {
+    const initial = createFreeMoneyState([corridorLoan], "2026-11-19");
+    expect(initial.usedThisYearCents).toBe(250_000);
+    expect(isFreeMoneyAdvancedModified(initial, corridorLoan)).toBe(false);
+
+    const modified = freeMoneyReducer(
+      initial,
+      { type: "setField", field: "usedThisYearCents", value: 300_000 },
+      [corridorLoan],
+    );
+    expect(isFreeMoneyAdvancedModified(modified, corridorLoan)).toBe(true);
   });
 });

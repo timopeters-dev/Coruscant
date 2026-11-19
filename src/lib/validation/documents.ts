@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_RATE_CHANGE_COUNT } from "@/lib/domain/loan-options";
 import {
   basisPointsSchema,
   contractCategorySchema,
@@ -6,7 +7,10 @@ import {
   nonNegativeSafeInt,
   nullableOptionalIsoDate,
   nullableOptionalTrimmedString,
+  optionRightSchema,
+  rateChangeScopeSchema,
   repaymentTypeSchema,
+  specialRepaymentBasisSchema,
 } from "@/lib/validation/contracts";
 
 export const documentStatusSchema = z.enum(["pending_review", "verified"]);
@@ -37,7 +41,10 @@ export const extractedContractSchema = z.object({
   monthlyRateCents: nonNegativeSafeInt.nullable().optional(),
   interestRateBps: basisPointsSchema.nullable().optional(),
   repaymentType: repaymentTypeSchema.nullable().optional(),
-  specialRepaymentMaxYearlyCents: nonNegativeSafeInt.nullable().optional(),
+  specialRepaymentMaxYearlyCents: nonNegativeSafeInt
+    .nullable()
+    .optional()
+    .catch(null),
   fixedInterestUntil: nullableOptionalIsoDate,
   targetSumCents: nonNegativeSafeInt.nullable().optional(),
   allocationThresholdPercent: z
@@ -50,6 +57,62 @@ export const extractedContractSchema = z.object({
   futureLoanInterestRateBps: basisPointsSchema.nullable().optional(),
   milestoneDate: nullableOptionalIsoDate,
   milestoneLabel: nullableOptionalTrimmedString(120),
+  // Slice 24: feldweise tolerant validierte Darlehensoptionen (nie Nutzungsfelder)
+  originalPrincipalCents: z
+    .number()
+    .int()
+    .min(1)
+    .max(Number.MAX_SAFE_INTEGER)
+    .nullable()
+    .optional()
+    .catch(null),
+  specialRepaymentRight: optionRightSchema.nullable().optional().catch(null),
+  specialRepaymentBasis: specialRepaymentBasisSchema
+    .nullable()
+    .optional()
+    .catch(null),
+  specialRepaymentPercentBps: z
+    .number()
+    .int()
+    .min(1)
+    .max(10_000)
+    .nullable()
+    .optional()
+    .catch(null),
+  rateChangeRight: optionRightSchema.nullable().optional().catch(null),
+  rateChangeTotalCount: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_RATE_CHANGE_COUNT)
+    .nullable()
+    .optional()
+    .catch(null),
+  rateChangeScope: rateChangeScopeSchema.nullable().optional().catch(null),
+  rateChangeMinRepaymentBps: z
+    .number()
+    .int()
+    .min(0)
+    .max(10_000)
+    .nullable()
+    .optional()
+    .catch(null),
+  rateChangeMaxRepaymentBps: z
+    .number()
+    .int()
+    .min(0)
+    .max(10_000)
+    .nullable()
+    .optional()
+    .catch(null),
+  rateChangeMinMonthlyCents: nonNegativeSafeInt
+    .nullable()
+    .optional()
+    .catch(null),
+  rateChangeMaxMonthlyCents: nonNegativeSafeInt
+    .nullable()
+    .optional()
+    .catch(null),
 });
 
 export type ExtractedContract = z.infer<typeof extractedContractSchema>;
@@ -217,12 +280,63 @@ export const documentUpdateSchema = documentMetadataBaseObject
 
 export type DocumentUpdateInput = z.infer<typeof documentUpdateSchema>;
 
+export const verifyLoanOptionsSchema = z
+  .object({
+    originalPrincipalCents: z
+      .number()
+      .int()
+      .min(1)
+      .max(Number.MAX_SAFE_INTEGER)
+      .nullable()
+      .optional(),
+    specialRepaymentRight: optionRightSchema.nullable().optional(),
+    specialRepaymentBasis: specialRepaymentBasisSchema.nullable().optional(),
+    specialRepaymentMaxYearlyCents: nonNegativeSafeInt.nullable().optional(),
+    specialRepaymentPercentBps: z
+      .number()
+      .int()
+      .min(1)
+      .max(10_000)
+      .nullable()
+      .optional(),
+    rateChangeRight: optionRightSchema.nullable().optional(),
+    rateChangeTotalCount: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_RATE_CHANGE_COUNT)
+      .nullable()
+      .optional(),
+    rateChangeScope: rateChangeScopeSchema.nullable().optional(),
+    rateChangeMinRepaymentBps: z
+      .number()
+      .int()
+      .min(0)
+      .max(10_000)
+      .nullable()
+      .optional(),
+    rateChangeMaxRepaymentBps: z
+      .number()
+      .int()
+      .min(0)
+      .max(10_000)
+      .nullable()
+      .optional(),
+    rateChangeMinMonthlyCents: nonNegativeSafeInt.nullable().optional(),
+    rateChangeMaxMonthlyCents: nonNegativeSafeInt.nullable().optional(),
+  })
+  .strict();
+
+export type VerifyLoanOptionsPatch = z.infer<typeof verifyLoanOptionsSchema>;
+
 export const documentVerifySchema = documentMetadataBaseObject
   .extend({
     calibrateContract: z.boolean().default(false),
     calibratedBalanceCents: nonNegativeSafeInt.nullable().optional(),
     calibrationDate: nullableOptionalIsoDate,
     allowOlderCalibrationDate: z.boolean().default(false),
+    applyLoanOptions: z.boolean().default(false),
+    loanOptions: verifyLoanOptionsSchema.nullable().optional(),
   })
   .superRefine((data, ctx) => {
     validateDeductibleAgainstTotal(
@@ -251,6 +365,24 @@ export const documentVerifySchema = documentMetadataBaseObject
         });
       }
     }
+
+    if (data.applyLoanOptions) {
+      if (!data.linkedContractId) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["linkedContractId"],
+          message:
+            "Für die Übernahme von Darlehensoptionen muss ein Kredit verknüpft sein.",
+        });
+      }
+      if (!data.loanOptions) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["loanOptions"],
+          message: "Keine Darlehensoptionen zum Übernehmen übergeben.",
+        });
+      }
+    }
   })
   .transform((data) => ({
     ...normalizeDocumentMetadata(data),
@@ -258,6 +390,8 @@ export const documentVerifySchema = documentMetadataBaseObject
     calibratedBalanceCents: data.calibratedBalanceCents ?? null,
     calibrationDate: data.calibrationDate ?? null,
     allowOlderCalibrationDate: data.allowOlderCalibrationDate,
+    applyLoanOptions: data.applyLoanOptions,
+    loanOptions: data.applyLoanOptions ? (data.loanOptions ?? null) : null,
   }));
 
 export type DocumentVerifyInput = z.infer<typeof documentVerifySchema>;

@@ -20,6 +20,7 @@ interface SliderFieldProps {
   onChange: (value: number) => void;
   kind: "euro" | "percent" | "years" | "months";
   hint?: string;
+  disabled?: boolean;
 }
 
 /**
@@ -36,6 +37,7 @@ export function SliderField({
   onChange,
   kind,
   hint,
+  disabled = false,
 }: SliderFieldProps) {
   const format =
     kind === "euro"
@@ -70,16 +72,18 @@ export function SliderField({
           min={min}
           max={max}
           step={step}
+          disabled={disabled}
           value={Math.min(max, Math.max(min, value))}
           onChange={(e) => {
             setDraft(null);
             onChange(Number(e.target.value));
           }}
-          className="h-2 min-w-0 flex-1 accent-[var(--accent)]"
+          className="h-2 min-w-0 flex-1 accent-[var(--accent)] disabled:opacity-50"
         />
         <div className="relative w-32 shrink-0">
           <Input
             aria-label={`${label} (Eingabe)`}
+            disabled={disabled}
             inputMode={
               kind === "years" || kind === "months" ? "numeric" : "decimal"
             }

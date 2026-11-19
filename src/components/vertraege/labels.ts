@@ -170,6 +170,7 @@ export const AMORTIZATION_MARKER_LABELS: Record<AmortizationMarkerKind, string> 
   allocation_threshold: "Zuteilungsschwelle",
   target_reached: "Zielsumme erreicht",
   special_repayment: "Sondertilgung",
+  rate_change: "Ratenänderung",
 };
 
 export function formatMonthYearDE(isoDate: string): string {

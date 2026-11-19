@@ -7,6 +7,7 @@ import {
   formatRecommendationNote,
   formatRecommendationReason,
 } from "./recommendation-text";
+import { findCentLikeNumbers } from "./recommendation-llm";
 import { formatRecommendationReason as reExportedReason } from "@/components/planung/recommendation-text";
 
 describe("recommendation-text", () => {
@@ -76,12 +77,34 @@ describe("recommendation-text", () => {
         allocatedCents: 10_000,
         targetMonth: "2027-06",
       },
+      {
+        code: "RATE_INCREASE_BEATS_ETF",
+        interestRateBps: 450,
+        breakEvenBps: 600,
+        expectedReturnBps: 600,
+        safetyMarginBps: 100,
+        currentMonthlyRateCents: 100_000,
+        newMonthlyRateCents: 130_000,
+        remainingChangesAfter: 1,
+        latestChangeDate: "2036-01-01",
+      },
+      { code: "RATE_CHANGE_CORRIDOR_LIMIT", maxMonthlyCents: 150_000 },
+      { code: "RATE_CHANGE_SHARE_LIMIT", shareBps: 5000 },
+      { code: "RATE_CHANGE_COUNT_UNKNOWN" },
+      {
+        code: "PREPAYMENT_CAP_PERCENT_OF_BALANCE",
+        percentBps: 500,
+        capCents: 1_000_000,
+      },
     ];
 
     for (const r of reasons) {
       const text = formatRecommendationReason(r);
       expect(text.trim().length).toBeGreaterThan(0);
       expect(text.toLowerCase()).not.toContain("cent");
+      expect(
+        findCentLikeNumbers([text], [100_000, 130_000, 150_000, 1_000_000]),
+      ).toEqual([]);
     }
   });
 
@@ -96,6 +119,30 @@ describe("recommendation-text", () => {
       { code: "LOAN_NO_PREPAYMENT_RIGHT", loanId: "loan-1" },
       { code: "LOAN_RATE_BELOW_INTEREST", loanId: "loan-1" },
       { code: "POT_DUE_ONE_TIME", potId: "pot-1", shortfallCents: 50_000 },
+      {
+        code: "RATE_DECREASE_POSSIBLE",
+        loanId: "loan-1",
+        currentMonthlyRateCents: 100_000,
+        minMonthlyCents: 70_000,
+        reliefCents: 30_000,
+      },
+      {
+        code: "RATE_CHANGE_ALTERNATIVE",
+        loanId: "loan-1",
+        remainingChanges: 2,
+        maxMonthlyCents: 150_000,
+      },
+      { code: "RATE_CHANGE_RIGHT_UNKNOWN", loanId: "loan-1" },
+      {
+        code: "RATE_CHANGE_SKIPPED_FIXED_END_SOON",
+        loanId: "loan-1",
+        fixedInterestUntil: "2027-06-01",
+      },
+      {
+        code: "SPECIAL_REPAYMENT_AMOUNT_UNKNOWN",
+        loanId: "loan-1",
+        missingOriginalPrincipal: true,
+      },
     ];
     const labels = {
       potNames: { "pot-1": "Urlaub" },
@@ -106,6 +153,9 @@ describe("recommendation-text", () => {
       const text = formatRecommendationNote(n, labels);
       expect(text.trim().length).toBeGreaterThan(0);
       expect(text.toLowerCase()).not.toContain("cent");
+      expect(
+        findCentLikeNumbers([text], [100_000, 70_000, 30_000, 150_000]),
+      ).toEqual([]);
     }
   });
 

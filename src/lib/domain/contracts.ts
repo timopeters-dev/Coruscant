@@ -4,6 +4,13 @@ import {
   parseIsoDate,
 } from "./date";
 import {
+  getLoanOptions,
+  type OptionRight,
+  type RateChangeScope,
+  type SpecialRepaymentBasis,
+  validateLoanOptions,
+} from "./loan-options";
+import {
   assertNonNegativeInteger,
   assertSafeInteger,
   roundHalfUpBigInt,
@@ -29,6 +36,99 @@ export interface DomainContract {
   targetSumCents?: number | null;
   allocationThresholdPercent?: number | null;
   specialRepaymentMaxYearlyCents?: number | null;
+  originalPrincipalCents?: number | null;
+  specialRepaymentRight?: OptionRight | null;
+  specialRepaymentBasis?: SpecialRepaymentBasis | null;
+  specialRepaymentPercentBps?: number | null;
+  specialRepaymentUsedCents?: number | null;
+  specialRepaymentUsedYear?: number | null;
+  rateChangeRight?: OptionRight | null;
+  rateChangeTotalCount?: number | null;
+  rateChangeScope?: RateChangeScope | null;
+  rateChangeUsedCount?: number | null;
+  rateChangeMinRepaymentBps?: number | null;
+  rateChangeMaxRepaymentBps?: number | null;
+  rateChangeMinMonthlyCents?: number | null;
+  rateChangeMaxMonthlyCents?: number | null;
+  loanOptionsNote?: string | null;
+}
+
+/**
+ * Structural contract record shape satisfied by FinancialContractRow (DB/API)
+ * without importing DB types into the domain layer.
+ */
+export interface ContractRecordLike {
+  id: string;
+  name: string;
+  category: ContractCategory;
+  status: ContractStatus;
+  currentBalanceCents: number;
+  balanceAsOfDate: string;
+  monthlyRateCents: number;
+  interestRateBps: number;
+  repaymentType?: RepaymentType | null;
+  milestoneDate?: string | null;
+  milestoneLabel?: string | null;
+  fixedInterestUntil?: string | null;
+  targetSumCents?: number | null;
+  allocationThresholdPercent?: number | null;
+  specialRepaymentMaxYearlyCents?: number | null;
+  originalPrincipalCents?: number | null;
+  specialRepaymentRight?: OptionRight | null;
+  specialRepaymentBasis?: SpecialRepaymentBasis | null;
+  specialRepaymentPercentBps?: number | null;
+  specialRepaymentUsedCents?: number | null;
+  specialRepaymentUsedYear?: number | null;
+  rateChangeRight?: OptionRight | null;
+  rateChangeTotalCount?: number | null;
+  rateChangeScope?: RateChangeScope | null;
+  rateChangeUsedCount?: number | null;
+  rateChangeMinRepaymentBps?: number | null;
+  rateChangeMaxRepaymentBps?: number | null;
+  rateChangeMinMonthlyCents?: number | null;
+  rateChangeMaxMonthlyCents?: number | null;
+  loanOptionsNote?: string | null;
+}
+
+/**
+ * Single authoritative mapper from persisted/API contract records to DomainContract.
+ */
+export function contractRecordToDomain(
+  record: ContractRecordLike,
+): DomainContract {
+  return {
+    id: record.id,
+    name: record.name,
+    category: record.category,
+    status: record.status,
+    currentBalanceCents: record.currentBalanceCents,
+    balanceAsOfDate: record.balanceAsOfDate,
+    monthlyRateCents: record.monthlyRateCents,
+    interestRateBps: record.interestRateBps,
+    repaymentType: record.repaymentType ?? null,
+    milestoneDate: record.milestoneDate ?? null,
+    milestoneLabel: record.milestoneLabel ?? null,
+    fixedInterestUntil: record.fixedInterestUntil ?? null,
+    targetSumCents: record.targetSumCents ?? null,
+    allocationThresholdPercent: record.allocationThresholdPercent ?? null,
+    specialRepaymentMaxYearlyCents:
+      record.specialRepaymentMaxYearlyCents ?? null,
+    originalPrincipalCents: record.originalPrincipalCents ?? null,
+    specialRepaymentRight: record.specialRepaymentRight ?? null,
+    specialRepaymentBasis: record.specialRepaymentBasis ?? null,
+    specialRepaymentPercentBps: record.specialRepaymentPercentBps ?? null,
+    specialRepaymentUsedCents: record.specialRepaymentUsedCents ?? null,
+    specialRepaymentUsedYear: record.specialRepaymentUsedYear ?? null,
+    rateChangeRight: record.rateChangeRight ?? null,
+    rateChangeTotalCount: record.rateChangeTotalCount ?? null,
+    rateChangeScope: record.rateChangeScope ?? null,
+    rateChangeUsedCount: record.rateChangeUsedCount ?? null,
+    rateChangeMinRepaymentBps: record.rateChangeMinRepaymentBps ?? null,
+    rateChangeMaxRepaymentBps: record.rateChangeMaxRepaymentBps ?? null,
+    rateChangeMinMonthlyCents: record.rateChangeMinMonthlyCents ?? null,
+    rateChangeMaxMonthlyCents: record.rateChangeMaxMonthlyCents ?? null,
+    loanOptionsNote: record.loanOptionsNote ?? null,
+  };
 }
 
 export interface ContractStepInput {
@@ -129,6 +229,14 @@ export function validateContract(contract: DomainContract): void {
         `allocationThresholdPercent must be between 0 and 100, received: ${threshold}`,
       );
     }
+  }
+  if (contract.category === "loan") {
+    validateLoanOptions(getLoanOptions(contract), {
+      category: contract.category,
+      repaymentType: contract.repaymentType,
+      currentBalanceCents: contract.currentBalanceCents,
+      interestRateBps: contract.interestRateBps,
+    });
   }
 }
 
