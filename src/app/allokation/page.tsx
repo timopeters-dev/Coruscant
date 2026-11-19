@@ -1,4 +1,5 @@
 import { AllokationWorkspace } from "@/components/allokation/allokation-workspace";
+import { parseAllocationPrefill } from "@/components/allokation/allocation-prefill";
 import {
   getAllocationSettings,
   getPendingTransferCentsByPotId,
@@ -23,11 +24,24 @@ import { resolveHouseholdDataForWorkspace } from "@/lib/integrations/household-d
 
 export const dynamic = "force-dynamic";
 
-export default function AllokationPage() {
+interface AllokationPageProps {
+  searchParams?: Promise<{
+    verteilen?: string | string[];
+    posten?: string | string[];
+  }>;
+}
+
+export default async function AllokationPage({
+  searchParams,
+}: AllokationPageProps) {
+  const resolved = searchParams ? await searchParams : {};
   const manualItems = listManualCashflowItems();
   const contracts = listContracts();
   const properties = listProperties();
   const pots = listPots();
+  const initialPrefill = parseAllocationPrefill(resolved, pots);
+  const prefillInvalid =
+    resolved.verteilen !== undefined && initialPrefill === null;
   const recentAllocations = listRecentPotAllocations(10);
   const pendingTransferCentsByPotId = Object.fromEntries(
     getPendingTransferCentsByPotId(),
@@ -90,6 +104,8 @@ export default function AllokationPage() {
       properties={properties}
       contracts={contracts}
       initialSettings={initialSettings}
+      initialPrefill={initialPrefill}
+      prefillInvalid={prefillInvalid}
       householdData={{
         household: resolvedHousehold.household,
         isDummy: resolvedHousehold.isDummy,

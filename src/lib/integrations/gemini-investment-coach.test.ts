@@ -1,6 +1,8 @@
+import type { RecommendationLlmView } from "@/lib/domain/recommendation-llm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   COACH_SYSTEM_PROMPT,
+  EXPLAIN_SCHEMA_PROMPT,
   createGeminiInvestmentCoach,
 } from "./gemini-investment-coach";
 
@@ -54,9 +56,11 @@ function bodyOf(fetchFn: ReturnType<typeof vi.fn>, call = 0) {
 }
 
 describe("COACH_SYSTEM_PROMPT", () => {
-  it("enthält die Leitplanken", () => {
+  it("enthält die Leitplanken und kein Cent", () => {
     expect(COACH_SYSTEM_PROMPT).toContain("keine Kauf-, Verkaufs- oder Halteempfehlung");
     expect(COACH_SYSTEM_PROMPT).toContain("keine Anlageberatung");
+    expect(COACH_SYSTEM_PROMPT.toLowerCase()).not.toContain("cent");
+    expect(EXPLAIN_SCHEMA_PROMPT).toContain("Platzhalter");
   });
 });
 
@@ -216,5 +220,121 @@ describe("chat", () => {
         { role: "user", text: "Hallo" },
       ]),
     ).toMatchObject({ ok: false, code: "invalid_payload" });
+  });
+
+  it("wiederholt bei Cent-ähnlicher Zahl in answer/summary genau einmal", async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        geminiResponse({ ...VALID_REPLY, answer: "Wert ist 1234500." }),
+      )
+      .mockResolvedValueOnce(
+        geminiResponse({ ...VALID_REPLY, answer: "Wert ist 12.345 €." }),
+      );
+    const res = await makeCoach(fetchFn as unknown as typeof fetch).chat(
+      CONTEXT,
+      [{ role: "user", text: "Hallo" }],
+      [1234500],
+    );
+    expect(res).toMatchObject({ ok: true, data: { answer: "Wert ist 12.345 €." } });
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+
+    const alwaysCent = vi
+      .fn()
+      .mockResolvedValue(
+        geminiResponse({ ...VALID_ASSESSMENT, summary: "Summe 1234500." }),
+      );
+    const assessRes = await makeCoach(alwaysCent as unknown as typeof fetch).assess(
+      CONTEXT,
+      [1234500],
+    );
+    expect(assessRes).toMatchObject({ ok: false, code: "invalid_payload" });
+    expect(alwaysCent).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("explain", () => {
+  const VIEW: RecommendationLlmView = {
+    schemaVersion: 1,
+    art: "einmalbetrag",
+    posten: [
+      {
+        ref: "P1",
+        art: "notgroschen",
+        ziel: "NOTGROSCHEN",
+        gruende: [{ code: "EMERGENCY_FUND_GAP", platzhalter: ["P1.betrag"] }],
+      },
+    ],
+    hinweise: [],
+    annahmen: { platzhalter: ["ANNAHME.rendite"] },
+    werte: {
+      BETRAG: "2.000 €",
+      "P1.betrag": "2.000 €",
+      "ANNAHME.rendite": "6,00 %",
+    },
+    datenqualitaet: { isDummyHousehold: false, horizonEstimated: false },
+  };
+
+  it("macht bei Verstoß genau 1 Retry mit Korrekturhinweis ohne Zahlen aus Versuch 1", async () => {
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        geminiResponse({
+          summary: "Lege 3.500 € zurück.",
+          items: [{ ref: "P1", text: "Für P1: {P1.betrag}." }],
+          caveats: [],
+        }),
+      )
+      .mockResolvedValueOnce(
+        geminiResponse({
+          summary: "Wir legen {BETRAG} zurück.",
+          items: [{ ref: "P1", text: "Für den Notgroschen: {P1.betrag}." }],
+          caveats: [],
+        }),
+      );
+
+    const res = await makeCoach(fetchFn as unknown as typeof fetch).explain(
+      JSON.stringify(VIEW),
+      VIEW,
+      [200_000],
+    );
+    expect(res).toMatchObject({
+      ok: true,
+      data: {
+        summary: "Wir legen 2.000 € zurück.",
+        items: [{ ref: "P1", text: "Für den Notgroschen: 2.000 €." }],
+      },
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    const secondBody = bodyOf(fetchFn, 1);
+    expect(secondBody.contents).toHaveLength(2);
+    expect(secondBody.contents[1]!.parts[0]!.text).toContain("literal_amount");
+    expect(secondBody.contents[1]!.parts[0]!.text).not.toContain("3.500");
+  });
+
+  it("liefert invalid_payload nach 2 ungültigen Versuchen", async () => {
+    const fetchFn = vi.fn().mockResolvedValue(
+      geminiResponse({
+        summary: "Lege 9.999 € zurück.",
+        items: [{ ref: "P1", text: "{P1.betrag}" }],
+        caveats: [],
+      }),
+    );
+    const res = await makeCoach(fetchFn as unknown as typeof fetch).explain(
+      JSON.stringify(VIEW),
+      VIEW,
+    );
+    expect(res).toMatchObject({ ok: false, code: "invalid_payload" });
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("wiederholt bei Transportfehler nicht (1 Aufruf)", async () => {
+    const generateJson = vi
+      .fn()
+      .mockResolvedValue({ ok: false, code: "timeout", message: "timeout" });
+    const coach = createGeminiInvestmentCoach({}, { generateJson });
+    const res = await coach.explain(JSON.stringify(VIEW), VIEW);
+    expect(res).toMatchObject({ ok: false, code: "timeout" });
+    expect(generateJson).toHaveBeenCalledTimes(1);
   });
 });

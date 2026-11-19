@@ -82,6 +82,7 @@ export function loadInvestmentContextInput(
  */
 export function buildRefLabelMap(
   input: InvestmentContextInput,
+  loanOrder: readonly string[] = [],
 ): Record<string, string> {
   const labels: Record<string, string> = {};
 
@@ -100,6 +101,16 @@ export function buildRefLabelMap(
         m.label === m.contractName ? m.contractName : `${m.contractName} · ${m.label}`;
     },
   );
+
+  if (loanOrder.length > 0) {
+    const contractById = new Map(input.contracts.map((c) => [c.id, c]));
+    loanOrder.forEach((loanId, i) => {
+      const contract = contractById.get(loanId);
+      if (contract) {
+        labels[`KREDIT-${i + 1}`] = contract.name;
+      }
+    });
+  }
 
   labels.NOTGROSCHEN = "Notgroschen";
   return labels;

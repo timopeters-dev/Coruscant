@@ -153,29 +153,7 @@ export function formatAxisCentsDE(cents: number): string {
   return `${sign}${deIntegerFormatter.format(Number(absEuros))} €`;
 }
 
-/**
- * Formats an integer cent amount rounded half-up to whole Euros.
- * Uses Unicode minus for negative values and omits sign on 0 €.
- */
-export function formatWholeEuroDE(
-  cents: number,
-  options?: { showPlusSign?: boolean },
-): string {
-  const safe = assertSafeInteger(cents, "cents");
-  const abs = BigInt(Math.abs(safe));
-  const roundedEuros = Number((abs * 2n + 100n) / 200n);
-
-  let sign = "";
-  if (roundedEuros > 0) {
-    if (safe < 0) {
-      sign = UNICODE_MINUS;
-    } else if (options?.showPlusSign) {
-      sign = "+";
-    }
-  }
-
-  return `${sign}${deIntegerFormatter.format(roundedEuros)} €`;
-}
+export { formatWholeEuroDE } from "@/lib/domain/money";
 
 export interface ChartTick {
   x: number;

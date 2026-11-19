@@ -1,10 +1,16 @@
 import { parseIsoDate, parseYearMonth } from "@/lib/domain/date";
 import {
+  DEFAULT_RECOMMENDATION_ASSUMPTIONS,
+  type RecommendationAssumptions,
+} from "@/lib/domain/recommendation";
+import {
   ALLOWED_CHURCH_TAX_BPS,
   DEFAULT_CASHFLOW_HORIZON_MONTHS,
   DEFAULT_SAVER_ALLOWANCE_CENTS,
+  MAX_ETF_RETURN_BPS,
   MAX_SCENARIO_MONTHS,
   MAX_SAVER_ALLOWANCE_CENTS,
+  MIN_ETF_RETURN_BPS,
   findBreakEvenReturnBps,
   simulateCashflowChange,
   simulatePrepaymentVsEtf,
@@ -18,8 +24,14 @@ import {
 import type { DomainPot } from "@/lib/domain/waterfall";
 
 export type PlanningEntry = "geld" | "gehalt" | "coach";
+export type PlanningView = "empfehlung" | "sparrate" | "vergleich";
 
 const ALLOWED_ENTRIES = new Set<PlanningEntry>(["geld", "gehalt", "coach"]);
+const ALLOWED_VIEWS = new Set<PlanningView>([
+  "empfehlung",
+  "sparrate",
+  "vergleich",
+]);
 
 export function parsePlanningEntry(
   raw: string | string[] | null | undefined,
@@ -33,8 +45,27 @@ export function parsePlanningEntry(
   return null;
 }
 
-export function buildPlanningHref(entry: PlanningEntry | null): string {
-  return entry ? `/planung?frage=${entry}` : "/planung";
+export function parsePlanningView(
+  raw: string | string[] | null | undefined,
+): PlanningView {
+  const first = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof first !== "string") return "empfehlung";
+  const trimmed = first.trim();
+  if (ALLOWED_VIEWS.has(trimmed as PlanningView)) {
+    return trimmed as PlanningView;
+  }
+  return "empfehlung";
+}
+
+export function buildPlanningHref(
+  entry: PlanningEntry | null,
+  view?: PlanningView,
+): string {
+  if (!entry) return "/planung";
+  if (entry === "geld" && view && view !== "empfehlung") {
+    return `/planung?frage=geld&ansicht=${view}`;
+  }
+  return `/planung?frage=${entry}`;
 }
 
 export interface LoanOption {
@@ -358,4 +389,137 @@ export function deriveSalaryView(
 
 export function isSalaryAdvancedModified(s: SalaryState): boolean {
   return s.horizonYears !== DEFAULT_SALARY_HORIZON_YEARS;
+}
+
+// ---------------------------------------------------------------------------
+// Empfehlung ("Wohin mit X €?" + "Sparrate empfehlen")
+// ---------------------------------------------------------------------------
+
+export interface RecommendationUiState {
+  amountCents: number;
+  assumptions: RecommendationAssumptions;
+}
+
+export const RECOMMENDATION_DEFAULT_AMOUNT_CENTS = 1_000_000;
+export const RECOMMENDATION_MAX_AMOUNT_CENTS = 1_000_000_000;
+
+export function createRecommendationUiState(): RecommendationUiState {
+  return {
+    amountCents: RECOMMENDATION_DEFAULT_AMOUNT_CENTS,
+    assumptions: {
+      ...DEFAULT_RECOMMENDATION_ASSUMPTIONS,
+      specialRepaymentUsedThisYearCentsByLoanId: {},
+    },
+  };
+}
+
+export type RecommendationUiAction =
+  | { type: "setAmount"; value: number }
+  | {
+      type: "setAssumption";
+      field: Exclude<
+        keyof RecommendationAssumptions,
+        "specialRepaymentUsedThisYearCentsByLoanId"
+      >;
+      value: number;
+    }
+  | { type: "setLoanUsedThisYear"; loanId: string; value: number }
+  | { type: "reset" };
+
+export function recommendationReducer(
+  s: RecommendationUiState,
+  a: RecommendationUiAction,
+): RecommendationUiState {
+  switch (a.type) {
+    case "setAmount": {
+      if (!Number.isSafeInteger(a.value)) return s;
+      const clamped = Math.min(
+        RECOMMENDATION_MAX_AMOUNT_CENTS,
+        Math.max(0, a.value),
+      );
+      if (s.amountCents === clamped) return s;
+      return { ...s, amountCents: clamped };
+    }
+    case "setAssumption": {
+      if (!Number.isSafeInteger(a.value)) return s;
+      const v = a.value;
+      switch (a.field) {
+        case "emergencyFundMonths":
+          if (v < 1 || v > 12) return s;
+          break;
+        case "etfAnnualReturnBps":
+          if (v < MIN_ETF_RETURN_BPS || v > MAX_ETF_RETURN_BPS) return s;
+          break;
+        case "safetyMarginBps":
+          if (v < 0 || v > 500) return s;
+          break;
+        case "saverAllowanceCents":
+          if (v < 0 || v > MAX_SAVER_ALLOWANCE_CENTS) return s;
+          break;
+        case "churchTaxBps":
+          if (!(ALLOWED_CHURCH_TAX_BPS as readonly number[]).includes(v)) {
+            return s;
+          }
+          break;
+        case "shortHorizonMonths":
+          if (v < 1 || v > 120) return s;
+          break;
+        case "savingsBufferBps":
+          if (v < 0 || v > 5000) return s;
+          break;
+        case "emergencyFillMonths":
+          if (v < 1 || v > 60) return s;
+          break;
+      }
+      if (s.assumptions[a.field] === v) return s;
+      return {
+        ...s,
+        assumptions: {
+          ...s.assumptions,
+          [a.field]: v,
+        },
+      };
+    }
+    case "setLoanUsedThisYear": {
+      if (!a.loanId || !Number.isSafeInteger(a.value) || a.value < 0) {
+        return s;
+      }
+      const prev =
+        s.assumptions.specialRepaymentUsedThisYearCentsByLoanId[a.loanId] ?? 0;
+      if (prev === a.value) return s;
+      return {
+        ...s,
+        assumptions: {
+          ...s.assumptions,
+          specialRepaymentUsedThisYearCentsByLoanId: {
+            ...s.assumptions.specialRepaymentUsedThisYearCentsByLoanId,
+            [a.loanId]: a.value,
+          },
+        },
+      };
+    }
+    case "reset": {
+      return createRecommendationUiState();
+    }
+  }
+}
+
+export function isRecommendationAssumptionsModified(
+  s: RecommendationUiState,
+): boolean {
+  const a = s.assumptions;
+  const d = DEFAULT_RECOMMENDATION_ASSUMPTIONS;
+  return (
+    a.emergencyFundMonths !== d.emergencyFundMonths ||
+    a.etfAnnualReturnBps !== d.etfAnnualReturnBps ||
+    a.safetyMarginBps !== d.safetyMarginBps ||
+    a.saverAllowanceCents !== d.saverAllowanceCents ||
+    a.churchTaxBps !== d.churchTaxBps ||
+    a.shortHorizonMonths !== d.shortHorizonMonths ||
+    a.savingsBufferBps !== d.savingsBufferBps ||
+    a.emergencyFillMonths !== d.emergencyFillMonths ||
+    Object.values(a.specialRepaymentUsedThisYearCentsByLoanId).some(
+      (v) => v > 0,
+    )
+  );
 }

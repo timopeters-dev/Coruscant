@@ -20,9 +20,11 @@ const FOCUS_OFFSET =
 export function AppShell({
   children,
   finanzCockpitUrl,
+  devMode = false,
 }: {
   children: React.ReactNode;
   finanzCockpitUrl?: string | null;
+  devMode?: boolean;
 }) {
   const pathname = usePathname();
 
@@ -42,6 +44,14 @@ export function AppShell({
             >
               <CoruscantLogo className="h-6 w-6 shrink-0 text-[var(--accent)]" />
               <span className="hidden min-[400px]:inline">Coruscant</span>
+              {devMode ? (
+                <span
+                  aria-label="Entwicklungsmodus"
+                  className="rounded-md border border-[var(--amber)]/50 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-[var(--amber)] print:hidden"
+                >
+                  DEV
+                </span>
+              ) : null}
             </Link>
 
             <nav

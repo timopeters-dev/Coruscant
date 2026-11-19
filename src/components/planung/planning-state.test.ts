@@ -3,6 +3,7 @@ import type { DomainPot } from "@/lib/domain/waterfall";
 import {
   buildPlanningHref,
   createFreeMoneyState,
+  createRecommendationUiState,
   createSalaryState,
   deriveFreeMoneyView,
   deriveSalaryView,
@@ -10,6 +11,8 @@ import {
   isFreeMoneyAdvancedModified,
   isSalaryAdvancedModified,
   parsePlanningEntry,
+  parsePlanningView,
+  recommendationReducer,
   safeBreakEven,
   salaryReducer,
   type LoanOption,
@@ -300,5 +303,54 @@ describe("salaryReducer & deriveSalaryView", () => {
     if (noTargetPots.kind === "ok") {
       expect(noTargetPots.targetPotCount).toBe(0);
     }
+  });
+});
+
+describe("parsePlanningView, buildPlanningHref & recommendationReducer", () => {
+  it("parses valid, invalid, and array ansicht params", () => {
+    expect(parsePlanningView("empfehlung")).toBe("empfehlung");
+    expect(parsePlanningView("sparrate")).toBe("sparrate");
+    expect(parsePlanningView("vergleich")).toBe("vergleich");
+    expect(parsePlanningView("ungueltig")).toBe("empfehlung");
+    expect(parsePlanningView(["sparrate", "vergleich"])).toBe("sparrate");
+    expect(parsePlanningView(null)).toBe("empfehlung");
+  });
+
+  it("builds hrefs with optional view", () => {
+    expect(buildPlanningHref("geld", "sparrate")).toBe(
+      "/planung?frage=geld&ansicht=sparrate",
+    );
+    expect(buildPlanningHref("geld", "empfehlung")).toBe("/planung?frage=geld");
+  });
+
+  it("clamps negative amount to 0, ignores out-of-bounds assumptions, and resets", () => {
+    let s = createRecommendationUiState();
+    s = recommendationReducer(s, { type: "setAmount", value: -500 });
+    expect(s.amountCents).toBe(0);
+
+    const beforeInvalid = s;
+    s = recommendationReducer(s, {
+      type: "setAssumption",
+      field: "emergencyFundMonths",
+      value: 0,
+    });
+    expect(s).toBe(beforeInvalid);
+
+    s = recommendationReducer(s, {
+      type: "setAssumption",
+      field: "safetyMarginBps",
+      value: 600,
+    });
+    expect(s).toBe(beforeInvalid);
+
+    s = recommendationReducer(s, {
+      type: "setAssumption",
+      field: "etfAnnualReturnBps",
+      value: 700,
+    });
+    expect(s.assumptions.etfAnnualReturnBps).toBe(700);
+
+    s = recommendationReducer(s, { type: "reset" });
+    expect(s).toEqual(createRecommendationUiState());
   });
 });

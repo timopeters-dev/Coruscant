@@ -21,6 +21,7 @@ import {
   type WaterfallMode,
 } from "@/lib/domain/waterfall";
 import { cn } from "@/lib/utils";
+import type { AllocationPrefill } from "./allocation-prefill";
 
 interface AllocateModalProps {
   open: boolean;
@@ -29,6 +30,7 @@ interface AllocateModalProps {
   /** Planned but not yet synced transfers of linked pots (cents). */
   pendingTransferCentsByPotId: Record<string, number>;
   monthlySurplusCents: number;
+  prefill?: AllocationPrefill | null;
   onAllocated: (result: { transferPlanCount: number }) => void;
 }
 
@@ -38,6 +40,7 @@ export function AllocateModal({
   pots,
   pendingTransferCentsByPotId,
   monthlySurplusCents,
+  prefill,
   onAllocated,
 }: AllocateModalProps) {
   if (!open) {
@@ -52,17 +55,18 @@ export function AllocateModal({
 
   return (
     <AllocateModalInner
-      key={pots
+      key={`${pots
         .map(
           (p) =>
             `${p.id}:${p.updatedAt}:${pendingTransferCentsByPotId[p.id] ?? 0}`,
         )
-        .join("|")}
+        .join("|")}|prefill:${prefill ? prefill.amountCents : "none"}`}
       open={open}
       onOpenChange={onOpenChange}
       pots={effectivePots}
       pendingTransferCentsByPotId={pendingTransferCentsByPotId}
       monthlySurplusCents={monthlySurplusCents}
+      prefill={prefill}
       onAllocated={onAllocated}
     />
   );
@@ -90,27 +94,46 @@ function buildSuggestionMap(
   }
 }
 
+function buildPrefillMap(
+  pots: PotRow[],
+  prefill: AllocationPrefill,
+): Record<string, string> {
+  const byPot = new Map(prefill.entries.map((e) => [e.potId, e.amountCents]));
+  const map: Record<string, string> = {};
+  for (const pot of pots) {
+    map[pot.id] = centsToEuroInputString(byPot.get(pot.id) ?? 0);
+  }
+  return map;
+}
+
 function AllocateModalInner({
   open,
   onOpenChange,
   pots,
   pendingTransferCentsByPotId,
   monthlySurplusCents,
+  prefill,
   onAllocated,
 }: AllocateModalProps) {
   const defaultAmountCents = Math.max(0, monthlySurplusCents);
 
-  const [mode, setMode] = React.useState<WaterfallMode>("monthly");
+  const [mode, setMode] = React.useState<WaterfallMode>(
+    prefill ? "one_time" : "monthly",
+  );
   const [amountEuro, setAmountEuro] = React.useState<string>(
-    centsToEuroInputString(defaultAmountCents),
+    centsToEuroInputString(prefill ? prefill.amountCents : defaultAmountCents),
   );
   const [sourceLabel, setSourceLabel] = React.useState<string>(
-    "Monatsüberschuss",
+    prefill ? "Einmalzufluss" : "Monatsüberschuss",
   );
   const [potInputs, setPotInputs] = React.useState<Record<string, string>>(() =>
-    buildSuggestionMap(pots, defaultAmountCents, "monthly"),
+    prefill
+      ? buildPrefillMap(pots, prefill)
+      : buildSuggestionMap(pots, defaultAmountCents, "monthly"),
   );
-  const [isManualOverride, setIsManualOverride] = React.useState(false);
+  const [isManualOverride, setIsManualOverride] = React.useState(
+    Boolean(prefill),
+  );
   const [submitting, setSubmitting] = React.useState(false);
   const [submitError, setSubmitError] = React.useState<string | null>(null);
 
@@ -303,6 +326,12 @@ function AllocateModalInner({
       className="max-w-2xl"
     >
       <div className="space-y-5">
+        {prefill ? (
+          <p className="rounded-lg border border-[var(--accent)]/35 bg-[var(--accent)]/10 px-3 py-2 text-xs text-[var(--text-primary)]">
+            Übernommen aus <em>Wohin mit X €?</em>: nur Topf-Beträge;
+            Sondertilgung/ETF erledigst du direkt bei Bank/Depot.
+          </p>
+        ) : null}
         {/* Schritt 1: Modus, Betrag & Quelle */}
         <div className="space-y-3 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-3.5">
           <div className="flex flex-wrap items-center gap-2">

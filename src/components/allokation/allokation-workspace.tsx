@@ -54,6 +54,7 @@ import {
 import type { HouseholdSummary } from "@/lib/validation/external";
 import { cn } from "@/lib/utils";
 import { AllocateModal } from "./allocate-modal";
+import type { AllocationPrefill } from "./allocation-prefill";
 import { LegacyPlanItems } from "./legacy-plan-items";
 import { PotModal } from "./pot-modal";
 import { PotProgressBar } from "./pot-progress-bar";
@@ -83,6 +84,8 @@ interface AllokationWorkspaceProps {
   properties: PropertyRow[];
   contracts: FinancialContractRow[];
   initialSettings: AllocationSettingsState;
+  initialPrefill?: AllocationPrefill | null;
+  prefillInvalid?: boolean;
   householdData: HouseholdWorkspaceData;
 }
 
@@ -122,6 +125,8 @@ export function AllokationWorkspace({
   properties,
   contracts,
   initialSettings,
+  initialPrefill = null,
+  prefillInvalid = false,
   householdData,
 }: AllokationWorkspaceProps) {
   const router = useRouter();
@@ -138,7 +143,19 @@ export function AllokationWorkspace({
   const [potModalOpen, setPotModalOpen] = React.useState(false);
   const [editingPot, setEditingPot] = React.useState<PotRow | null>(null);
 
-  const [allocateModalOpen, setAllocateModalOpen] = React.useState(false);
+  const [activePrefill, setActivePrefill] =
+    React.useState<AllocationPrefill | null>(initialPrefill);
+  const [allocateModalOpen, setAllocateModalOpen] = React.useState(
+    Boolean(initialPrefill),
+  );
+  const [showInvalidPrefillNotice, setShowInvalidPrefillNotice] =
+    React.useState(prefillInvalid);
+
+  React.useEffect(() => {
+    if (prefillInvalid && typeof window !== "undefined") {
+      window.history.replaceState(null, "", "/allokation");
+    }
+  }, [prefillInvalid]);
   const [transferPlanNotice, setTransferPlanNotice] = React.useState<
     number | null
   >(null);
@@ -429,6 +446,19 @@ export function AllokationWorkspace({
       {actionError ? (
         <div className="rounded-lg border border-[var(--rose)]/35 bg-[var(--rose)]/10 px-4 py-2.5 text-xs text-[var(--rose)]">
           {actionError}
+        </div>
+      ) : null}
+
+      {showInvalidPrefillNotice ? (
+        <div className="flex items-center justify-between gap-2 rounded-lg border border-[var(--amber)]/40 bg-[var(--amber)]/10 px-4 py-2.5 text-xs text-[var(--text-primary)]">
+          <span>Übernahme nicht möglich – Töpfe haben sich geändert.</span>
+          <button
+            type="button"
+            onClick={() => setShowInvalidPrefillNotice(false)}
+            className="font-medium underline underline-offset-2"
+          >
+            Schließen
+          </button>
         </div>
       ) : null}
 
@@ -1388,12 +1418,25 @@ export function AllokationWorkspace({
 
       <AllocateModal
         open={allocateModalOpen}
-        onOpenChange={setAllocateModalOpen}
+        onOpenChange={(nextOpen) => {
+          setAllocateModalOpen(nextOpen);
+          if (!nextOpen && activePrefill) {
+            setActivePrefill(null);
+            if (typeof window !== "undefined") {
+              window.history.replaceState(null, "", "/allokation");
+            }
+          }
+        }}
         pots={pots}
         pendingTransferCentsByPotId={pendingTransferCentsByPotId}
         monthlySurplusCents={consolidatedSummary.monthlySurplusCents}
+        prefill={activePrefill}
         onAllocated={({ transferPlanCount }) => {
           setTransferPlanNotice(transferPlanCount > 0 ? transferPlanCount : null);
+          setActivePrefill(null);
+          if (typeof window !== "undefined") {
+            window.history.replaceState(null, "", "/allokation");
+          }
           router.refresh();
         }}
       />

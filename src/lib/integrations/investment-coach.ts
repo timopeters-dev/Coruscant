@@ -1,8 +1,10 @@
+import type { RecommendationLlmView } from "@/lib/domain/recommendation-llm";
 import type {
   CoachAssessment,
   CoachChatMessage,
   CoachChatReply,
 } from "@/lib/validation/coach";
+import type { RecommendationExplanation } from "@/lib/validation/recommendation";
 
 export type CoachErrorCode =
   | "not_configured"
@@ -21,9 +23,18 @@ export type CoachResult<T> =
     };
 
 export interface InvestmentCoach {
-  assess(contextJson: string): Promise<CoachResult<CoachAssessment>>;
+  assess(
+    contextJson: string,
+    rawCentValues?: readonly number[],
+  ): Promise<CoachResult<CoachAssessment>>;
   chat(
     contextJson: string,
     messages: CoachChatMessage[],
+    rawCentValues?: readonly number[],
   ): Promise<CoachResult<CoachChatReply>>;
+  explain(
+    viewJson: string,
+    view: RecommendationLlmView,
+    rawCentValues?: readonly number[],
+  ): Promise<CoachResult<RecommendationExplanation>>;
 }

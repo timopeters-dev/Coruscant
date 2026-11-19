@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { MessageCircleQuestion } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ interface InvestmentCoachCardProps {
   context: InvestmentContext;
   /** Ref → lokales Label; nur für die UI, geht nie an die KI. */
   refLabels: Record<string, string>;
+  showDebug?: boolean;
 }
 
 const SEGMENT_CLASS = {
@@ -31,6 +33,7 @@ const SEGMENT_CLASS = {
 export function InvestmentCoachCard({
   context,
   refLabels,
+  showDebug = false,
 }: InvestmentCoachCardProps) {
   const [open, setOpen] = React.useState(false);
   const usable = isInvestmentContextUsable(context);
@@ -53,7 +56,14 @@ export function InvestmentCoachCard({
             <p className="font-medium">Kein Haushalts-Depot vorhanden</p>
             <p>
               Sobald in finanz_cockpit ein Haushalts-Depot synchronisiert ist,
-              erscheint hier die Einordnung.
+              erscheint hier die Einordnung. Ohne Depot kannst du direkt{" "}
+              <Link
+                href="/planung?frage=geld"
+                className="font-medium text-[var(--text-primary)] underline underline-offset-4 hover:text-[var(--accent)]"
+              >
+                Freies Geld einsetzen
+              </Link>{" "}
+              nutzen.
             </p>
           </div>
         ) : (
@@ -150,6 +160,7 @@ export function InvestmentCoachCard({
           onOpenChange={setOpen}
           context={context}
           refLabels={refLabels}
+          showDebug={showDebug}
         />
       ) : null}
     </Card>

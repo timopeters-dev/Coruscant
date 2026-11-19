@@ -3,25 +3,35 @@
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import type { InvestmentContext } from "@/lib/domain/investment-context";
+import type { RecommendationState } from "@/lib/domain/recommendation";
 import type { DomainPot } from "@/lib/domain/waterfall";
+import { cn } from "@/lib/utils";
 import { CoachEntryPanel } from "./coach-entry-panel";
 import { FreeMoneyPanel } from "./free-money-panel";
 import { PlanningEntryPicker } from "./planning-entry-picker";
 import {
   buildPlanningHref,
   createFreeMoneyState,
+  createRecommendationUiState,
   createSalaryState,
   freeMoneyReducer,
   parsePlanningEntry,
+  parsePlanningView,
+  recommendationReducer,
   salaryReducer,
   type FreeMoneyAction,
   type LoanOption,
   type PlanningEntry,
+  type PlanningView,
 } from "./planning-state";
+import { RecommendationPanel } from "./recommendation-panel";
+import type { RecommendationLabels } from "./recommendation-text";
 import { SalaryPanel } from "./salary-panel";
+import { SavingsPanel } from "./savings-panel";
 
 interface PlanungWorkspaceProps {
   initialEntry?: PlanningEntry | null;
+  initialView?: PlanningView;
   asOfDate: string;
   loanOptions: LoanOption[];
   baseSurplusCents: number;
@@ -31,10 +41,20 @@ interface PlanungWorkspaceProps {
   startMonth: string;
   coachContext: InvestmentContext;
   coachRefLabels: Record<string, string>;
+  recommendationState?: RecommendationState;
+  recommendationLabels?: RecommendationLabels;
+  showDebug?: boolean;
 }
+
+const GELD_TABS: Array<{ id: PlanningView; label: string }> = [
+  { id: "empfehlung", label: "Wohin mit X €?" },
+  { id: "sparrate", label: "Sparrate empfehlen" },
+  { id: "vergleich", label: "Sondertilgung vs. ETF" },
+];
 
 export function PlanungWorkspace({
   initialEntry = null,
+  initialView = "empfehlung",
   asOfDate,
   loanOptions,
   baseSurplusCents,
@@ -44,14 +64,27 @@ export function PlanungWorkspace({
   startMonth,
   coachContext,
   coachRefLabels,
+  recommendationState,
+  recommendationLabels,
+  showDebug = false,
 }: PlanungWorkspaceProps) {
   const searchParams = useSearchParams();
   const activeEntry =
     searchParams !== null
       ? parsePlanningEntry(searchParams?.get("frage"))
       : initialEntry;
+  const urlView =
+    searchParams !== null
+      ? parsePlanningView(searchParams?.get("ansicht"))
+      : initialView;
+
+  const [viewOverride, setViewOverride] = React.useState<PlanningView | null>(
+    null,
+  );
+  const activeView = viewOverride ?? urlView;
 
   const navRef = React.useRef<HTMLElement | null>(null);
+  const tabRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
 
   const [freeMoneyState, freeMoneyDispatch] = React.useReducer(
     (s: ReturnType<typeof createFreeMoneyState>, a: FreeMoneyAction) =>
@@ -66,7 +99,59 @@ export function PlanungWorkspace({
     createSalaryState,
   );
 
+  const [recUiState, recUiDispatch] = React.useReducer(
+    recommendationReducer,
+    undefined,
+    createRecommendationUiState,
+  );
+
+  const fallbackRecommendationState = React.useMemo<RecommendationState>(
+    () =>
+      recommendationState ?? {
+        asOfDate,
+        monthlyExpensesCents: null,
+        monthlySurplusCents: baseSurplusCents,
+        pots: pots.map((p) => ({
+          id: p.id,
+          name: p.name,
+          priority: p.priority,
+          purpose: null,
+          currentCents: p.currentCents,
+          targetCents: p.targetCents,
+          targetDate: null,
+          ruleType: p.ruleType,
+          fixedMonthlyCents: p.fixedMonthlyCents,
+          remainderPercentage: p.remainderPercentage,
+          linkedContractId: null,
+        })),
+        loans: loanOptions.map((l) => ({
+          id: l.id,
+          balanceCents: l.defaults.loan.balanceCents,
+          interestRateBps: l.defaults.loan.interestRateBps,
+          monthlyRateCents: l.defaults.loan.monthlyRateCents,
+          repaymentType: l.defaults.loan.repaymentType,
+          specialRepaymentMaxYearlyCents:
+            l.defaults.loan.specialRepaymentMaxYearlyCents,
+          fixedInterestUntil: l.defaults.horizonEstimated
+            ? null
+            : l.defaults.horizonEndDate,
+          futureLoanInterestRateBps: null,
+        })),
+      },
+    [asOfDate, baseSurplusCents, loanOptions, pots, recommendationState],
+  );
+
+  const fallbackLabels = React.useMemo<RecommendationLabels>(() => {
+    if (recommendationLabels) return recommendationLabels;
+    const potNames: Record<string, string> = {};
+    for (const p of pots) potNames[p.id] = p.name;
+    const loanNames: Record<string, string> = {};
+    for (const l of loanOptions) loanNames[l.id] = l.name;
+    return { potNames, loanNames };
+  }, [loanOptions, pots, recommendationLabels]);
+
   const handleNavigate = (entry: PlanningEntry | null) => {
+    setViewOverride(null);
     window.history.pushState(null, "", buildPlanningHref(entry));
     requestAnimationFrame(() => {
       const el = navRef.current;
@@ -76,6 +161,29 @@ export function PlanungWorkspace({
         el.scrollIntoView({ block: "nearest" });
       }
     });
+  };
+
+  const handleSelectView = (view: PlanningView) => {
+    setViewOverride(view);
+    window.history.replaceState(null, "", buildPlanningHref("geld", view));
+  };
+
+  const handleTabKeyDown = (
+    idx: number,
+    e: React.KeyboardEvent<HTMLButtonElement>,
+  ) => {
+    let nextIdx: number | null = null;
+    if (e.key === "ArrowRight") {
+      nextIdx = (idx + 1) % GELD_TABS.length;
+    } else if (e.key === "ArrowLeft") {
+      nextIdx = (idx - 1 + GELD_TABS.length) % GELD_TABS.length;
+    }
+    if (nextIdx !== null) {
+      e.preventDefault();
+      const nextTab = GELD_TABS[nextIdx]!;
+      handleSelectView(nextTab.id);
+      tabRefs.current[nextIdx]?.focus();
+    }
   };
 
   return (
@@ -90,12 +198,69 @@ export function PlanungWorkspace({
       />
 
       {activeEntry === "geld" ? (
-        <FreeMoneyPanel
-          state={freeMoneyState}
-          dispatch={freeMoneyDispatch}
-          asOfDate={asOfDate}
-          loanOptions={loanOptions}
-        />
+        <div className="flex flex-col gap-5">
+          <div
+            role="tablist"
+            aria-label="Ansichten für freies Geld"
+            className="inline-flex flex-wrap items-center gap-1 self-start rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1"
+          >
+            {GELD_TABS.map((tab, idx) => {
+              const selected = activeView === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  ref={(el) => {
+                    tabRefs.current[idx] = el;
+                  }}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => handleSelectView(tab.id)}
+                  onKeyDown={(e) => handleTabKeyDown(idx, e)}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]",
+                    selected
+                      ? "bg-[var(--accent)] text-white"
+                      : "text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)]",
+                  )}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {activeView === "empfehlung" ? (
+            <RecommendationPanel
+              uiState={recUiState}
+              dispatch={recUiDispatch}
+              recommendationState={fallbackRecommendationState}
+              labels={fallbackLabels}
+              refLabels={coachRefLabels}
+              isDummy={isDummy}
+              showDebug={showDebug}
+            />
+          ) : activeView === "sparrate" ? (
+            <SavingsPanel
+              uiState={recUiState}
+              dispatch={recUiDispatch}
+              recommendationState={fallbackRecommendationState}
+              labels={fallbackLabels}
+              refLabels={coachRefLabels}
+              hasHouseholdData={hasHouseholdData}
+              isDummy={isDummy}
+              showDebug={showDebug}
+            />
+          ) : (
+            <FreeMoneyPanel
+              state={freeMoneyState}
+              dispatch={freeMoneyDispatch}
+              asOfDate={asOfDate}
+              loanOptions={loanOptions}
+            />
+          )}
+        </div>
       ) : activeEntry === "gehalt" ? (
         <SalaryPanel
           state={salaryState}
@@ -107,7 +272,11 @@ export function PlanungWorkspace({
           startMonth={startMonth}
         />
       ) : activeEntry === "coach" ? (
-        <CoachEntryPanel context={coachContext} refLabels={coachRefLabels} />
+        <CoachEntryPanel
+          context={coachContext}
+          refLabels={coachRefLabels}
+          showDebug={showDebug}
+        />
       ) : null}
     </div>
   );

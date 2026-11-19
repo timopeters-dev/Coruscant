@@ -2,20 +2,31 @@ import * as React from "react";
 import { redirect } from "next/navigation";
 import { buildRefLabelMap, loadInvestmentContextInput } from "@/db/queries/coach";
 import { loadPlanningBase } from "@/db/queries/planning-base";
-import { addMonthsToYearMonth, getTodayIsoDate, toYearMonth } from "@/lib/domain/date";
+import { loadRecommendationState } from "@/db/queries/recommendation";
+import {
+  addMonthsToYearMonth,
+  getTodayIsoDate,
+  toYearMonth,
+} from "@/lib/domain/date";
 import { buildInvestmentContext } from "@/lib/domain/investment-context";
+import { recommendUse } from "@/lib/domain/recommendation";
 import { buildPrepaymentDefaults } from "@/lib/domain/scenarios";
 import type { DomainPot } from "@/lib/domain/waterfall";
+import { isDevMode } from "@/lib/server/dev-mode";
 import { PlanungWorkspace } from "@/components/planung/planung-workspace";
 import {
   parsePlanningEntry,
+  parsePlanningView,
   type LoanOption,
 } from "@/components/planung/planning-state";
 
 export const dynamic = "force-dynamic";
 
 interface PlanungPageProps {
-  searchParams?: Promise<{ frage?: string | string[] }>;
+  searchParams?: Promise<{
+    frage?: string | string[];
+    ansicht?: string | string[];
+  }>;
 }
 
 export default async function PlanungPage({ searchParams }: PlanungPageProps) {
@@ -27,6 +38,7 @@ export default async function PlanungPage({ searchParams }: PlanungPageProps) {
     redirect("/planung/kaufrechner");
   }
   const initialEntry = parsePlanningEntry(resolved.frage);
+  const initialView = parsePlanningView(resolved.ansicht);
 
   const asOfDate = getTodayIsoDate();
   const base = loadPlanningBase();
@@ -52,13 +64,25 @@ export default async function PlanungPage({ searchParams }: PlanungPageProps) {
     remainderPercentage: p.remainderPercentage,
   }));
 
+  const recommendationState = loadRecommendationState({ asOfDate, base });
+  const loanOrder = recommendUse(0, recommendationState).loanOrder;
+
+  const potNames: Record<string, string> = {};
+  for (const p of base.pots) potNames[p.id] = p.name;
+  const loanNames: Record<string, string> = {};
+  for (const c of contracts) {
+    if (c.category === "loan") loanNames[c.id] = c.name;
+  }
+
   // Server-seitig gebauter, anonymisierter Kontext; Labels bleiben lokal in der UI.
   const coachInput = loadInvestmentContextInput({ asOfDate, base });
+  const showDebug = isDevMode();
 
   return (
     <React.Suspense fallback={null}>
       <PlanungWorkspace
         initialEntry={initialEntry}
+        initialView={initialView}
         asOfDate={asOfDate}
         loanOptions={loanOptions}
         baseSurplusCents={consolidated.monthlySurplusCents}
@@ -67,7 +91,10 @@ export default async function PlanungPage({ searchParams }: PlanungPageProps) {
         pots={pots}
         startMonth={addMonthsToYearMonth(toYearMonth(asOfDate), 1)}
         coachContext={buildInvestmentContext(coachInput)}
-        coachRefLabels={buildRefLabelMap(coachInput)}
+        coachRefLabels={buildRefLabelMap(coachInput, loanOrder)}
+        recommendationState={recommendationState}
+        recommendationLabels={{ potNames, loanNames }}
+        showDebug={showDebug}
       />
     </React.Suspense>
   );

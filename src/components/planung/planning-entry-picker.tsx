@@ -73,7 +73,7 @@ export function PlanningEntryPicker({
                 Freies Geld einsetzen
               </h2>
               <p className="text-sm text-[var(--text-secondary)]">
-                Sondertilgen oder in einen ETF sparen?
+                Wohin mit X €? Notgroschen, Töpfe, Sondertilgung oder ETF
               </p>
             </div>
             <p className="text-xs font-medium tabular-nums text-[var(--text-secondary)]">
@@ -138,7 +138,7 @@ export function PlanningEntryPicker({
             onClick={handleInternalClick("coach")}
             className="font-medium text-[var(--text-primary)] underline decoration-[var(--border-sub)] underline-offset-4 hover:text-[var(--accent)]"
           >
-            Investment-Coach
+            Erklär mir das
           </Link>
         </p>
       </section>
@@ -155,7 +155,7 @@ export function PlanningEntryPicker({
     { key: "geld", label: "Freies Geld", href: buildPlanningHref("geld"), entry: "geld" },
     { key: "gehalt", label: "Mehr Gehalt", href: buildPlanningHref("gehalt"), entry: "gehalt" },
     { key: "kauf", label: "Immobilie kaufen", href: "/planung/kaufrechner", external: true },
-    { key: "coach", label: "Coach", href: buildPlanningHref("coach"), entry: "coach" },
+    { key: "coach", label: "Erklär mir das", href: buildPlanningHref("coach"), entry: "coach" },
   ];
 
   return (

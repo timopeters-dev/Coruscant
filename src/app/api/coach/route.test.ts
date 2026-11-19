@@ -13,7 +13,18 @@ import type {
   InvestmentCoach,
 } from "@/lib/integrations/investment-coach";
 import type { CoachAssessment, CoachChatReply } from "@/lib/validation/coach";
-import { createAssessmentHandler, createChatHandler } from "./handlers";
+import type { RecommendationExplanation } from "@/lib/validation/recommendation";
+import { loadRecommendationState } from "@/db/queries/recommendation";
+import { getTodayIsoDate } from "@/lib/domain/date";
+import {
+  computeRecommendationFingerprint,
+  recommendUse,
+} from "@/lib/domain/recommendation";
+import {
+  createAssessmentHandler,
+  createChatHandler,
+  createExplainHandler,
+} from "./handlers";
 
 const tempDirs: string[] = [];
 const originalDbUrl = process.env.DATABASE_URL;
@@ -78,8 +89,19 @@ function fakeCoach(overrides: Partial<InvestmentCoach> = {}) {
       model: "fake-model",
     }),
   );
-  const coach: InvestmentCoach = { assess, chat, ...overrides };
-  return { coach, assess, chat };
+  const explain = vi.fn(
+    async (): Promise<CoachResult<RecommendationExplanation>> => ({
+      ok: true,
+      data: {
+        summary: "Gute Verteilung.",
+        items: [{ ref: "P1", text: "Sinnvoll." }],
+        caveats: [],
+      },
+      model: "fake-model",
+    }),
+  );
+  const coach: InvestmentCoach = { assess, chat, explain, ...overrides };
+  return { coach, assess, chat, explain };
 }
 
 function seed(options: { withPositions?: boolean } = {}) {
@@ -217,8 +239,8 @@ describe("POST /api/coach/assessment", () => {
       expect(json.contextJson).not.toContain(forbidden);
     }
     expect(json.contextJson).toContain("Muster MSCI World UCITS ETF");
-    expect(json.contextJson).toContain('"monthlySavingsRateCents": 50000');
-    expect(assess).toHaveBeenCalledWith(json.contextJson);
+    expect(json.contextJson).toContain('"monthlySavingsRate":"500 €"');
+    expect(assess).toHaveBeenCalledWith(json.contextJson, expect.any(Array));
   });
 
   it("liefert rebalancingPlan null bei rebalancing: null", async () => {
@@ -331,7 +353,7 @@ describe("POST /api/coach/chat", () => {
     const json = (await res.json()) as { reply: unknown; model: string; contextJson: string };
     expect(json.reply).toEqual(REPLY);
     expect(json.model).toBe("fake-model");
-    expect(json.contextJson).toContain('"schemaVersion": 1');
+    expect(json.contextJson).toContain('"schemaVersion":2');
     expect(chat).toHaveBeenCalledTimes(1);
     const [contextJson, messages] = chat.mock.calls[0] as unknown as [string, unknown[]];
     expect(contextJson).not.toContain("Mustermann");
@@ -398,5 +420,128 @@ describe("POST /api/coach/chat", () => {
     expect(
       (await failing(post({ messages: [{ role: "user", text: "Hi" }] }))).status,
     ).toBe(504);
+  });
+});
+
+describe("Dev-Gating & POST /api/coach/explain", () => {
+  it("liefert contextJson nur bei getDevMode() === true (assessment, chat, explain)", async () => {
+    seed();
+    const { coach, assess, explain } = fakeCoach();
+
+    const assessDev = await createAssessmentHandler(() => coach, {
+      getDevMode: () => true,
+    })(post({}));
+    const assessDevJson = (await assessDev.json()) as Record<string, unknown>;
+    expect(assessDevJson.contextJson).toBe(
+      (assess.mock.calls[0] as unknown as [string])[0],
+    );
+
+    const assessProd = await createAssessmentHandler(() => coach, {
+      getDevMode: () => false,
+    })(post({}));
+    const assessProdJson = (await assessProd.json()) as Record<string, unknown>;
+    expect("contextJson" in assessProdJson).toBe(false);
+
+    const chatProd = await createChatHandler(() => coach, {
+      getDevMode: () => false,
+    })(post({ messages: [{ role: "user", text: "Hi" }] }));
+    const chatProdJson = (await chatProd.json()) as Record<string, unknown>;
+    expect("contextJson" in chatProdJson).toBe(false);
+
+    const explainDev = await createExplainHandler(() => coach, {
+      getDevMode: () => true,
+    })(post({ mode: "one_time", amountCents: 500_000 }));
+    const explainDevJson = (await explainDev.json()) as Record<string, unknown>;
+    expect(explainDevJson.contextJson).toBe(
+      (explain.mock.calls[0] as unknown as [string])[0],
+    );
+
+    const explainProd = await createExplainHandler(() => coach, {
+      getDevMode: () => false,
+    })(post({ mode: "one_time", amountCents: 500_000 }));
+    const explainProdJson = (await explainProd.json()) as Record<string, unknown>;
+    expect("contextJson" in explainProdJson).toBe(false);
+  });
+
+  it("explain: funktioniert ohne Depot (200), X=0 -> 422, Validierung -> 400, not_configured -> 503, keine Namen in KI-Sicht, Fingerprint stimmt", async () => {
+    // Seed only pot & contract, NO positions
+    createContract(
+      contractCreateSchema.parse({
+        name: "Darlehen Geheimer Name",
+        provider: "Musterbank AG",
+        category: "loan",
+        status: "active",
+        currentBalanceCents: 5_000_000,
+        balanceAsOfDate: "2026-01-01",
+        monthlyRateCents: 50_000,
+        interestRateBps: 550,
+        repaymentType: "annuity",
+        specialRepaymentMaxYearlyCents: 500_000,
+      }),
+    );
+    createPot({
+      name: "Notgroschen Privatname",
+      ruleType: "fill_to_target",
+      currentCents: 0,
+      targetCents: 300_000,
+      targetDate: null,
+      fixedMonthlyCents: null,
+      remainderPercentage: null,
+      linkedContractId: null,
+      linkedPropertyId: null,
+      externalLink: null,
+      purpose: "emergency_fund",
+    });
+
+    const { coach, explain } = fakeCoach();
+    const handler = createExplainHandler(() => coach, {
+      getDevMode: () => true,
+    });
+
+    // X = 0 -> 422 recommendation_empty
+    const emptyRes = await handler(post({ mode: "one_time", amountCents: 0 }));
+    expect(emptyRes.status).toBe(422);
+    expect(explain).not.toHaveBeenCalled();
+
+    // Missing amountCents in one_time -> 400
+    expect((await handler(post({ mode: "one_time" }))).status).toBe(400);
+    // Unknown field -> 400
+    expect(
+      (await handler(post({ mode: "one_time", amountCents: 100_000, extra: 1 })))
+        .status,
+    ).toBe(400);
+
+    // Valid without depot -> 200
+    const okRes = await handler(post({ mode: "one_time", amountCents: 500_000 }));
+    expect(okRes.status).toBe(200);
+    const okJson = (await okRes.json()) as {
+      fingerprint: string;
+      contextJson: string;
+    };
+    expect(okJson.contextJson).not.toContain("Geheimer Name");
+    expect(okJson.contextJson).not.toContain("Privatname");
+    expect(okJson.contextJson).not.toContain("Musterbank");
+
+    const state = loadRecommendationState({ asOfDate: getTodayIsoDate() });
+    const expectedFp = computeRecommendationFingerprint(
+      recommendUse(500_000, state),
+    );
+    expect(okJson.fingerprint).toBe(expectedFp);
+
+    // not_configured -> 503
+    const unconfigured = createExplainHandler(
+      () =>
+        fakeCoach({
+          explain: async () => ({
+            ok: false,
+            code: "not_configured",
+            message: "Kein Key",
+          }),
+        }).coach,
+    );
+    expect(
+      (await unconfigured(post({ mode: "one_time", amountCents: 500_000 })))
+        .status,
+    ).toBe(503);
   });
 });

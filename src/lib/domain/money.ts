@@ -97,6 +97,58 @@ export function formatCentsDE(
 }
 
 /**
+ * Formats an integer cent amount in German locale without rounding.
+ * Whole euros omit decimals ("2.000 €"), non-zero cents keep two decimals ("2.000,50 €").
+ */
+export function formatEuroDE(
+  amountCents: number,
+  options?: { showPlusSign?: boolean },
+): string {
+  const normalized = assertSafeInteger(amountCents, "amountCents");
+  const abs = Math.abs(normalized);
+  const euros = Math.trunc(abs / 100);
+  const cents = abs % 100;
+
+  let sign = "";
+  if (normalized < 0) {
+    sign = "-";
+  } else if (options?.showPlusSign && normalized > 0) {
+    sign = "+";
+  }
+
+  const euroPart = deIntegerFormatter.format(euros);
+  if (cents === 0) {
+    return `${sign}${euroPart} €`;
+  }
+  const centPart = String(cents).padStart(2, "0");
+  return `${sign}${euroPart},${centPart} €`;
+}
+
+/**
+ * Formats an integer cent amount rounded half-up to whole Euros.
+ * Uses Unicode minus for negative values and omits sign on 0 €.
+ */
+export function formatWholeEuroDE(
+  cents: number,
+  options?: { showPlusSign?: boolean },
+): string {
+  const safe = assertSafeInteger(cents, "cents");
+  const abs = BigInt(Math.abs(safe));
+  const roundedEuros = Number((abs * 2n + 100n) / 200n);
+
+  let sign = "";
+  if (roundedEuros > 0) {
+    if (safe < 0) {
+      sign = "−";
+    } else if (options?.showPlusSign) {
+      sign = "+";
+    }
+  }
+
+  return `${sign}${deIntegerFormatter.format(roundedEuros)} €`;
+}
+
+/**
  * Formats an integer basis-point rate in German locale without float arithmetic.
  * Example: 350 -> "3,50 %"
  */

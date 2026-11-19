@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppShell } from "@/components/app-shell";
 import { getFinanzCockpitBridgeConfig } from "@/lib/integrations/finanz-cockpit-client";
+import { isDevMode } from "@/lib/server/dev-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -25,12 +26,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const { publicUrl } = getFinanzCockpitBridgeConfig();
+  const devMode = isDevMode();
 
   return (
     <html lang="de" suppressHydrationWarning className={inter.variable}>
       <body className="antialiased">
         <ThemeProvider>
-          <AppShell finanzCockpitUrl={publicUrl}>{children}</AppShell>
+          <AppShell finanzCockpitUrl={publicUrl} devMode={devMode}>
+            {children}
+          </AppShell>
         </ThemeProvider>
       </body>
     </html>

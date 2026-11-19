@@ -18,7 +18,7 @@ interface SliderFieldProps {
   max: number;
   step: number;
   onChange: (value: number) => void;
-  kind: "euro" | "percent" | "years";
+  kind: "euro" | "percent" | "years" | "months";
   hint?: string;
 }
 
@@ -80,10 +80,16 @@ export function SliderField({
         <div className="relative w-32 shrink-0">
           <Input
             aria-label={`${label} (Eingabe)`}
-            inputMode={kind === "years" ? "numeric" : "decimal"}
+            inputMode={
+              kind === "years" || kind === "months" ? "numeric" : "decimal"
+            }
             value={text}
             hasError={invalid}
-            className="pr-7 text-right tabular-nums"
+            className={
+              kind === "months"
+                ? "pr-11 text-right tabular-nums"
+                : "pr-7 text-right tabular-nums"
+            }
             onBlur={() => setDraft(null)}
             onChange={(e) => {
               setDraft(e.target.value);
@@ -94,7 +100,13 @@ export function SliderField({
             }}
           />
           <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[var(--text-secondary)]">
-            {kind === "euro" ? "€" : kind === "percent" ? "%" : "J."}
+            {kind === "euro"
+              ? "€"
+              : kind === "percent"
+                ? "%"
+                : kind === "months"
+                  ? "Mon."
+                  : "J."}
           </span>
         </div>
       </div>

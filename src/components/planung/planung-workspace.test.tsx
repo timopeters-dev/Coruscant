@@ -5,10 +5,12 @@ import { buildInvestmentContext } from "@/lib/domain/investment-context";
 import type { LoanOption } from "./planning-state";
 
 let mockFrage: string | null = null;
+let mockAnsicht: string | null = null;
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => ({
-    get: (key: string) => (key === "frage" ? mockFrage : null),
+    get: (key: string) =>
+      key === "frage" ? mockFrage : key === "ansicht" ? mockAnsicht : null,
   }),
 }));
 
@@ -68,8 +70,10 @@ const emptyCoachContext = buildInvestmentContext({
 function renderWorkspace(
   frage: string | null,
   loans: LoanOption[] = [sampleLoan],
+  ansicht: string | null = null,
 ) {
   mockFrage = frage;
+  mockAnsicht = ansicht;
   return renderToStaticMarkup(
     <PlanungWorkspace
       asOfDate="2026-11-19"
@@ -96,17 +100,28 @@ describe("PlanungWorkspace", () => {
     expect(html).not.toContain('aria-label="Ergebnis"');
   });
 
-  it("renders geld view with active segment, dashed result, and chart", () => {
+  it("renders geld view with tabs, defaults to Wohin mit X €, and shows disclaimer", () => {
     const html = renderWorkspace("geld");
     expect(html).toContain('aria-current="page"');
-    expect(html).toContain("border-dashed");
-    expect(html).toContain('<svg role="img"');
+    expect(html).toContain('role="tablist"');
+    expect(html).toContain("Wohin mit X €?");
+    expect(html).toContain("Sparrate empfehlen");
+    expect(html).toContain("Sondertilgung vs. ETF");
+    expect(html).toContain("Orientierung, keine Anlageberatung");
+
+    const sparrateHtml = renderWorkspace("geld", [sampleLoan], "sparrate");
+    expect(sparrateHtml).toContain("Monatlicher Überschuss");
+    expect(sparrateHtml).toContain("Orientierung, keine Anlageberatung");
   });
 
-  it("renders geld empty state when no loans exist", () => {
-    const html = renderWorkspace("geld", []);
-    expect(html).toContain('href="/vertraege"');
-    expect(html).not.toContain('<svg role="img"');
+  it("renders Slice-19 comparison when ansicht=vergleich", () => {
+    const html = renderWorkspace("geld", [sampleLoan], "vergleich");
+    expect(html).toContain("border-dashed");
+    expect(html).toContain('<svg role="img"');
+
+    const emptyHtml = renderWorkspace("geld", [], "vergleich");
+    expect(emptyHtml).toContain('href="/vertraege"');
+    expect(emptyHtml).not.toContain('<svg role="img"');
   });
 
   it("renders gehalt empty state when no pots exist", () => {
@@ -114,9 +129,9 @@ describe("PlanungWorkspace", () => {
     expect(html).toContain('href="/allokation"');
   });
 
-  it("renders coach view with title and upcoming recommendations hint", () => {
+  it("renders coach view with Erklär mir das title and Freies Geld einsetzen link", () => {
     const html = renderWorkspace("coach");
-    expect(html).toContain("Investment-Coach");
-    expect(html).toContain("Wohin mit X €?");
+    expect(html).toContain("Erklär mir das");
+    expect(html).toContain("Freies Geld einsetzen");
   });
 });

@@ -25,6 +25,7 @@ function collectFiles(dir: string, predicate: (name: string) => boolean): string
 describe("planning-no-network", () => {
   const planungDir = path.resolve(process.cwd(), "src/components/planung");
   const chartsDir = path.resolve(process.cwd(), "src/components/charts");
+  const domainDir = path.resolve(process.cwd(), "src/lib/domain");
 
   const targetFiles = [
     ...collectFiles(
@@ -34,9 +35,12 @@ describe("planning-no-network", () => {
         (name === "free-money-panel.tsx" ||
           name === "salary-panel.tsx" ||
           name === "planung-workspace.tsx" ||
+          name === "recommendation-text.ts" ||
           name.startsWith("planning-")),
     ),
     ...collectFiles(chartsDir, (name) => !name.includes(".test.")),
+    path.join(domainDir, "recommendation.ts"),
+    path.join(domainDir, "recommendation-llm.ts"),
   ];
 
   it("contains no fetch, use server, db imports, or router mutations", () => {

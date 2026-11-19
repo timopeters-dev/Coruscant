@@ -1,32 +1,51 @@
 import { NextResponse } from "next/server";
 import { loadInvestmentContextInput } from "@/db/queries/coach";
+import { loadPlanningBase } from "@/db/queries/planning-base";
+import { loadRecommendationState } from "@/db/queries/recommendation";
 import {
   internalErrorResponse,
   parseJsonBody,
   validationErrorResponse,
 } from "@/lib/api/http";
-import { calculateRebalancingPlan, sanitizeAssessmentRefs } from "@/lib/domain/coach-rebalancing";
+import {
+  calculateRebalancingPlan,
+  sanitizeAssessmentRefs,
+} from "@/lib/domain/coach-rebalancing";
 import { getTodayIsoDate } from "@/lib/domain/date";
 import {
   buildInvestmentContext,
   collectContextRefs,
   isInvestmentContextUsable,
-  serializeInvestmentContext,
   type InvestmentContext,
 } from "@/lib/domain/investment-context";
 import {
-  createDefaultInvestmentCoach,
-} from "@/lib/integrations/gemini-investment-coach";
+  computeRecommendationFingerprint,
+  recommendMonthlySavings,
+  recommendUse,
+} from "@/lib/domain/recommendation";
+import {
+  buildLlmInvestmentContextView,
+  buildRecommendationLlmView,
+  collectRawCentValues,
+  serializeLlmContext,
+} from "@/lib/domain/recommendation-llm";
+import { createDefaultInvestmentCoach } from "@/lib/integrations/gemini-investment-coach";
 import type {
   CoachErrorCode,
   InvestmentCoach,
 } from "@/lib/integrations/investment-coach";
+import { isDevMode } from "@/lib/server/dev-mode";
 import {
   coachAssessmentRequestSchema,
   coachChatRequestSchema,
 } from "@/lib/validation/coach";
+import { explainRequestSchema } from "@/lib/validation/recommendation";
 
 export type CoachFactory = () => InvestmentCoach;
+
+export interface CoachHandlerOptions {
+  getDevMode?: () => boolean;
+}
 
 const STATUS_BY_CODE: Record<CoachErrorCode, number> = {
   not_configured: 503,
@@ -72,7 +91,9 @@ function buildContextForRequest(monthlySavingsRateCents?: number): ContextResult
 
 export function createAssessmentHandler(
   coachFactory: CoachFactory = createDefaultInvestmentCoach,
+  options: CoachHandlerOptions = {},
 ) {
+  const getDevMode = options.getDevMode ?? isDevMode;
   return async function POST(request: Request): Promise<NextResponse> {
     const body = await parseJsonBody(request);
     if (!body.ok) return body.response;
@@ -84,9 +105,12 @@ export function createAssessmentHandler(
       const built = buildContextForRequest(parsed.data.monthlySavingsRateCents);
       if (!built.ok) return built.response;
       const { context } = built;
-      const contextJson = serializeInvestmentContext(context);
+      const contextJson = serializeLlmContext(
+        buildLlmInvestmentContextView(context),
+      );
+      const rawCentValues = collectRawCentValues(context);
 
-      const result = await coachFactory().assess(contextJson);
+      const result = await coachFactory().assess(contextJson, rawCentValues);
       if (!result.ok) return coachErrorResponse(result.code, result.message);
 
       const assessment = sanitizeAssessmentRefs(
@@ -106,7 +130,12 @@ export function createAssessmentHandler(
         : null;
 
       return NextResponse.json(
-        { assessment, rebalancingPlan, model: result.model, contextJson },
+        {
+          assessment,
+          rebalancingPlan,
+          model: result.model,
+          ...(getDevMode() ? { contextJson } : {}),
+        },
         { status: 200 },
       );
     } catch {
@@ -127,7 +156,9 @@ function valueOf(
 
 export function createChatHandler(
   coachFactory: CoachFactory = createDefaultInvestmentCoach,
+  options: CoachHandlerOptions = {},
 ) {
+  const getDevMode = options.getDevMode ?? isDevMode;
   return async function POST(request: Request): Promise<NextResponse> {
     const body = await parseJsonBody(request);
     if (!body.ok) return body.response;
@@ -139,15 +170,98 @@ export function createChatHandler(
       const built = buildContextForRequest(parsed.data.monthlySavingsRateCents);
       if (!built.ok) return built.response;
 
-      const contextJson = serializeInvestmentContext(built.context);
+      const contextJson = serializeLlmContext(
+        buildLlmInvestmentContextView(built.context),
+      );
+      const rawCentValues = collectRawCentValues(built.context);
       const result = await coachFactory().chat(
         contextJson,
         parsed.data.messages,
+        rawCentValues,
       );
       if (!result.ok) return coachErrorResponse(result.code, result.message);
 
       return NextResponse.json(
-        { reply: result.data, model: result.model, contextJson },
+        {
+          reply: result.data,
+          model: result.model,
+          ...(getDevMode() ? { contextJson } : {}),
+        },
+        { status: 200 },
+      );
+    } catch {
+      return internalErrorResponse();
+    }
+  };
+}
+
+export function createExplainHandler(
+  coachFactory: CoachFactory = createDefaultInvestmentCoach,
+  options: CoachHandlerOptions = {},
+) {
+  const getDevMode = options.getDevMode ?? isDevMode;
+  return async function POST(request: Request): Promise<NextResponse> {
+    const body = await parseJsonBody(request);
+    if (!body.ok) return body.response;
+
+    const parsed = explainRequestSchema.safeParse(body.data);
+    if (!parsed.success) return validationErrorResponse(parsed.error);
+
+    try {
+      const base = loadPlanningBase();
+      const state = loadRecommendationState({
+        asOfDate: getTodayIsoDate(),
+        base,
+      });
+
+      const recommendation =
+        parsed.data.mode === "one_time"
+          ? recommendUse(
+              parsed.data.amountCents!,
+              state,
+              parsed.data.assumptions,
+            )
+          : recommendMonthlySavings(state, parsed.data.assumptions);
+
+      if (recommendation.items.length === 0) {
+        return NextResponse.json(
+          {
+            error: "Keine Empfehlungsposten vorhanden.",
+            code: "recommendation_empty",
+          },
+          { status: 422 },
+        );
+      }
+
+      const view = buildRecommendationLlmView(recommendation, state, {
+        isDummyHousehold: base.isDummy,
+      });
+      const contextJson = serializeLlmContext(view);
+      const rawCentValues = [
+        recommendation.amountCents,
+        ...recommendation.items.map((i) => i.amountCents),
+        ...state.pots.flatMap((p) => [p.currentCents, p.targetCents ?? 0]),
+        ...state.loans.map((l) => l.balanceCents),
+      ].filter((v) => v >= 1000);
+
+      const explainResult = await coachFactory().explain(
+        contextJson,
+        view,
+        rawCentValues,
+      );
+      if (!explainResult.ok) {
+        return coachErrorResponse(explainResult.code, explainResult.message);
+      }
+
+      const fingerprint = computeRecommendationFingerprint(recommendation);
+
+      return NextResponse.json(
+        {
+          explanation: explainResult.data,
+          fingerprint,
+          model: explainResult.model,
+          ...(getDevMode() ? { contextJson } : {}),
+        },
         { status: 200 },
       );
     } catch {

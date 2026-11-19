@@ -7,6 +7,8 @@ import {
   centsToEuroInputString,
   formatBpsDE,
   formatCentsDE,
+  formatEuroDE,
+  formatWholeEuroDE,
   parseEuroInputToCents,
   parsePercentInputToBps,
   roundHalfUpBigInt,
@@ -62,6 +64,35 @@ describe("formatCentsDE", () => {
   it("rejects non-integer inputs", () => {
     expect(() => formatCentsDE(12.34)).toThrow(RangeError);
     expect(() => formatCentsDE(Number.NaN)).toThrow(RangeError);
+  });
+});
+
+describe("formatEuroDE", () => {
+  it("formats whole euros without decimals and non-zero cents with two decimals", () => {
+    expect(formatEuroDE(0)).toBe("0 €");
+    expect(formatEuroDE(-0)).toBe("0 €");
+    expect(formatEuroDE(200_000)).toBe("2.000 €");
+    expect(formatEuroDE(200_050)).toBe("2.000,50 €");
+    expect(formatEuroDE(200_005)).toBe("2.000,05 €");
+    expect(formatEuroDE(-5000)).toBe("-50 €");
+    expect(formatEuroDE(-5025)).toBe("-50,25 €");
+    expect(formatEuroDE(5000, { showPlusSign: true })).toBe("+50 €");
+    expect(formatEuroDE(0, { showPlusSign: true })).toBe("0 €");
+    expect(formatEuroDE(Number.MAX_SAFE_INTEGER)).toBe("90.071.992.547.409,91 €");
+  });
+
+  it("rejects non-integer inputs", () => {
+    expect(() => formatEuroDE(12.34)).toThrow(RangeError);
+    expect(() => formatEuroDE(Number.NaN)).toThrow(RangeError);
+  });
+});
+
+describe("formatWholeEuroDE", () => {
+  it("rounds half-up to whole euros with Unicode minus", () => {
+    expect(formatWholeEuroDE(0)).toBe("0 €");
+    expect(formatWholeEuroDE(149)).toBe("1 €");
+    expect(formatWholeEuroDE(150)).toBe("2 €");
+    expect(formatWholeEuroDE(-150)).toBe("−2 €");
   });
 });
 

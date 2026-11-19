@@ -7,10 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Sheet } from "@/components/ui/sheet";
 import type { RebalancingPlan } from "@/lib/domain/coach-rebalancing";
 import {
-  serializeInvestmentContext,
   withSavingsRate,
   type InvestmentContext,
 } from "@/lib/domain/investment-context";
+import {
+  buildLlmInvestmentContextView,
+  serializeLlmContext,
+} from "@/lib/domain/recommendation-llm";
 import { formatBpsDE, formatCentsDE } from "@/lib/domain/money";
 import {
   MAX_COACH_CHAT_MESSAGE_LENGTH,
@@ -30,6 +33,7 @@ interface InvestmentCoachDrawerProps {
   onOpenChange: (open: boolean) => void;
   context: InvestmentContext;
   refLabels: Record<string, string>;
+  showDebug?: boolean;
 }
 
 type Tab = "assessment" | "chat";
@@ -38,7 +42,7 @@ interface AssessmentResponse {
   assessment: CoachAssessment;
   rebalancingPlan: RebalancingPlan | null;
   model: string;
-  contextJson: string;
+  contextJson?: string;
 }
 
 type ChatEntry = CoachChatMessage & { declined?: boolean };
@@ -155,6 +159,7 @@ export function InvestmentCoachDrawer({
   onOpenChange,
   context,
   refLabels,
+  showDebug = false,
 }: InvestmentCoachDrawerProps) {
   const [tab, setTab] = React.useState<Tab>("assessment");
   const [savingsRate, setSavingsRate] = React.useState(
@@ -173,10 +178,15 @@ export function InvestmentCoachDrawer({
   // Zuletzt tatsächlich an die KI gesendeter Kontext (vom Server gebaut).
   const [sentContextJson, setSentContextJson] = React.useState<string | null>(null);
 
-  const effectiveRate =Math.min(Math.max(0, savingsRate), MAX_COACH_SAVINGS_RATE_CENTS);
+  const effectiveRate = Math.min(Math.max(0, savingsRate), MAX_COACH_SAVINGS_RATE_CENTS);
   const previewJson = React.useMemo(
-    () => serializeInvestmentContext(withSavingsRate(context, effectiveRate)),
-    [context, effectiveRate],
+    () =>
+      showDebug
+        ? serializeLlmContext(
+            buildLlmInvestmentContextView(withSavingsRate(context, effectiveRate)),
+          )
+        : null,
+    [context, effectiveRate, showDebug],
   );
 
   async function requestAssessment() {
@@ -194,7 +204,9 @@ export function InvestmentCoachDrawer({
       }
       const body = (await response.json()) as AssessmentResponse;
       setAssessment(body);
-      setSentContextJson(body.contextJson);
+      if (body.contextJson) {
+        setSentContextJson(body.contextJson);
+      }
     } catch {
       setAssessmentError(ERROR_TEXT_BY_CODE.network_error!);
     } finally {
@@ -522,20 +534,27 @@ export function InvestmentCoachDrawer({
           </div>
         )}
 
-        <details className="rounded-lg border border-[var(--border)] px-3 py-2">
-          <summary className="cursor-pointer text-sm font-medium">
-            Was die KI sieht
-          </summary>
-          <p className="mt-2 text-xs text-[var(--text-secondary)]">
-            {sentContextJson !== null
-              ? "Genau dieser anonymisierte Kontext wurde zuletzt gesendet."
-              : "Vorschau – der Server baut den Kontext bei jeder Anfrage neu; nach dem Senden siehst du hier den tatsächlich gesendeten Kontext."}{" "}
-            Namen, Konten und Verträge sind durch Referenzen ersetzt.
+        {showDebug ? (
+          <details className="rounded-lg border border-[var(--border)] px-3 py-2">
+            <summary className="cursor-pointer text-sm font-medium">
+              Was die KI sieht
+            </summary>
+            <p className="mt-2 text-xs text-[var(--text-secondary)]">
+              {sentContextJson !== null
+                ? "Genau dieser anonymisierte Kontext wurde zuletzt gesendet."
+                : "Vorschau – der Server baut den Kontext bei jeder Anfrage neu; nach dem Senden siehst du hier den tatsächlich gesendeten Kontext."}{" "}
+              Namen, Konten und Verträge sind durch Referenzen ersetzt.
+            </p>
+            <pre className="mt-2 max-h-72 overflow-auto rounded-lg bg-[var(--surface-elevated)] p-3 text-xs tabular-nums">
+              {sentContextJson ?? previewJson}
+            </pre>
+          </details>
+        ) : (
+          <p className="text-xs text-[var(--text-secondary)]">
+            Die KI erhält nur anonymisierte Werte – keine Namen, Konten oder
+            Vertragsnummern.
           </p>
-          <pre className="mt-2 max-h-72 overflow-auto rounded-lg bg-[var(--surface-elevated)] p-3 text-xs tabular-nums">
-            {sentContextJson ?? previewJson}
-          </pre>
-        </details>
+        )}
       </div>
     </Sheet>
   );
