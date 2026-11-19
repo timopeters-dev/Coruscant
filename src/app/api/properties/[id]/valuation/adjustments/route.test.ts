@@ -427,4 +427,97 @@ describe("PUT /api/properties/[id]/valuation/adjustments", () => {
     };
     expect(adopt2Body.property.estimatedValueCents).toBe(67_500_000);
   });
+
+  it("persists catalogKey in property and valuation history and rejects unknown/duplicate/exclusive conflicts", async () => {
+    const prop = createSampleProperty({ estimatedValueCents: 49_000_000 });
+    const ESTIMATE = makeEstimateHandler(FIXED_NOW_1);
+    const ADOPT = createValuationAdoptHandler(FIXED_NOW_1);
+    const PUT_ADJ = createValuationAdjustmentsHandler(FIXED_NOW_2);
+
+    const estRes = await ESTIMATE(
+      new Request("http://localhost", { method: "POST", body: "{}" }),
+      { params: Promise.resolve({ id: prop.id }) },
+    );
+    const { historyId } = (await estRes.json()) as { historyId: string };
+    await ADOPT(
+      new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({ historyId, choice: "median" }),
+      }),
+      { params: Promise.resolve({ id: prop.id }) },
+    );
+
+    const putOk = await PUT_ADJ(
+      new Request("http://localhost", {
+        method: "PUT",
+        body: JSON.stringify({
+          adjustments: [
+            {
+              label: "irgendein alt-label",
+              bps: -1_000,
+              catalogKey: "construction_prefab",
+            },
+          ],
+          expectedEstimatedValueCents: 49_000_000,
+        }),
+      }),
+      { params: Promise.resolve({ id: prop.id }) },
+    );
+    expect(putOk.status).toBe(200);
+    const okBody = (await putOk.json()) as {
+      property: {
+        valuationAdjustments: Array<{
+          label: string;
+          bps: number;
+          catalogKey?: string;
+        }>;
+      };
+    };
+    expect(okBody.property.valuationAdjustments).toEqual([
+      {
+        label: "Fertighaus (Holzständerbauweise)",
+        bps: -1_000,
+        catalogKey: "construction_prefab",
+      },
+    ]);
+    const history = listValuationHistory(prop.id);
+    const adjEntry = history.find((h) => h.trigger === "adjustment")!;
+    expect(adjEntry.adjustmentsJson).toContain("construction_prefab");
+
+    // Validation errors for catalogKey
+    const invalidPayloads = [
+      {
+        adjustments: [
+          { label: "X", bps: 100, catalogKey: "nonexistent_key" },
+        ],
+      },
+      {
+        adjustments: [
+          { label: "Vollkeller", bps: 300, catalogKey: "basement_full" },
+          { label: "Vollkeller", bps: 300, catalogKey: "basement_full" },
+        ],
+      },
+      {
+        adjustments: [
+          { label: "Balkon / Terrasse / Loggia", bps: 300, catalogKey: "features_balcony" },
+          { label: "Kein Balkon", bps: -300, catalogKey: "features_no_balcony" },
+        ],
+      },
+      {
+        adjustments: [
+          { label: "Frei", bps: 100, extraField: true },
+        ],
+      },
+    ];
+    for (const payload of invalidPayloads) {
+      const badRes = await PUT_ADJ(
+        new Request("http://localhost", {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        }),
+        { params: Promise.resolve({ id: prop.id }) },
+      );
+      expect(badRes.status).toBe(400);
+    }
+  });
 });

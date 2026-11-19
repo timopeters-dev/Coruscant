@@ -1,3 +1,4 @@
+import type { AmortizationMarkerKind } from "@/lib/domain/contract-series";
 import type { AutoValuationInterval } from "@/lib/domain/auto-valuation-schedule";
 import type {
   ContractCategory,
@@ -153,7 +154,38 @@ export const VALUATION_ADJUSTMENT_ERROR_LABELS: Record<
   bps_zero: "Posten ohne Wirkung (0 %) entfernen.",
   bps_item_out_of_range: "Einzelner Posten darf höchstens ±50,00 % betragen.",
   total_out_of_range: "Summe der Korrekturen darf höchstens ±50,00 % betragen.",
+  catalog_key_unknown: "Unbekannter Katalog-Posten.",
+  catalog_key_duplicate: "Katalog-Posten doppelt gewählt.",
+  exclusive_conflict: "Schließt sich mit einem anderen gewählten Posten aus.",
 };
 
 export const VALUATION_VALUE_CHANGED_LABEL =
   "Wert hat sich zwischenzeitlich geändert, neu geladen.";
+
+export const AMORTIZATION_MARKER_LABELS: Record<AmortizationMarkerKind, string> = {
+  today: "Heute",
+  fixed_interest_end: "Zinsbindungsende",
+  milestone: "Meilenstein",
+  paid_off: "Schuldenfrei",
+  allocation_threshold: "Zuteilungsschwelle",
+  target_reached: "Zielsumme erreicht",
+  special_repayment: "Sondertilgung",
+};
+
+export function formatMonthYearDE(isoDate: string): string {
+  const [year, month] = isoDate.split("-");
+  if (!year || !month) return isoDate;
+  return `${month}/${year}`;
+}
+
+export function formatDurationMonthsDE(totalMonths: number): string {
+  const years = Math.floor(totalMonths / 12);
+  const months = totalMonths % 12;
+  if (years === 0) {
+    return `${months} ${months === 1 ? "Monat" : "Monate"}`;
+  }
+  if (months === 0) {
+    return `${years} ${years === 1 ? "Jahr" : "Jahre"}`;
+  }
+  return `${years} ${years === 1 ? "Jahr" : "Jahre"} ${months} ${months === 1 ? "Monat" : "Monate"}`;
+}

@@ -15,16 +15,20 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import type { FinancialContractRow, PropertyRow } from "@/db/queries/contracts";
 import type { DocumentRow } from "@/db/queries/documents";
-import type {
-  ContractProjectionResult,
-  ContractStatus,
+import {
+  type ContractProjectionResult,
+  type ContractStatus,
+  getCalibrationAge,
 } from "@/lib/domain/contracts";
 import { formatBpsDE, formatCentsDE } from "@/lib/domain/money";
+import { CalibrationStaleNotice } from "./calibration-stale-notice";
 import {
   CONTRACT_STATUS_LABELS,
   getContractTypeLabel,
 } from "./labels";
 import { LinkedDocumentsSection } from "./linked-documents-section";
+import { LoanAmortizationSection } from "./loan-amortization-section";
+import { SavingsProgressSection } from "./savings-progress-section";
 
 interface ContractDetailDrawerProps {
   contract: FinancialContractRow | null;
@@ -70,6 +74,7 @@ function ContractDetailDrawerInner({
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
   const isLoan = contract.category === "loan";
+  const calibrationAge = getCalibrationAge(contract, asOfDate);
   const typeLabel = getContractTypeLabel(
     contract.category,
     contract.repaymentType,
@@ -161,6 +166,10 @@ function ContractDetailDrawerInner({
             />
           )}
         </div>
+
+        {contract.status !== "closed" && calibrationAge.isStale ? (
+          <CalibrationStaleNotice months={calibrationAge.months} />
+        ) : null}
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div
@@ -338,6 +347,16 @@ function ContractDetailDrawerInner({
             ) : null}
           </div>
         ) : null}
+
+        {isLoan ? (
+          <LoanAmortizationSection contract={contract} asOfDate={asOfDate} />
+        ) : (
+          <SavingsProgressSection
+            contract={contract}
+            projection={projection}
+            asOfDate={asOfDate}
+          />
+        )}
 
         {contract.milestoneDate ? (
           <div className="flex items-center justify-between gap-2 rounded-xl border border-[var(--amber)]/35 bg-[var(--amber)]/10 p-4 text-sm">

@@ -33,12 +33,20 @@ export interface LineChartMarker {
   role?: ChartRole;
 }
 
+export interface LineChartAnchor {
+  x: number;
+  y: number;
+  label: string;
+  role: ChartRole;
+}
+
 export interface LineChartProps {
   series: LineSeries[];
   xDomain?: [number, number];
   xTicks: ChartTick[];
   xTooltipLabel: (x: number) => string;
   markers?: LineChartMarker[];
+  anchors?: LineChartAnchor[];
   height?: number;
   ariaLabel: string;
   tooltipExtra?: (
@@ -63,6 +71,7 @@ export function LineChart({
   xTicks,
   xTooltipLabel,
   markers = [],
+  anchors = [],
   height = 260,
   ariaLabel,
   tooltipExtra,
@@ -325,6 +334,24 @@ export function LineChart({
                 />
               ))}
             </g>
+          );
+        })}
+
+        {/* Solid calibration anchors */}
+        {anchors.map((anchor) => {
+          if (anchor.x < minX || anchor.x > maxX) return null;
+          return (
+            <circle
+              key={`anchor-${anchor.x}-${anchor.label}`}
+              cx={xScale(anchor.x).toFixed(1)}
+              cy={yScale(anchor.y).toFixed(1)}
+              r={4}
+              fill={CHART_ROLE_COLOR[anchor.role]}
+              stroke="var(--surface)"
+              strokeWidth={1.5}
+            >
+              <title>{anchor.label}</title>
+            </circle>
           );
         })}
 

@@ -44,6 +44,14 @@ import {
   validateValuationAdjustments,
   type ValuationAdjustment,
 } from "@/lib/domain/property-valuation-adjustments";
+import {
+  catalogItemsFor,
+  getCatalogItem,
+  reconcileWithCatalog,
+  resolveCatalogToggle,
+  summarizeAdjustmentDraft,
+  VALUATION_CATALOG_GROUPS,
+} from "@/lib/domain/valuation-adjustment-catalog";
 import { planAdjustmentRecompute } from "@/lib/domain/valuation-adjustment-recompute";
 import {
   buildAdoptionRequest,
@@ -66,6 +74,7 @@ import { PropertyValuationHistoryChart } from "./property-valuation-history-char
 
 interface PropertyValuationCardProps {
   property: PropertyRow | PropertyApiRecord;
+  showDebug?: boolean;
   onMutated: () => void;
 }
 
@@ -125,6 +134,7 @@ interface AdjustmentDraftRow {
   id: string;
   label: string;
   percentText: string;
+  catalogKey?: string;
 }
 
 function readPropertyAdjustments(
@@ -136,10 +146,11 @@ function readPropertyAdjustments(
 }
 
 function toDraftRows(list: readonly ValuationAdjustment[]): AdjustmentDraftRow[] {
-  return list.map((item, idx) => ({
-    id: `adj-${idx}-${item.label}`,
+  return reconcileWithCatalog(list).map((item, idx) => ({
+    id: `adj-${idx}-${item.catalogKey ?? item.label}`,
     label: item.label,
     percentText: bpsToPercentInputString(item.bps, { allowNegative: true }),
+    ...(item.catalogKey ? { catalogKey: item.catalogKey } : {}),
   }));
 }
 
@@ -230,6 +241,7 @@ function mapHistoryToSuggestion(
 
 export function PropertyValuationCard({
   property,
+  showDebug = false,
   onMutated,
 }: PropertyValuationCardProps) {
   const [previewOpen, setPreviewOpen] = React.useState(false);
@@ -281,6 +293,7 @@ export function PropertyValuationCard({
   const [adjustmentServerError, setAdjustmentServerError] = React.useState<
     string | null
   >(null);
+  const [swapNotice, setSwapNotice] = React.useState<string | null>(null);
 
   const [adoptionState, dispatch] = React.useReducer(
     valuationAdoptionReducer,
@@ -302,8 +315,8 @@ export function PropertyValuationCard({
         usable?: boolean;
         error?: string;
       };
-      if (previewRes.ok && previewBody.usable && previewBody.requestJson) {
-        setPreviewJson(previewBody.requestJson);
+      if (previewRes.ok && previewBody.usable) {
+        setPreviewJson(previewBody.requestJson ?? null);
         setContextUnavailable(null);
       } else {
         setPreviewJson(null);
@@ -380,8 +393,8 @@ export function PropertyValuationCard({
           error?: string;
         };
         if (cancelled) return;
-        if (previewRes.ok && previewBody.usable && previewBody.requestJson) {
-          setPreviewJson(previewBody.requestJson);
+        if (previewRes.ok && previewBody.usable) {
+          setPreviewJson(previewBody.requestJson ?? null);
           setContextUnavailable(null);
         } else {
           setPreviewJson(null);
@@ -607,6 +620,7 @@ export function PropertyValuationCard({
     const rowErrors: Record<number, { label?: string; bps?: string }> = {};
     const parsedItems: ValuationAdjustment[] = [];
     let hasParseError = false;
+    let rawSumBps = 0;
 
     draftRows.forEach((row, idx) => {
       const bps = parsePercentInputToBps(row.percentText, {
@@ -618,15 +632,19 @@ export function PropertyValuationCard({
           ...rowErrors[idx],
           bps: "Bitte gültigen Prozentwert (z. B. -10,00 oder +3,5) eingeben.",
         };
+      } else {
+        rawSumBps += bps;
       }
       parsedItems.push({
         label: normalizeAdjustmentLabel(row.label),
         bps: bps ?? 100, // placeholder if parse failed so label checks still run
+        ...(row.catalogKey ? { catalogKey: row.catalogKey } : {}),
       });
     });
 
     const domainRes = validateValuationAdjustments(parsedItems);
     let totalError: string | null = null;
+    let isTotalOutOfRange = false;
     if (!domainRes.ok) {
       for (const err of domainRes.errors) {
         const msg = VALUATION_ADJUSTMENT_ERROR_LABELS[err.code];
@@ -637,14 +655,28 @@ export function PropertyValuationCard({
             rowErrors[err.index] = { ...rowErrors[err.index], bps: msg };
           }
         } else {
-          totalError = msg;
+          if (err.code === "total_out_of_range") {
+            isTotalOutOfRange = true;
+            totalError =
+              "Summe der Korrekturen darf höchstens ±50,00 % betragen, bitte einen Posten verringern";
+          } else {
+            totalError = msg;
+          }
         }
       }
     }
 
     const valid = !hasParseError && domainRes.ok;
     const totalBps = valid ? sumAdjustmentBps(parsedItems) : null;
-    return { valid, parsedItems, rowErrors, totalError, totalBps };
+    return {
+      valid,
+      parsedItems,
+      rowErrors,
+      totalError,
+      isTotalOutOfRange,
+      rawSumBps,
+      totalBps,
+    };
   }, [draftRows]);
 
   const latestAppliedImmoEntry = React.useMemo(() => {
@@ -679,12 +711,18 @@ export function PropertyValuationCard({
     return null;
   }, [latestAppliedImmoEntry, suggestion]);
 
-  const previewAdjustedCents = React.useMemo(() => {
-    if (previewBaseCents === null || draftValidation.totalBps === null) {
-      return null;
-    }
-    return applyValuationAdjustment(previewBaseCents, draftValidation.totalBps);
-  }, [previewBaseCents, draftValidation.totalBps]);
+  const draftSummary = React.useMemo(
+    () =>
+      draftValidation.valid
+        ? summarizeAdjustmentDraft(draftValidation.parsedItems, previewBaseCents)
+        : {
+            validation: { ok: false as const, errors: [] },
+            totalBps: null,
+            adjustedCents: null,
+          },
+    [draftValidation.valid, draftValidation.parsedItems, previewBaseCents],
+  );
+  const previewAdjustedCents = draftSummary.adjustedCents;
 
   async function executeSaveAdjustments(list: readonly ValuationAdjustment[]) {
     setIsSavingAdjustments(true);
@@ -849,13 +887,15 @@ export function PropertyValuationCard({
           ) : null}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleTogglePreview}
-            className="text-xs text-[var(--text-secondary)] underline underline-offset-2 hover:text-[var(--text-primary)]"
-          >
-            Was der Dienst sieht
-          </button>
+          {showDebug ? (
+            <button
+              type="button"
+              onClick={handleTogglePreview}
+              className="text-xs text-[var(--text-secondary)] underline underline-offset-2 hover:text-[var(--text-primary)]"
+            >
+              Was der Dienst sieht
+            </button>
+          ) : null}
           <Button
             type="button"
             variant="outline"
@@ -956,36 +996,159 @@ export function PropertyValuationCard({
         </div>
 
         {adjustmentsOpen ? (
-          <div className="mt-3 space-y-3 border-t border-[var(--border)] pt-3">
-            <p className="text-[11px] text-[var(--text-secondary)]">
-              Zustand, Energieklasse, Ausstattung und Vermietung bewertet der
-              Dienst selbst. Hier nur, was er nicht kennt (z. B. Bauweise,
-              Lage, Grundriss).
-            </p>
+          <div className="mt-3 space-y-4 border-t border-[var(--border)] pt-3">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
+                Der Dienst kennt nur Haustyp, PLZ/Ort, Flächen, Baujahr,
+                Energieklasse und Miete. Lage im Viertel, Bauweise, Zustand,
+                Ausstattung und Rechtliches kennt er nicht. Dafür sind diese
+                Posten. Richtwerte zur Orientierung, kein Gutachten (Katalog v1).
+              </p>
+              <span className="shrink-0 tabular-nums text-[11px] font-medium text-[var(--text-secondary)]">
+                {draftRows.length} / {MAX_VALUATION_ADJUSTMENTS} Posten
+              </span>
+            </div>
 
+            {/* Katalog-Gruppen */}
+            <div className="space-y-2.5">
+              {VALUATION_CATALOG_GROUPS.map((group) => {
+                const items = catalogItemsFor(
+                  property.propertyType ?? null,
+                ).filter((item) => item.group === group.id);
+                if (items.length === 0) return null;
+                return (
+                  <div key={group.id} className="space-y-1.5">
+                    <p
+                      className="text-[11px] font-medium text-[var(--text-secondary)]"
+                      title={group.hint}
+                    >
+                      {group.label}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {items.map((item) => {
+                        const isSelected = draftRows.some(
+                          (r) => r.catalogKey === item.key,
+                        );
+                        const previewToggle = resolveCatalogToggle(
+                          draftValidation.parsedItems,
+                          item.key,
+                        );
+                        const isBlocked = previewToggle.action === "blocked";
+                        return (
+                          <button
+                            key={item.key}
+                            type="button"
+                            aria-pressed={isSelected}
+                            disabled={isBusy || isBlocked}
+                            title={isBlocked ? "Maximal 8 Posten" : item.hint}
+                            onClick={() => {
+                              const res = resolveCatalogToggle(
+                                draftValidation.parsedItems,
+                                item.key,
+                              );
+                              if (res.action === "remove") {
+                                setDraftRows((prev) =>
+                                  prev.filter((r) => r.catalogKey !== res.key),
+                                );
+                                setSwapNotice(null);
+                              } else if (res.action === "add") {
+                                const replacedLabels = res.replaceKeys
+                                  .map((k) => getCatalogItem(k)?.label)
+                                  .filter((l): l is string => Boolean(l));
+                                setDraftRows((prev) => [
+                                  ...prev.filter(
+                                    (r) =>
+                                      !r.catalogKey ||
+                                      !res.replaceKeys.includes(r.catalogKey),
+                                  ),
+                                  {
+                                    id: `adj-cat-${res.item.key}-${Date.now()}`,
+                                    label: res.item.label,
+                                    percentText: bpsToPercentInputString(
+                                      res.item.suggestedBps,
+                                      { allowNegative: true },
+                                    ),
+                                    catalogKey: res.item.key,
+                                  },
+                                ]);
+                                setSwapNotice(
+                                  replacedLabels.length > 0
+                                    ? `‚${replacedLabels.join(", ")}‘ ersetzt durch ‚${res.item.label}‘`
+                                    : null,
+                                );
+                              }
+                              setConfirmingRecompute(null);
+                            }}
+                            className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45 ${
+                              isSelected
+                                ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-foreground)]"
+                                : "border-[var(--border)] bg-[var(--surface-elevated)]/60 text-[var(--text-primary)] hover:border-[var(--accent)]"
+                            }`}
+                          >
+                            <span>{item.label}</span>{" "}
+                            <span className="tabular-nums opacity-85">
+                              ({formatSignedBps(item.suggestedBps)})
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {swapNotice ? (
+              <p className="text-[11px] text-[var(--amber)]">{swapNotice}</p>
+            ) : null}
+
+            {/* Gewählte Posten */}
             <div className="space-y-2">
               {draftRows.map((row, idx) => {
                 const errs = draftValidation.rowErrors[idx];
+                const catalogItem = row.catalogKey
+                  ? getCatalogItem(row.catalogKey)
+                  : null;
+                const typeMismatch =
+                  Boolean(catalogItem?.appliesTo) &&
+                  Boolean(property.propertyType) &&
+                  !catalogItem!.appliesTo!.includes(property.propertyType!);
+
                 return (
                   <div key={row.id} className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <input
-                        type="text"
-                        value={row.label}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setDraftRows((prev) =>
-                            prev.map((r, i) =>
-                              i === idx ? { ...r, label: val } : r,
-                            ),
-                          );
-                          setConfirmingRecompute(null);
-                        }}
-                        placeholder="z. B. Fertighaus"
-                        maxLength={60}
-                        disabled={isBusy}
-                        className="min-w-[160px] flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
-                      />
+                      {catalogItem ? (
+                        <div className="flex min-w-[160px] flex-1 flex-wrap items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]/40 px-2.5 py-1.5 text-xs text-[var(--text-primary)]">
+                          <span>{catalogItem.label}</span>
+                          <span className="rounded bg-[var(--surface)] px-1.5 py-0.5 text-[10px] text-[var(--text-secondary)]">
+                            Katalog
+                          </span>
+                          {typeMismatch ? (
+                            <span className="text-[10px] text-[var(--amber)]">
+                              passt nicht zum Objekttyp
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          value={row.label}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setDraftRows((prev) =>
+                              prev.map((r, i) =>
+                                i === idx ? { ...r, label: val } : r,
+                              ),
+                            );
+                            setSwapNotice(null);
+                            setConfirmingRecompute(null);
+                          }}
+                          placeholder="z. B. Fertighaus"
+                          maxLength={60}
+                          disabled={isBusy}
+                          className="min-w-[160px] flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
+                        />
+                      )}
                       <div className="flex items-center gap-1">
                         <input
                           type="text"
@@ -997,6 +1160,7 @@ export function PropertyValuationCard({
                                 i === idx ? { ...r, percentText: val } : r,
                               ),
                             );
+                            setSwapNotice(null);
                             setConfirmingRecompute(null);
                           }}
                           placeholder="-10,00"
@@ -1005,6 +1169,32 @@ export function PropertyValuationCard({
                         />
                         <span className="text-[var(--text-secondary)]">%</span>
                       </div>
+                      {catalogItem ? (
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={() => {
+                            setDraftRows((prev) =>
+                              prev.map((r, i) =>
+                                i === idx
+                                  ? {
+                                      ...r,
+                                      percentText: bpsToPercentInputString(
+                                        catalogItem.suggestedBps,
+                                        { allowNegative: true },
+                                      ),
+                                    }
+                                  : r,
+                              ),
+                            );
+                            setSwapNotice(null);
+                            setConfirmingRecompute(null);
+                          }}
+                          className="text-[11px] text-[var(--accent)] underline underline-offset-2 hover:opacity-80"
+                        >
+                          Richtwert
+                        </button>
+                      ) : null}
                       <Button
                         type="button"
                         variant="outline"
@@ -1014,6 +1204,7 @@ export function PropertyValuationCard({
                           setDraftRows((prev) =>
                             prev.filter((_, i) => i !== idx),
                           );
+                          setSwapNotice(null);
                           setConfirmingRecompute(null);
                         }}
                       >
@@ -1031,23 +1222,41 @@ export function PropertyValuationCard({
             </div>
 
             {draftValidation.totalError ? (
-              <p className="text-[11px] text-[var(--rose)]">
+              <p className="text-[11px] font-medium text-[var(--rose)]">
+                {draftValidation.isTotalOutOfRange ? (
+                  <span className="tabular-nums">
+                    {formatSignedBps(draftValidation.rawSumBps)} ·{" "}
+                  </span>
+                ) : null}
                 {draftValidation.totalError}
               </p>
             ) : null}
 
-            {previewBaseCents !== null &&
-            previewAdjustedCents !== null &&
-            draftValidation.totalBps !== null ? (
-              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface-elevated)]/40 px-2.5 py-2 tabular-nums">
-                <StatusBadge variant="modeled" />
-                <span className="text-[var(--text-secondary)]">
-                  Basis ImmoAnalyse {formatCentsDE(previewBaseCents)} ·{" "}
-                  {formatSignedBps(draftValidation.totalBps)} →{" "}
-                  <strong className="font-medium text-[var(--text-primary)]">
-                    {formatCentsDE(previewAdjustedCents)}
+            {/* Live-Vorschau */}
+            {draftValidation.totalBps !== null ? (
+              <div className="space-y-1 rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface-elevated)]/40 px-2.5 py-2 tabular-nums">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[var(--text-secondary)]">
+                    {previewBaseCents !== null
+                      ? `Rohwert ImmoAnalyse ${formatCentsDE(previewBaseCents)} (unverändert)`
+                      : "Ohne ImmoAnalyse-Rohwert"}
+                  </span>
+                  <StatusBadge variant="modeled" />
+                </div>
+                <p className="text-[var(--text-primary)]">
+                  Korrektur{" "}
+                  <strong className="font-semibold">
+                    {formatSignedBps(draftValidation.totalBps)}
                   </strong>
-                </span>
+                  {previewAdjustedCents !== null ? (
+                    <>
+                      {" → "}
+                      <strong className="font-semibold">
+                        {formatCentsDE(previewAdjustedCents)}
+                      </strong>
+                    </>
+                  ) : null}
+                </p>
               </div>
             ) : null}
 
@@ -1118,7 +1327,7 @@ export function PropertyValuationCard({
                     setConfirmingRecompute(null);
                   }}
                 >
-                  Posten hinzufügen
+                  + Freier Posten
                 </Button>
                 <Button
                   type="button"
@@ -1181,7 +1390,7 @@ export function PropertyValuationCard({
         </p>
       ) : null}
 
-      {previewOpen ? (
+      {showDebug && previewOpen ? (
         <div className="space-y-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
           <p className="text-xs text-[var(--text-secondary)]">
             Straße, Hausnummer, Name, Ausstattungstext, Sanierungen und

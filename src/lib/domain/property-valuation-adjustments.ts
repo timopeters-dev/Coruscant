@@ -1,14 +1,22 @@
 import { assertSafeInteger, formatBpsDE, roundHalfUpBigInt } from "./money";
+import { getCatalogItem } from "./valuation-adjustment-catalog-data";
+import {
+  MAX_ADJUSTMENT_ITEM_BPS,
+  MAX_ADJUSTMENT_LABEL_LENGTH,
+  MAX_ADJUSTMENT_TOTAL_BPS,
+  MAX_VALUATION_ADJUSTMENTS,
+  normalizeAdjustmentLabel,
+  type ValuationAdjustment,
+} from "./valuation-adjustment-limits";
 
-export const MAX_VALUATION_ADJUSTMENTS = 8;
-export const MAX_ADJUSTMENT_ITEM_BPS = 5_000;
-export const MAX_ADJUSTMENT_TOTAL_BPS = 5_000;
-export const MAX_ADJUSTMENT_LABEL_LENGTH = 60;
-
-export interface ValuationAdjustment {
-  label: string;
-  bps: number;
-}
+export {
+  MAX_ADJUSTMENT_ITEM_BPS,
+  MAX_ADJUSTMENT_LABEL_LENGTH,
+  MAX_ADJUSTMENT_TOTAL_BPS,
+  MAX_VALUATION_ADJUSTMENTS,
+  normalizeAdjustmentLabel,
+  type ValuationAdjustment,
+};
 
 export type ValuationAdjustmentErrorCode =
   | "too_many"
@@ -18,7 +26,10 @@ export type ValuationAdjustmentErrorCode =
   | "bps_not_integer"
   | "bps_zero"
   | "bps_item_out_of_range"
-  | "total_out_of_range";
+  | "total_out_of_range"
+  | "catalog_key_unknown"
+  | "catalog_key_duplicate"
+  | "exclusive_conflict";
 
 export interface ValuationAdjustmentValidationError {
   index?: number;
@@ -29,10 +40,6 @@ export type ValidateValuationAdjustmentsResult =
   | { ok: true }
   | { ok: false; errors: ValuationAdjustmentValidationError[] };
 
-export function normalizeAdjustmentLabel(label: string): string {
-  return label.trim().replace(/\s+/g, " ");
-}
-
 export function normalizeValuationAdjustments(
   raw: unknown,
 ): ValuationAdjustment[] {
@@ -41,6 +48,8 @@ export function normalizeValuationAdjustments(
   }
 
   const seenLabels = new Set<string>();
+  const seenCatalogKeys = new Set<string>();
+  const seenExclusiveGroups = new Set<string>();
   const normalized: ValuationAdjustment[] = [];
   let runningTotal = 0;
 
@@ -56,7 +65,26 @@ export function normalizeValuationAdjustments(
       continue;
     }
 
-    const label = normalizeAdjustmentLabel(candidate.label);
+    const catalogItem =
+      typeof candidate.catalogKey === "string"
+        ? getCatalogItem(candidate.catalogKey)
+        : null;
+
+    if (catalogItem) {
+      if (seenCatalogKeys.has(catalogItem.key)) {
+        continue;
+      }
+      if (
+        catalogItem.exclusiveGroup &&
+        seenExclusiveGroups.has(catalogItem.exclusiveGroup)
+      ) {
+        continue;
+      }
+    }
+
+    const label = catalogItem
+      ? catalogItem.label
+      : normalizeAdjustmentLabel(candidate.label);
     if (label.length === 0 || label.length > MAX_ADJUSTMENT_LABEL_LENGTH) {
       continue;
     }
@@ -80,8 +108,19 @@ export function normalizeValuationAdjustments(
     }
 
     seenLabels.add(key);
+    if (catalogItem) {
+      seenCatalogKeys.add(catalogItem.key);
+      if (catalogItem.exclusiveGroup) {
+        seenExclusiveGroups.add(catalogItem.exclusiveGroup);
+      }
+    }
     runningTotal += bps;
-    normalized.push({ label, bps: bps === 0 ? 0 : bps });
+    const cleanBps = bps === 0 ? 0 : bps;
+    normalized.push(
+      catalogItem
+        ? { label, bps: cleanBps, catalogKey: catalogItem.key }
+        : { label, bps: cleanBps },
+    );
 
     if (normalized.length >= MAX_VALUATION_ADJUSTMENTS) {
       break;
@@ -128,6 +167,8 @@ export function validateValuationAdjustments(
   }
 
   const seenLabels = new Set<string>();
+  const seenCatalogKeys = new Set<string>();
+  const seenExclusiveGroups = new Set<string>();
   let totalBps = 0;
   let allBpsIntegers = true;
 
@@ -143,6 +184,26 @@ export function validateValuationAdjustments(
         errors.push({ index, code: "label_duplicate" });
       } else {
         seenLabels.add(key);
+      }
+    }
+
+    if (item.catalogKey !== undefined) {
+      const catalogItem = getCatalogItem(item.catalogKey);
+      if (!catalogItem) {
+        errors.push({ index, code: "catalog_key_unknown" });
+      } else {
+        if (seenCatalogKeys.has(catalogItem.key)) {
+          errors.push({ index, code: "catalog_key_duplicate" });
+        } else {
+          seenCatalogKeys.add(catalogItem.key);
+        }
+        if (catalogItem.exclusiveGroup) {
+          if (seenExclusiveGroups.has(catalogItem.exclusiveGroup)) {
+            errors.push({ index, code: "exclusive_conflict" });
+          } else {
+            seenExclusiveGroups.add(catalogItem.exclusiveGroup);
+          }
+        }
       }
     }
 

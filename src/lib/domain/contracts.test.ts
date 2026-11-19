@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyCappedSpecialRepayment,
   calculateMonthlyInterestCents,
   type DomainContract,
   extractContractMilestones,
+  getCalibrationAge,
   projectContractBalance,
+  stepContractMonth,
 } from "./contracts";
 
 function makeLoan(overrides: Partial<DomainContract> = {}): DomainContract {
@@ -222,5 +225,241 @@ describe("extractContractMilestones", () => {
       kind: "milestone",
       isOverdue: false,
     });
+  });
+});
+
+describe("stepContractMonth", () => {
+  it("steps an annuity loan normally", () => {
+    const step = stepContractMonth(
+      {
+        category: "loan",
+        repaymentType: "annuity",
+        monthlyRateCents: 100_000,
+        interestRateBps: 360,
+      },
+      10_000_000,
+    );
+    expect(step).toEqual({
+      balanceCents: 9_930_000,
+      interestCents: 30_000,
+      principalCents: 70_000,
+      paymentCents: 100_000,
+      paidOff: false,
+    });
+  });
+
+  it("caps final annuity month payment to balance + interest", () => {
+    const step = stepContractMonth(
+      {
+        category: "loan",
+        repaymentType: "annuity",
+        monthlyRateCents: 100_000,
+        interestRateBps: 360,
+      },
+      50_000,
+    );
+    expect(step).toEqual({
+      balanceCents: 0,
+      interestCents: 150,
+      principalCents: 50_000,
+      paymentCents: 50_150,
+      paidOff: true,
+    });
+  });
+
+  it("grows balance when annuity rate is below interest", () => {
+    const step = stepContractMonth(
+      {
+        category: "loan",
+        repaymentType: "annuity",
+        monthlyRateCents: 10_000,
+        interestRateBps: 360,
+      },
+      10_000_000,
+    );
+    expect(step).toEqual({
+      balanceCents: 10_020_000,
+      interestCents: 30_000,
+      principalCents: -20_000,
+      paymentCents: 10_000,
+      paidOff: false,
+    });
+  });
+
+  it("steps an installment loan with principal = min(rate, balance)", () => {
+    const step1 = stepContractMonth(
+      {
+        category: "loan",
+        repaymentType: "installment",
+        monthlyRateCents: 100_000,
+        interestRateBps: 600,
+      },
+      1_200_000,
+    );
+    expect(step1).toEqual({
+      balanceCents: 1_100_000,
+      interestCents: 6_000,
+      principalCents: 100_000,
+      paymentCents: 106_000,
+      paidOff: false,
+    });
+
+    const stepLast = stepContractMonth(
+      {
+        category: "loan",
+        repaymentType: "installment",
+        monthlyRateCents: 100_000,
+        interestRateBps: 600,
+      },
+      40_000,
+    );
+    expect(stepLast).toEqual({
+      balanceCents: 0,
+      interestCents: 200,
+      principalCents: 40_000,
+      paymentCents: 40_200,
+      paidOff: true,
+    });
+  });
+
+  it("keeps lump_sum loan balance constant and pays interest only", () => {
+    const step = stepContractMonth(
+      {
+        category: "loan",
+        repaymentType: "lump_sum",
+        monthlyRateCents: 0,
+        interestRateBps: 360,
+      },
+      1_000_000,
+    );
+    expect(step).toEqual({
+      balanceCents: 1_000_000,
+      interestCents: 3_000,
+      principalCents: 0,
+      paymentCents: 3_000,
+      paidOff: false,
+    });
+  });
+
+  it("steps a savings_contract with rate + interest", () => {
+    const step = stepContractMonth(
+      {
+        category: "savings_contract",
+        monthlyRateCents: 50_000,
+        interestRateBps: 120,
+      },
+      1_900_000,
+    );
+    expect(step).toEqual({
+      balanceCents: 1_951_900,
+      interestCents: 1_900,
+      principalCents: 0,
+      paymentCents: 50_000,
+      paidOff: false,
+    });
+  });
+
+  it("handles 0% interest with principal = rate", () => {
+    const step = stepContractMonth(
+      {
+        category: "loan",
+        repaymentType: "annuity",
+        monthlyRateCents: 100_000,
+        interestRateBps: 0,
+      },
+      1_200_000,
+    );
+    expect(step).toEqual({
+      balanceCents: 1_100_000,
+      interestCents: 0,
+      principalCents: 100_000,
+      paymentCents: 100_000,
+      paidOff: false,
+    });
+  });
+
+  it("treats 0 balance loan as no-op", () => {
+    const step = stepContractMonth(
+      {
+        category: "loan",
+        repaymentType: "annuity",
+        monthlyRateCents: 100_000,
+        interestRateBps: 360,
+      },
+      0,
+    );
+    expect(step).toEqual({
+      balanceCents: 0,
+      interestCents: 0,
+      principalCents: 0,
+      paymentCents: 0,
+      paidOff: false,
+    });
+  });
+});
+
+describe("applyCappedSpecialRepayment", () => {
+  it("applies full amount when under cap and debt", () => {
+    expect(applyCappedSpecialRepayment(1_000_000, 200_000, 500_000)).toEqual({
+      appliedCents: 200_000,
+      capOverflowCents: 0,
+      exceedsDebtCents: 0,
+    });
+  });
+
+  it("applies exact cap when amount equals cap", () => {
+    expect(applyCappedSpecialRepayment(1_000_000, 500_000, 500_000)).toEqual({
+      appliedCents: 500_000,
+      capOverflowCents: 0,
+      exceedsDebtCents: 0,
+    });
+  });
+
+  it("reports capOverflowCents when amount exceeds cap", () => {
+    expect(applyCappedSpecialRepayment(1_000_000, 800_000, 500_000)).toEqual({
+      appliedCents: 500_000,
+      capOverflowCents: 300_000,
+      exceedsDebtCents: 0,
+    });
+  });
+
+  it("reports full amount as overflow when cap is 0", () => {
+    expect(applyCappedSpecialRepayment(1_000_000, 300_000, 0)).toEqual({
+      appliedCents: 0,
+      capOverflowCents: 300_000,
+      exceedsDebtCents: 0,
+    });
+  });
+
+  it("reports exceedsDebtCents when amount exceeds debt", () => {
+    expect(applyCappedSpecialRepayment(200_000, 350_000, 500_000)).toEqual({
+      appliedCents: 200_000,
+      capOverflowCents: 0,
+      exceedsDebtCents: 150_000,
+    });
+  });
+
+  it("reports exceedsDebtCents = amount when debt is 0", () => {
+    expect(applyCappedSpecialRepayment(0, 100_000, 500_000)).toEqual({
+      appliedCents: 0,
+      capOverflowCents: 0,
+      exceedsDebtCents: 100_000,
+    });
+  });
+});
+
+describe("getCalibrationAge", () => {
+  it("treats 12 months as not stale, 13 months as stale, and same date as 0", () => {
+    expect(
+      getCalibrationAge({ balanceAsOfDate: "2025-11-19" }, "2025-11-19"),
+    ).toEqual({ months: 0, isStale: false });
+
+    expect(
+      getCalibrationAge({ balanceAsOfDate: "2025-11-19" }, "2026-11-19"),
+    ).toEqual({ months: 12, isStale: false });
+
+    expect(
+      getCalibrationAge({ balanceAsOfDate: "2025-10-19" }, "2026-11-19"),
+    ).toEqual({ months: 13, isStale: true });
   });
 });

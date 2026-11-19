@@ -28,7 +28,31 @@ export interface DomainContract {
   fixedInterestUntil?: string | null;
   targetSumCents?: number | null;
   allocationThresholdPercent?: number | null;
+  specialRepaymentMaxYearlyCents?: number | null;
 }
+
+export interface ContractStepInput {
+  category: ContractCategory;
+  repaymentType?: RepaymentType | null;
+  monthlyRateCents: number;
+  interestRateBps: number;
+}
+
+export interface ContractMonthStep {
+  balanceCents: number;
+  interestCents: number;
+  principalCents: number;
+  paymentCents: number;
+  paidOff: boolean;
+}
+
+export interface CappedSpecialRepayment {
+  appliedCents: number;
+  capOverflowCents: number;
+  exceedsDebtCents: number;
+}
+
+export const STALE_CALIBRATION_MONTHS = 12;
 
 export interface ContractProjectionResult {
   contractId: string;
@@ -80,7 +104,7 @@ export function calculateMonthlyInterestCents(
   return assertSafeInteger(Number(interest), "monthlyInterestCents");
 }
 
-function validateContract(contract: DomainContract): void {
+export function validateContract(contract: DomainContract): void {
   assertNonNegativeInteger(contract.currentBalanceCents, "currentBalanceCents");
   assertNonNegativeInteger(contract.monthlyRateCents, "monthlyRateCents");
   assertNonNegativeInteger(contract.interestRateBps, "interestRateBps");
@@ -88,6 +112,12 @@ function validateContract(contract: DomainContract): void {
 
   if (contract.targetSumCents != null) {
     assertNonNegativeInteger(contract.targetSumCents, "targetSumCents");
+  }
+  if (contract.specialRepaymentMaxYearlyCents != null) {
+    assertNonNegativeInteger(
+      contract.specialRepaymentMaxYearlyCents,
+      "specialRepaymentMaxYearlyCents",
+    );
   }
   if (contract.allocationThresholdPercent != null) {
     const threshold = assertNonNegativeInteger(
@@ -100,6 +130,131 @@ function validateContract(contract: DomainContract): void {
       );
     }
   }
+}
+
+/**
+ * Advances a single contract by one month from `balanceCents`.
+ */
+export function stepContractMonth(
+  input: ContractStepInput,
+  balanceCents: number,
+): ContractMonthStep {
+  const safeBalance = assertNonNegativeInteger(balanceCents, "balanceCents");
+  const safeRate = assertNonNegativeInteger(
+    input.monthlyRateCents,
+    "monthlyRateCents",
+  );
+  const safeBps = assertNonNegativeInteger(
+    input.interestRateBps,
+    "interestRateBps",
+  );
+
+  if (input.category === "savings_contract") {
+    const interestCents = calculateMonthlyInterestCents(safeBalance, safeBps);
+    const nextBalance = assertSafeInteger(
+      safeBalance + safeRate + interestCents,
+      "projectedBalanceCents",
+    );
+    return {
+      balanceCents: nextBalance,
+      interestCents,
+      principalCents: 0,
+      paymentCents: safeRate,
+      paidOff: false,
+    };
+  }
+
+  // category === "loan"
+  if (safeBalance === 0) {
+    return {
+      balanceCents: 0,
+      interestCents: 0,
+      principalCents: 0,
+      paymentCents: 0,
+      paidOff: false,
+    };
+  }
+
+  const interestCents = calculateMonthlyInterestCents(safeBalance, safeBps);
+
+  if (input.repaymentType === "installment") {
+    const principalCents = Math.min(safeBalance, safeRate);
+    const nextBalance = safeBalance - principalCents;
+    return {
+      balanceCents: nextBalance,
+      interestCents,
+      principalCents,
+      paymentCents: principalCents + interestCents,
+      paidOff: nextBalance === 0,
+    };
+  }
+
+  if (input.repaymentType === "lump_sum") {
+    return {
+      balanceCents: safeBalance,
+      interestCents,
+      principalCents: 0,
+      paymentCents: interestCents,
+      paidOff: false,
+    };
+  }
+
+  // Default to annuity when repaymentType is "annuity" or unset
+  const rawNext = safeBalance + interestCents - safeRate;
+  if (rawNext <= 0) {
+    return {
+      balanceCents: 0,
+      interestCents,
+      principalCents: safeBalance,
+      paymentCents: safeBalance + interestCents,
+      paidOff: true,
+    };
+  }
+
+  return {
+    balanceCents: assertSafeInteger(rawNext, "balanceCents"),
+    interestCents,
+    principalCents: safeRate - interestCents,
+    paymentCents: safeRate,
+    paidOff: false,
+  };
+}
+
+/**
+ * Applies a special repayment capped by remaining debt and remaining yearly cap.
+ */
+export function applyCappedSpecialRepayment(
+  debtCents: number,
+  amountCents: number,
+  capRemainingCents: number,
+): CappedSpecialRepayment {
+  const safeDebt = assertNonNegativeInteger(debtCents, "debtCents");
+  const safeAmount = assertNonNegativeInteger(amountCents, "amountCents");
+  const safeCap = assertSafeInteger(capRemainingCents, "capRemainingCents");
+
+  const wanted = Math.min(safeAmount, safeDebt);
+  const appliedCents = Math.min(wanted, Math.max(0, safeCap));
+  return {
+    appliedCents,
+    capOverflowCents: wanted - appliedCents,
+    exceedsDebtCents: safeAmount - wanted,
+  };
+}
+
+/**
+ * Computes calibration age in completed months and whether it exceeds STALE_CALIBRATION_MONTHS.
+ */
+export function getCalibrationAge(
+  contract: Pick<DomainContract, "balanceAsOfDate">,
+  asOfDate: string,
+): { months: number; isStale: boolean } {
+  parseIsoDate(contract.balanceAsOfDate, "balanceAsOfDate");
+  parseIsoDate(asOfDate, "asOfDate");
+  const months = countCompletedMonths(contract.balanceAsOfDate, asOfDate);
+  return {
+    months,
+    isStale: months > STALE_CALIBRATION_MONTHS,
+  };
 }
 
 /**
@@ -131,57 +286,21 @@ export function projectContractBalance(
 
   if (shouldProject) {
     for (let month = 1; month <= monthsElapsed; month += 1) {
+      if (contract.category === "loan" && balance === 0) {
+        break;
+      }
+
+      const step = stepContractMonth(contract, balance);
+      balance = step.balanceCents;
+      totalInterestAccruedCents += step.interestCents;
       if (contract.category === "loan") {
-        if (balance === 0) {
-          break;
-        }
+        totalPrincipalPaidCents += step.principalCents;
+      }
+      totalContributionsCents += step.paymentCents;
 
-        const interest = calculateMonthlyInterestCents(
-          balance,
-          contract.interestRateBps,
-        );
-
-        if (contract.repaymentType === "installment") {
-          const principal = Math.min(balance, contract.monthlyRateCents);
-          balance -= principal;
-          totalInterestAccruedCents += interest;
-          totalPrincipalPaidCents += principal;
-          totalContributionsCents += principal + interest;
-
-          if (balance === 0) {
-            reachedZeroAtMonth = month;
-            break;
-          }
-        } else {
-          // Default to annuity for loans when repaymentType is "annuity" or unset
-          const rawNext = balance + interest - contract.monthlyRateCents;
-          if (rawNext <= 0) {
-            const principal = balance;
-            totalInterestAccruedCents += interest;
-            totalPrincipalPaidCents += principal;
-            totalContributionsCents += principal + interest;
-            balance = 0;
-            reachedZeroAtMonth = month;
-            break;
-          }
-
-          totalInterestAccruedCents += interest;
-          totalPrincipalPaidCents += contract.monthlyRateCents - interest;
-          totalContributionsCents += contract.monthlyRateCents;
-          balance = rawNext;
-        }
-      } else {
-        // savings_contract
-        const interest = calculateMonthlyInterestCents(
-          balance,
-          contract.interestRateBps,
-        );
-        balance = assertSafeInteger(
-          balance + contract.monthlyRateCents + interest,
-          "projectedBalanceCents",
-        );
-        totalInterestAccruedCents += interest;
-        totalContributionsCents += contract.monthlyRateCents;
+      if (step.paidOff) {
+        reachedZeroAtMonth = month;
+        break;
       }
     }
   }

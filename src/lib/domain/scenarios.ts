@@ -1,6 +1,8 @@
 import {
+  applyCappedSpecialRepayment,
   calculateMonthlyInterestCents,
   projectContractBalance,
+  stepContractMonth,
   type DomainContract,
   type RepaymentType,
 } from "./contracts";
@@ -280,28 +282,22 @@ function payRegular(
   if (state.debt === 0) {
     return 0;
   }
-  const interest = calculateMonthlyInterestCents(
+  const step = stepContractMonth(
+    {
+      category: "loan",
+      repaymentType: loan.repaymentType,
+      monthlyRateCents: loan.monthlyRateCents,
+      interestRateBps: loan.interestRateBps,
+    },
     state.debt,
-    loan.interestRateBps,
   );
-  let payment: number;
-  if (loan.repaymentType === "installment") {
-    const principal = Math.min(loan.monthlyRateCents, state.debt);
-    payment = principal + interest;
-    state.debt -= principal;
-  } else if (loan.repaymentType === "lump_sum") {
-    payment = interest;
-  } else {
-    // annuity (also repaymentType === null)
-    payment = Math.min(loan.monthlyRateCents, state.debt + interest);
-    state.debt = state.debt + interest - payment;
-  }
-  state.interest += interest;
-  state.regular += payment;
-  if (state.debt === 0 && state.paidOffAt === null) {
+  state.debt = step.balanceCents;
+  state.interest += step.interestCents;
+  state.regular += step.paymentCents;
+  if (step.paidOff && state.paidOffAt === null) {
     state.paidOffAt = month;
   }
-  return payment;
+  return step.paymentCents;
 }
 
 function validatePrepaymentInput(input: PrepaymentVsEtfInput): void {
@@ -382,14 +378,16 @@ export function simulatePrepaymentVsEtf(
 
   // Variant A: apply special repayment limited by debt and yearly cap, rest to ETF.
   const applyToA = (availableCents: number, month: number): void => {
-    const wanted = Math.min(availableCents, a.debt);
-    const room = Math.max(0, cap - capUsed);
-    const special = Math.min(wanted, room);
-    capLimitedOverflowCents += wanted - special;
-    capUsed += special;
-    a.debt -= special;
-    a.special += special;
-    const toEtf = availableCents - special;
+    const res = applyCappedSpecialRepayment(
+      a.debt,
+      availableCents,
+      Math.max(0, cap - capUsed),
+    );
+    capLimitedOverflowCents += res.capOverflowCents;
+    capUsed += res.appliedCents;
+    a.debt -= res.appliedCents;
+    a.special += res.appliedCents;
+    const toEtf = availableCents - res.appliedCents;
     a.etf += toEtf;
     a.contributions += toEtf;
     if (a.debt === 0 && a.paidOffAt === null) {
@@ -551,9 +549,7 @@ export interface PrepaymentDefaults {
 }
 
 export function buildPrepaymentDefaults(
-  contract: DomainContract & {
-    specialRepaymentMaxYearlyCents?: number | null;
-  },
+  contract: DomainContract,
   asOfDate: string,
 ): PrepaymentDefaults {
   if (contract.category !== "loan") {

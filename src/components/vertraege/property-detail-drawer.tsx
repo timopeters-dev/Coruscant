@@ -53,6 +53,7 @@ interface PropertyDetailDrawerProps {
   linkedDocuments: DocumentRow[];
   projectionsById: Record<string, ContractProjectionResult>;
   asOfDate: string;
+  showDebug?: boolean;
   onClose: () => void;
   onEdit: (property: PropertyRow) => void;
   onSelectContract: (contract: FinancialContractRow) => void;
@@ -98,6 +99,7 @@ function PropertyDetailDrawerInner({
   linkedDocuments,
   projectionsById,
   asOfDate,
+  showDebug = false,
   onClose,
   onEdit,
   onSelectContract,
@@ -458,6 +460,7 @@ function PropertyDetailDrawerInner({
         <PropertyValuationCard
           key={property.id}
           property={property}
+          showDebug={showDebug}
           onMutated={onMutated}
         />
 

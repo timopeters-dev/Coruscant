@@ -616,4 +616,102 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
     expect(body.pendingSuggestion).toBeNull();
     expect(getPropertyById(prop.id)!.estimatedValueCents).toBe(30_000_000);
   });
+
+  it("omits requestJson in GET and POST when getDevMode() is false and never sends adjustments/catalogKey to valuator", async () => {
+    const prop = createSampleProperty();
+    const PUT_ADJ = createValuationAdjustmentsHandler(FIXED_NOW);
+    const adjRes = await PUT_ADJ(
+      new Request("http://localhost", {
+        method: "PUT",
+        body: JSON.stringify({
+          adjustments: [
+            {
+              label: "Fertighaus (Holzständerbauweise)",
+              bps: -1_000,
+              catalogKey: "construction_prefab",
+            },
+          ],
+        }),
+      }),
+      { params: Promise.resolve({ id: prop.id }) },
+    );
+    expect(adjRes.status).toBe(200);
+
+    const GET_PROD = createValuationPreviewHandler(FIXED_NOW, () => false);
+    const getProdRes = await GET_PROD(new Request("http://localhost"), {
+      params: Promise.resolve({ id: prop.id }),
+    });
+    expect(getProdRes.status).toBe(200);
+    const getProdBody = (await getProdRes.json()) as Record<string, unknown>;
+    expect(getProdBody).toEqual({ usable: true });
+    expect("requestJson" in getProdBody).toBe(false);
+
+    const GET_DEV = createValuationPreviewHandler(FIXED_NOW, () => true);
+    const getDevRes = await GET_DEV(new Request("http://localhost"), {
+      params: Promise.resolve({ id: prop.id }),
+    });
+    expect(getDevRes.status).toBe(200);
+    const getDevBody = (await getDevRes.json()) as Record<string, unknown>;
+    expect(typeof getDevBody.requestJson).toBe("string");
+
+    const receivedContexts: unknown[] = [];
+    const makeValuator = (): PropertyValuator => ({
+      estimate: async (ctx) => {
+        receivedContexts.push(ctx);
+        return {
+          ok: true,
+          provider: "immoanalyse",
+          result: {
+            requestId: "req_dev_prod",
+            cached: false,
+            valuability: "valuable",
+            lowerCents: 28_000_000,
+            medianCents: 32_000_000,
+            upperCents: 36_000_000,
+            asOfDate: "2026-11-10",
+            confidence: "high",
+            confidenceScore: 85,
+            rationale: "Gut",
+            limitations: [],
+            factors: [],
+          },
+          quota: null,
+        };
+      },
+    });
+
+    const POST_PROD = createValuationEstimateHandler(
+      makeValuator,
+      FIXED_NOW,
+      () => false,
+    );
+    const postProdRes = await POST_PROD(
+      new Request("http://localhost", { method: "POST", body: "{}" }),
+      { params: Promise.resolve({ id: prop.id }) },
+    );
+    expect(postProdRes.status).toBe(200);
+    const postProdBody = (await postProdRes.json()) as Record<string, unknown>;
+    expect("requestJson" in postProdBody).toBe(false);
+    expect(postProdBody.valuation).toBeDefined();
+    expect(postProdBody.historyId).toBeDefined();
+
+    const POST_DEV = createValuationEstimateHandler(
+      makeValuator,
+      FIXED_NOW,
+      () => true,
+    );
+    const postDevRes = await POST_DEV(
+      new Request("http://localhost", { method: "POST", body: "{}" }),
+      { params: Promise.resolve({ id: prop.id }) },
+    );
+    expect(postDevRes.status).toBe(200);
+    const postDevBody = (await postDevRes.json()) as Record<string, unknown>;
+    expect(typeof postDevBody.requestJson).toBe("string");
+
+    expect(receivedContexts).toHaveLength(2);
+    expect(receivedContexts[0]).toEqual(receivedContexts[1]);
+    const serializedCtx = JSON.stringify(receivedContexts[0]);
+    expect(serializedCtx).not.toContain("construction_prefab");
+    expect(serializedCtx).not.toContain("Fertighaus");
+  });
 });

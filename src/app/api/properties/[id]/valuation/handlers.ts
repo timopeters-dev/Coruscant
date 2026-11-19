@@ -23,6 +23,7 @@ import {
   type ValuatorErrorCode,
 } from "@/lib/integrations/property-valuator";
 import { getBerlinClockSnapshot } from "@/lib/server/berlin-clock";
+import { isDevMode } from "@/lib/server/dev-mode";
 import { runPropertyValuation } from "@/lib/server/property-valuation-service";
 import { valuationPostBodySchema } from "@/lib/validation/immoanalyse";
 
@@ -54,7 +55,10 @@ const UNAVAILABLE_MESSAGE: Record<ValuationContextUnavailableReason, string> = {
     "Objekttyp im Objekt pflegen, um eine Schätzung zu erhalten.",
 };
 
-export function createValuationPreviewHandler(nowFn: () => Date = () => new Date()) {
+export function createValuationPreviewHandler(
+  nowFn: () => Date = () => new Date(),
+  getDevMode: () => boolean = isDevMode,
+) {
   return async function GET(
     _request: Request,
     context: RouteContext,
@@ -103,7 +107,7 @@ export function createValuationPreviewHandler(nowFn: () => Date = () => new Date
       }
 
       return NextResponse.json(
-        { requestJson, usable: true },
+        { ...(getDevMode() ? { requestJson } : {}), usable: true },
         { status: 200 },
       );
     } catch {
@@ -115,6 +119,7 @@ export function createValuationPreviewHandler(nowFn: () => Date = () => new Date
 export function createValuationEstimateHandler(
   valuatorFactory: PropertyValuatorFactory = createDefaultPropertyValuator,
   nowFn: () => Date = () => new Date(),
+  getDevMode: () => boolean = isDevMode,
 ) {
   return async function POST(
     request: Request,
@@ -149,7 +154,7 @@ export function createValuationEstimateHandler(
             valuation: result.valuation,
             warnings: result.warnings,
             historyId: result.historyId,
-            requestJson: result.requestJson,
+            ...(getDevMode() ? { requestJson: result.requestJson } : {}),
             cached: result.cached,
             quota: result.quota,
           },

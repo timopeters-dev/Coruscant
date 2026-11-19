@@ -28,6 +28,7 @@ export const valuationAdjustmentItemSchema = z
       .refine((val) => Math.abs(val) <= MAX_ADJUSTMENT_ITEM_BPS, {
         message: "Einzelner Posten darf höchstens ±50,00 % betragen.",
       }),
+    catalogKey: z.string().min(1).max(64).optional(),
   })
   .strict();
 
@@ -51,6 +52,27 @@ export const valuationAdjustmentsPutBodySchema = z
             code: "custom",
             path: ["adjustments", err.index, "label"],
             message: "Bezeichnung darf nicht doppelt vorkommen.",
+          });
+        } else if (err.code === "catalog_key_unknown" && err.index !== undefined) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["adjustments", err.index, "catalogKey"],
+            message: "Unbekannter Katalog-Posten.",
+          });
+        } else if (
+          err.code === "catalog_key_duplicate" &&
+          err.index !== undefined
+        ) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["adjustments", err.index, "catalogKey"],
+            message: "Katalog-Posten doppelt gewählt.",
+          });
+        } else if (err.code === "exclusive_conflict" && err.index !== undefined) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["adjustments", err.index],
+            message: "Schließt sich mit einem anderen gewählten Posten aus.",
           });
         } else if (err.code === "total_out_of_range") {
           ctx.addIssue({

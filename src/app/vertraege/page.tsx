@@ -6,9 +6,14 @@ import {
   type ContractProjectionResult,
   projectContractBalance,
 } from "@/lib/domain/contracts";
+import {
+  buildContractOverview,
+  type ContractOverview,
+} from "@/lib/domain/contract-series";
 import { getTodayIsoDate } from "@/lib/domain/date";
 import { summarizeProperties } from "@/lib/domain/properties";
 import { summarizeRentalPortfolio } from "@/lib/domain/rental";
+import { isDevMode } from "@/lib/server/dev-mode";
 import { parsePurchaseDraft } from "@/lib/validation/property-draft";
 
 export const dynamic = "force-dynamic";
@@ -39,8 +44,15 @@ export default async function VertraegePage({
   }));
 
   const projectionsById: Record<string, ContractProjectionResult> = {};
+  const contractOverviewById: Record<string, ContractOverview> = {};
   for (const contract of contracts) {
     projectionsById[contract.id] = projectContractBalance(contract, asOfDate);
+    if (contract.status !== "closed") {
+      contractOverviewById[contract.id] = buildContractOverview(
+        contract,
+        asOfDate,
+      );
+    }
   }
 
   const documentsByContractId: Record<string, DocumentRow[]> = {};
@@ -76,6 +88,8 @@ export default async function VertraegePage({
       rentalPortfolio={rentalPortfolio}
       pots={pots}
       projectionsById={projectionsById}
+      contractOverviewById={contractOverviewById}
+      showDebug={isDevMode()}
       documentsByContractId={documentsByContractId}
       documentsByPropertyId={documentsByPropertyId}
       initialTab={initialTab}

@@ -13,6 +13,8 @@ export const CHART_ROLE_COLOR = {
   optionB: "var(--accent)",
   baseline: "var(--text-secondary)",
   scenario: "var(--accent)",
+  milestone: "var(--amber)",
+  threshold: "var(--amber)",
   grid: "var(--border)",
   axisText: "var(--text-secondary)",
 } as const;

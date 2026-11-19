@@ -121,4 +121,23 @@ describe("LineChart", () => {
     expect(html).toContain("0 €");
     expect(html).toContain("−");
   });
+
+  it("renders anchors as solid circles with <title>", () => {
+    const html = renderToStaticMarkup(
+      <LineChart
+        series={sampleSeries}
+        xTicks={[
+          { x: 0, label: "heute" },
+          { x: 24, label: "01/2029" },
+        ]}
+        xTooltipLabel={(x) => `Monat ${x}`}
+        anchors={[
+          { x: 0, y: 0, label: "Geeicht 01.01.2026", role: "liabilities" },
+        ]}
+        ariaLabel="Chart mit Anker"
+      />,
+    );
+    expect(html).toContain("<circle");
+    expect(html).toContain("<title>Geeicht 01.01.2026</title>");
+  });
 });
