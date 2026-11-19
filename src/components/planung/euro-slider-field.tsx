@@ -21,6 +21,10 @@ interface SliderFieldProps {
   kind: "euro" | "percent" | "years" | "months";
   hint?: string;
   disabled?: boolean;
+  /** Nur für `kind="percent"`: erlaubt negative Werte (z. B. Wertsteigerung). */
+  allowNegative?: boolean;
+  /** Feldfehler (rot, unter dem Feld). */
+  error?: string;
 }
 
 /**
@@ -38,18 +42,20 @@ export function SliderField({
   kind,
   hint,
   disabled = false,
+  allowNegative = false,
+  error,
 }: SliderFieldProps) {
   const format =
     kind === "euro"
       ? centsToEuroInputString
       : kind === "percent"
-        ? bpsToPercentInputString
+        ? (v: number) => bpsToPercentInputString(v, { allowNegative })
         : (v: number) => String(v);
   const parse =
     kind === "euro"
       ? parseEuroInputToCents
       : kind === "percent"
-        ? parsePercentInputToBps
+        ? (raw: string) => parsePercentInputToBps(raw, { allowNegative })
         : parseIntegerInput;
   // Keep the user's draft while typing (even if invalid or still incomplete,
   // e.g. "-"). Fall back to the formatted value once the value was changed
@@ -88,7 +94,7 @@ export function SliderField({
               kind === "years" || kind === "months" ? "numeric" : "decimal"
             }
             value={text}
-            hasError={invalid}
+            hasError={invalid || Boolean(error)}
             className={
               kind === "months"
                 ? "pr-11 text-right tabular-nums"
@@ -114,6 +120,11 @@ export function SliderField({
           </span>
         </div>
       </div>
+      {error ? (
+        <p role="alert" className="text-xs text-[var(--rose)]">
+          {error}
+        </p>
+      ) : null}
       {hint ? (
         <p className="text-xs text-[var(--text-secondary)]">{hint}</p>
       ) : null}

@@ -9,6 +9,11 @@ import { cn } from "@/lib/utils";
 import { CoachEntryPanel } from "./coach-entry-panel";
 import { FreeMoneyPanel } from "./free-money-panel";
 import { PlanningEntryPicker } from "./planning-entry-picker";
+import { PropertyVsEtfDialog } from "./property-vs-etf-dialog";
+import {
+  createPropertyVsEtfFormState,
+  propertyVsEtfReducer,
+} from "./property-vs-etf-state";
 import {
   buildPlanningHref,
   createFreeMoneyState,
@@ -104,6 +109,14 @@ export function PlanungWorkspace({
     salaryReducer,
     startMonth,
     createSalaryState,
+  );
+
+  // Nur Speicher, keine Persistenz: überlebt Schließen/Öffnen des Dialogs.
+  const [immoOpen, setImmoOpen] = React.useState(false);
+  const [immoState, immoDispatch] = React.useReducer(
+    propertyVsEtfReducer,
+    undefined,
+    createPropertyVsEtfFormState,
   );
 
   const [recUiState, recUiDispatch] = React.useReducer(
@@ -205,6 +218,14 @@ export function PlanungWorkspace({
         baseSurplusCents={baseSurplusCents}
         hasHouseholdData={hasHouseholdData}
         navRef={navRef}
+        onOpenPropertyVsEtf={() => setImmoOpen(true)}
+      />
+
+      <PropertyVsEtfDialog
+        open={immoOpen}
+        onOpenChange={setImmoOpen}
+        state={immoState}
+        dispatch={immoDispatch}
       />
 
       {activeEntry === "geld" ? (

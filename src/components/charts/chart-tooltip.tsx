@@ -9,10 +9,15 @@ export interface ChartTooltipItem {
   dashed?: boolean;
 }
 
+export interface ChartTooltipExtra {
+  label: string;
+  value: string;
+}
+
 interface ChartTooltipProps {
   title: string;
   items: ChartTooltipItem[];
-  extra?: { label: string; value: string } | null;
+  extra?: ChartTooltipExtra | ChartTooltipExtra[] | null;
   xPx: number;
   containerWidth: number;
 }
@@ -33,6 +38,12 @@ export function ChartTooltip({
     preferredLeft <= maxLeft
       ? Math.max(4, preferredLeft)
       : Math.max(4, Math.min(maxLeft, flippedLeft));
+
+  const extraRows: ChartTooltipExtra[] = Array.isArray(extra)
+    ? extra
+    : extra
+      ? [extra]
+      : [];
 
   return (
     <div
@@ -60,14 +71,21 @@ export function ChartTooltip({
           </li>
         ))}
       </ul>
-      {extra ? (
-        <div className="mt-1.5 flex items-center justify-between gap-2 border-t border-[var(--border)] pt-1.5">
-          <span className="text-[var(--text-secondary)]">{extra.label}</span>
-          <span className="font-medium text-[var(--text-primary)]">
-            {extra.value}
+      {extraRows.map((row, idx) => (
+        <div
+          key={`${row.label}-${idx}`}
+          className={`flex items-center justify-between gap-2 ${
+            idx === 0
+              ? "mt-1.5 border-t border-[var(--border)] pt-1.5"
+              : "mt-1"
+          }`}
+        >
+          <span className="text-[var(--text-secondary)]">{row.label}</span>
+          <span className="text-right font-medium text-[var(--text-primary)]">
+            {row.value}
           </span>
         </div>
-      ) : null}
+      ))}
     </div>
   );
 }

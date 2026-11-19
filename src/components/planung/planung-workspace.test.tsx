@@ -104,6 +104,22 @@ describe("PlanungWorkspace", () => {
     expect(html).not.toContain('aria-label="Ergebnis"');
   });
 
+  it("zeigt die Immobilie-vs-ETF-Karte als Button, Dialog bleibt zu", () => {
+    const html = renderWorkspace(null);
+    expect(html).toContain("Schlägt diese Immobilie einen ETF?");
+    expect(html).toMatch(
+      /<button[^>]*type="button"[^>]*>(?:(?!<\/button>).)*Schlägt diese Immobilie einen ETF\?/s,
+    );
+    expect(html).not.toContain("Steuern berücksichtigen");
+    expect(html).not.toContain('role="dialog"');
+  });
+
+  it("enthält in der kompakten Navigation den Button „Immobilie vs. ETF“", () => {
+    const html = renderWorkspace("geld");
+    expect(html).toMatch(/<button[^>]*type="button"[^>]*>\s*Immobilie vs\. ETF\s*<\/button>/);
+    expect(html).not.toContain("Steuern berücksichtigen");
+  });
+
   it("renders geld view with tabs, defaults to Wohin mit X €, and shows disclaimer", () => {
     const html = renderWorkspace("geld");
     expect(html).toContain('aria-current="page"');

@@ -10,7 +10,7 @@ import {
   type ChartTick,
 } from "./chart-scale";
 import { CHART_DASH_ARRAY, CHART_ROLE_COLOR, type ChartRole } from "./chart-tokens";
-import { ChartTooltip } from "./chart-tooltip";
+import { ChartTooltip, type ChartTooltipExtra } from "./chart-tooltip";
 import { useElementWidth } from "./use-element-width";
 
 export interface LinePoint {
@@ -52,7 +52,7 @@ export interface LineChartProps {
   tooltipExtra?: (
     values: Record<string, number>,
     x?: number,
-  ) => { label: string; value: string } | null;
+  ) => ChartTooltipExtra | ChartTooltipExtra[] | null;
   emptyText?: string;
 }
 

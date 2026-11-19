@@ -37,6 +37,9 @@ describe("planning-no-network", () => {
           name === "loan-comparison-table.tsx" ||
           name === "salary-panel.tsx" ||
           name === "planung-workspace.tsx" ||
+          name === "property-vs-etf-state.ts" ||
+          name === "property-vs-etf-chart-data.ts" ||
+          name === "property-vs-etf-dialog.tsx" ||
           name === "recommendation-text.ts" ||
           name.startsWith("planning-")),
     ),
@@ -49,6 +52,13 @@ describe("planning-no-network", () => {
     path.join(domainDir, "recommendation-llm.ts"),
     path.join(domainDir, "recommendation-text.ts"),
   ];
+
+  it("includes the property-vs-etf files in the target list", () => {
+    const names = targetFiles.map((f) => path.basename(f));
+    expect(names).toContain("property-vs-etf-state.ts");
+    expect(names).toContain("property-vs-etf-chart-data.ts");
+    expect(names).toContain("property-vs-etf-dialog.tsx");
+  });
 
   it("contains no fetch, use server, db imports, or router mutations", () => {
     expect(targetFiles.length).toBeGreaterThan(5);

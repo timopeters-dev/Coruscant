@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { ChartTooltip } from "./chart-tooltip";
 import {
   LineChart,
   shouldCloseOnPointerLeave,
@@ -139,5 +140,47 @@ describe("LineChart", () => {
     );
     expect(html).toContain("<circle");
     expect(html).toContain("<title>Geeicht 01.01.2026</title>");
+  });
+});
+
+describe("ChartTooltip extra", () => {
+  const baseProps = {
+    title: "Verkauf Ende Jahr 5",
+    items: [{ label: "Linie A", value: "1.000 €", role: "optionA" as const }],
+    xPx: 100,
+    containerWidth: 600,
+  };
+
+  it("renders every row of an extra array", () => {
+    const html = renderToStaticMarkup(
+      <ChartTooltip
+        {...baseProps}
+        extra={[
+          { label: "Vorteil Immobilie", value: "+500 €" },
+          { label: "Bestand ohne Verkauf", value: "A 1 € · B 2 €" },
+        ]}
+      />,
+    );
+    expect(html).toContain("Vorteil Immobilie");
+    expect(html).toContain("+500 €");
+    expect(html).toContain("Bestand ohne Verkauf");
+    expect(html).toContain("A 1 € · B 2 €");
+  });
+
+  it("keeps the single-object behaviour and renders nothing for null", () => {
+    const single = renderToStaticMarkup(
+      <ChartTooltip
+        {...baseProps}
+        extra={{ label: "Zusatz", value: "7 €" }}
+      />,
+    );
+    expect(single).toContain("Zusatz");
+    expect(single).toContain("7 €");
+    expect(single).toContain("border-t");
+
+    const none = renderToStaticMarkup(<ChartTooltip {...baseProps} extra={null} />);
+    expect(none).not.toContain("border-t border-[var(--border)] pt-1.5");
+    const empty = renderToStaticMarkup(<ChartTooltip {...baseProps} extra={[]} />);
+    expect(empty).not.toContain("pt-1.5");
   });
 });

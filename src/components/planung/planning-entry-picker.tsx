@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowUpRight, Coins, Home, TrendingUp } from "lucide-react";
+import { ArrowUpRight, Coins, Home, Scale, TrendingUp } from "lucide-react";
 import { formatWholeEuroDE } from "@/components/charts/chart-scale";
 import { StatusBadge } from "@/components/status-badge";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ interface PlanningEntryPickerProps {
   baseSurplusCents: number;
   hasHouseholdData: boolean;
   navRef?: React.RefObject<HTMLElement | null>;
+  onOpenPropertyVsEtf: () => void;
 }
 
 function isPlainLeftClick(e: React.MouseEvent<HTMLAnchorElement>): boolean {
@@ -34,6 +35,7 @@ export function PlanningEntryPicker({
   baseSurplusCents,
   hasHouseholdData,
   navRef,
+  onOpenPropertyVsEtf,
 }: PlanningEntryPickerProps) {
   const headingId = React.useId();
 
@@ -57,7 +59,7 @@ export function PlanningEntryPicker({
           </p>
         </header>
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Link
             href={buildPlanningHref("geld")}
             prefetch={false}
@@ -128,6 +130,28 @@ export function PlanningEntryPicker({
               <StatusBadge variant="modeled" />
             </div>
           </Link>
+
+          <button
+            type="button"
+            onClick={onOpenPropertyVsEtf}
+            className="flex flex-col justify-between gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 text-left transition-colors hover:bg-[var(--surface-elevated)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+          >
+            <div className="flex flex-col gap-2">
+              <Scale
+                className="h-5 w-5 text-[var(--accent)]"
+                aria-hidden="true"
+              />
+              <h2 className="text-base font-semibold tracking-tight">
+                Schlägt diese Immobilie einen ETF?
+              </h2>
+              <p className="text-sm text-[var(--text-secondary)]">
+                Inserat eingeben, Regler verschieben, Immobilie und ETF vergleichen.
+              </p>
+            </div>
+            <div>
+              <StatusBadge variant="modeled" />
+            </div>
+          </button>
         </div>
 
         <p className="text-sm text-[var(--text-secondary)]">
@@ -202,6 +226,13 @@ export function PlanningEntryPicker({
               </Link>
             );
           })}
+          <button
+            type="button"
+            onClick={onOpenPropertyVsEtf}
+            className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+          >
+            Immobilie vs. ETF
+          </button>
         </div>
 
         <Link
