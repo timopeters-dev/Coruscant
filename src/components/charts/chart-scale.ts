@@ -246,18 +246,38 @@ export function nearestIndex(xs: readonly number[], x: number): number {
   return x - xs[lo]! <= xs[hi]! - x ? lo : hi;
 }
 
+export type DateTickVariant = "history" | "projection";
+
+export interface PickDateTicksOptions {
+  variant?: DateTickVariant;
+}
+
 /**
  * Picks calendar date ticks (month starts for <= ~13M, year starts for longer spans)
- * between UTC day numbers fromDay and toDay, always including start ("TT.MM.") and end ("heute").
+ * between UTC day numbers fromDay and toDay.
+ * - "history" (default): start "TT.MM.", end "heute"
+ * - "projection": start "MM/JJJJ", end "MM/JJJJ" (actual end date, no "heute")
  */
 export function pickDateTicks(
   fromDay: number,
   toDay: number,
   maxTicks = 6,
+  options?: PickDateTicksOptions,
 ): ChartTick[] {
   const safeFrom = assertSafeInteger(fromDay, "fromDay");
   const safeTo = assertSafeInteger(toDay, "toDay");
+  const variant: DateTickVariant = options?.variant ?? "history";
+
   if (safeTo <= safeFrom) {
+    if (variant === "projection") {
+      const toParts = parseIsoDate(dayNumberToIsoDate(safeTo), "toIso");
+      return [
+        {
+          x: safeTo,
+          label: `${String(toParts.month).padStart(2, "0")}/${toParts.year}`,
+        },
+      ];
+    }
     return [{ x: safeTo, label: "heute" }];
   }
 
@@ -267,6 +287,23 @@ export function pickDateTicks(
   const toParts = parseIsoDate(toIso, "toIso");
   const span = safeTo - safeFrom;
 
+  const startLabel =
+    variant === "projection"
+      ? `${String(fromParts.month).padStart(2, "0")}/${fromParts.year}`
+      : `${String(fromParts.day).padStart(2, "0")}.${String(fromParts.month).padStart(2, "0")}.`;
+  const endLabel =
+    variant === "projection"
+      ? `${String(toParts.month).padStart(2, "0")}/${toParts.year}`
+      : "heute";
+
+  if (
+    variant === "projection" &&
+    fromParts.year === toParts.year &&
+    fromParts.month === toParts.month
+  ) {
+    return [{ x: safeFrom, label: startLabel }];
+  }
+
   const innerCandidates: ChartTick[] = [];
   if (span <= 400) {
     let year = fromParts.year;
@@ -275,10 +312,13 @@ export function pickDateTicks(
       const monthStartIso = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-01`;
       const dayNum = isoDateToDayNumber(monthStartIso);
       if (dayNum > safeFrom && dayNum < safeTo) {
-        innerCandidates.push({
-          x: dayNum,
-          label: `${String(month).padStart(2, "0")}/${year}`,
-        });
+        const label = `${String(month).padStart(2, "0")}/${year}`;
+        if (variant !== "projection" || (label !== startLabel && label !== endLabel)) {
+          innerCandidates.push({
+            x: dayNum,
+            label,
+          });
+        }
       }
       month += 1;
       if (month > 12) {
@@ -299,14 +339,19 @@ export function pickDateTicks(
     }
   }
 
-  const availableInner = Math.max(1, maxTicks - 2);
-  const step =
-    innerCandidates.length > availableInner
-      ? Math.ceil(innerCandidates.length / availableInner)
-      : 1;
-  const thinned = innerCandidates.filter((_, idx) => idx % step === 0);
+  const availableInner = Math.max(0, maxTicks - 2);
+  const thinned =
+    availableInner === 0
+      ? []
+      : innerCandidates.filter(
+          (_, idx) =>
+            idx %
+              (innerCandidates.length > availableInner
+                ? Math.ceil(innerCandidates.length / availableInner)
+                : 1) ===
+            0,
+        );
 
-  const startLabel = `${String(fromParts.day).padStart(2, "0")}.${String(fromParts.month).padStart(2, "0")}.`;
   const ticks: ChartTick[] = [{ x: safeFrom, label: startLabel }];
   const minGap = Math.max(1, Math.round(span / Math.max(4, maxTicks * 2)));
 
@@ -318,7 +363,7 @@ export function pickDateTicks(
   }
 
   if (ticks[ticks.length - 1]!.x !== safeTo) {
-    ticks.push({ x: safeTo, label: "heute" });
+    ticks.push({ x: safeTo, label: endLabel });
   }
 
   return ticks;

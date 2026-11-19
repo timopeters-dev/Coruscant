@@ -74,7 +74,7 @@ export function SavingsProgressSection({
   const firstDay = isoDateToDayNumber(firstPoint.date);
   const lastDay = isoDateToDayNumber(lastPoint.date);
   const xTicks = React.useMemo(
-    () => pickDateTicks(firstDay, lastDay, 6),
+    () => pickDateTicks(firstDay, lastDay, 6, { variant: "projection" }),
     [firstDay, lastDay],
   );
 

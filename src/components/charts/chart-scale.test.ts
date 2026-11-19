@@ -156,4 +156,67 @@ describe("pickDateTicks", () => {
     // Zero span
     expect(pickDateTicks(to3m, to3m)).toEqual([{ x: to3m, label: "heute" }]);
   });
+
+  it("supports projection variant with MM/JJJJ start and end, no 'heute'", () => {
+    const fromMulti = isoDateToDayNumber("2026-01-01");
+    const toMulti = isoDateToDayNumber("2036-06-01");
+    const ticksMulti = pickDateTicks(fromMulti, toMulti, 6, {
+      variant: "projection",
+    });
+    expect(ticksMulti[0]).toEqual({ x: fromMulti, label: "01/2026" });
+    expect(ticksMulti[ticksMulti.length - 1]).toEqual({
+      x: toMulti,
+      label: "06/2036",
+    });
+    expect(ticksMulti.some((t) => t.label === "heute")).toBe(false);
+    expect(ticksMulti.length).toBeLessThanOrEqual(6);
+
+    // < 13 months uses month ticks and skips duplicate start/end month labels
+    const fromShort = isoDateToDayNumber("2026-03-15");
+    const toShort = isoDateToDayNumber("2026-10-20");
+    const ticksShort = pickDateTicks(fromShort, toShort, 6, {
+      variant: "projection",
+    });
+    expect(ticksShort[0]).toEqual({ x: fromShort, label: "03/2026" });
+    expect(ticksShort[ticksShort.length - 1]).toEqual({
+      x: toShort,
+      label: "10/2026",
+    });
+    expect(ticksShort.filter((t) => t.label === "10/2026")).toHaveLength(1);
+    expect(ticksShort.some((t) => t.label === "heute")).toBe(false);
+
+    // Same month at start and end yields single tick
+    const sameFrom = isoDateToDayNumber("2026-05-01");
+    const sameTo = isoDateToDayNumber("2026-05-28");
+    expect(
+      pickDateTicks(sameFrom, sameTo, 6, { variant: "projection" }),
+    ).toEqual([{ x: sameFrom, label: "05/2026" }]);
+
+    // to <= from yields single date tick, not 'heute'
+    expect(
+      pickDateTicks(toShort, fromShort, 6, { variant: "projection" }),
+    ).toEqual([{ x: fromShort, label: "03/2026" }]);
+    expect(
+      pickDateTicks(toShort, toShort, 6, { variant: "projection" }),
+    ).toEqual([{ x: toShort, label: "10/2026" }]);
+
+    // maxTicks = 2 returns only start and end
+    const twoTicks = pickDateTicks(fromMulti, toMulti, 2, {
+      variant: "projection",
+    });
+    expect(twoTicks).toEqual([
+      { x: fromMulti, label: "01/2026" },
+      { x: toMulti, label: "06/2036" },
+    ]);
+
+    // Inner ticks maintain minGap to both neighbors and end
+    const span = toMulti - fromMulti;
+    const minGap = Math.max(1, Math.round(span / Math.max(4, 6 * 2)));
+    for (let i = 1; i < ticksMulti.length - 1; i++) {
+      expect(ticksMulti[i]!.x - ticksMulti[i - 1]!.x).toBeGreaterThanOrEqual(
+        minGap,
+      );
+      expect(toMulti - ticksMulti[i]!.x).toBeGreaterThanOrEqual(minGap);
+    }
+  });
 });

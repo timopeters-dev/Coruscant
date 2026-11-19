@@ -120,6 +120,8 @@ describe("NetWorthHistoryCard", () => {
     expect(html).toContain('stroke-dasharray="6 4"');
     expect(html).toContain("+5.000 €");
     expect(html).toContain("1 Lücke &gt; 7 Tage");
+    // Regression: history chart X-axis still ends with "heute"
+    expect(html).toContain(">heute</text>");
   });
 
   it("renders negative net worth delta with Unicode minus", () => {
