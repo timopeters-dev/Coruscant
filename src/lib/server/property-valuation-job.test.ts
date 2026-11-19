@@ -33,6 +33,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   dbModule.closeDb();
   if (originalDbUrl === undefined) {
     delete process.env.DATABASE_URL;
@@ -358,11 +359,16 @@ describe("property-valuation-job", () => {
   });
 
   it("does not overwrite a manual value saved concurrently while estimate() is in flight", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-18T20:00:00Z"));
+
     const prop = createTestProperty({ estimatedValueCents: 0 });
     const concurrentValuator: PropertyValuator = {
       estimate: vi.fn(async (): Promise<ValuatorResult> => {
         // Simulate user saving a manual value while the HTTP call is running
+        vi.setSystemTime(new Date("2026-11-18T20:00:05Z"));
         updateProperty(prop.id, { estimatedValueCents: 35_000_000 });
+        vi.setSystemTime(new Date("2026-11-18T20:00:06Z"));
         return {
           ok: true,
           provider: "immoanalyse",
@@ -386,7 +392,6 @@ describe("property-valuation-job", () => {
     };
 
     const summary = await runAutoValuationJob({
-      now: new Date("2026-11-18T20:00:00Z"),
       valuatorFactory: () => concurrentValuator,
       env: { NODE_ENV: "test", IMMOANALYSE_API_KEY: "iap_test_dummy" },
     });
@@ -402,6 +407,32 @@ describe("property-valuation-job", () => {
       historyOnly: 1,
     });
     expect(getLatestPendingSuggestion(prop.id)?.medianCents).toBe(32_000_000);
+  });
+
+  it("clears pending suggestion when manual value is saved after estimate() completes", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-18T20:00:00Z"));
+
+    const prop = createTestProperty({ estimatedValueCents: 30_000_000 });
+    const valuator = makeOkValuator(32_000_000);
+
+    const summary = await runAutoValuationJob({
+      valuatorFactory: () => valuator,
+      env: { NODE_ENV: "test", IMMOANALYSE_API_KEY: "iap_test_dummy" },
+    });
+
+    expect(summary).toMatchObject({
+      status: "success",
+      processed: 1,
+      written: 0,
+      historyOnly: 1,
+    });
+    expect(getLatestPendingSuggestion(prop.id)?.medianCents).toBe(32_000_000);
+
+    vi.setSystemTime(new Date("2026-11-18T20:00:10Z"));
+    updateProperty(prop.id, { estimatedValueCents: 35_000_000 });
+
+    expect(getLatestPendingSuggestion(prop.id)).toBeNull();
   });
 
   it("returns the newest N entries in ascending order when history exceeds limit", () => {

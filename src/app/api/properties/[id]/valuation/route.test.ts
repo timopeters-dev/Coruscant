@@ -44,6 +44,7 @@ afterEach(() => {
   } else {
     process.env.IMMOANALYSE_API_KEY = originalApiKey;
   }
+  vi.useRealTimers();
   vi.restoreAllMocks();
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();
@@ -298,6 +299,9 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
   });
 
   it("supports adopt (median & upper), rejects foreign/manual/extra-field adopt, and updates history", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-18T17:00:00Z"));
+
     const propA = createSampleProperty({ name: "Objekt A" });
     const propB = createSampleProperty({ name: "Objekt B" });
 

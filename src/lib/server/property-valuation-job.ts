@@ -26,6 +26,7 @@ export interface JobRunSummary {
 
 export interface RunAutoValuationJobOptions {
   now?: Date;
+  nowFn?: () => Date;
   valuatorFactory?: (fallbackAsOfDate?: string) => PropertyValuator;
   env?: NodeJS.ProcessEnv;
 }
@@ -46,7 +47,9 @@ export async function runAutoValuationJob(
     };
   }
 
-  const now = options.now ?? new Date();
+  const nowFn =
+    options.nowFn ?? (options.now ? () => options.now! : () => new Date());
+  const now = nowFn();
   const nowIso = now.toISOString();
   const clock = getBerlinClockSnapshot(now);
 
@@ -102,11 +105,11 @@ export async function runAutoValuationJob(
   let failed = 0;
 
   for (const candidate of due) {
-    markAutoValuationAttempt(candidate.id, nowIso);
+    markAutoValuationAttempt(candidate.id, nowFn().toISOString());
     const result = await runPropertyValuation(candidate.id, {
       trigger: "auto",
       valuator,
-      now,
+      nowFn,
     });
 
     if (result.kind === "ok") {

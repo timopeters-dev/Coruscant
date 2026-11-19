@@ -140,7 +140,7 @@ export function createValuationEstimateHandler(
       const result = await runPropertyValuation(id, {
         trigger: "manual",
         valuator: valuatorFactory(),
-        now: nowFn(),
+        nowFn,
       });
 
       if (result.kind === "ok") {

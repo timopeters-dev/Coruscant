@@ -64,16 +64,17 @@ export type RunPropertyValuationResult =
 export interface RunPropertyValuationOptions {
   trigger: ValuationTrigger;
   valuator?: PropertyValuator;
-  now?: Date;
+  nowFn?: () => Date;
 }
 
 export async function runPropertyValuation(
   propertyId: string,
   options: RunPropertyValuationOptions,
 ): Promise<RunPropertyValuationResult> {
-  const now = options.now ?? new Date();
-  const nowIso = now.toISOString();
-  const todayKey = getBerlinClockSnapshot(now).dateKey;
+  const getNow = options.nowFn ?? (() => new Date());
+  const startNow = getNow();
+  const startNowIso = startNow.toISOString();
+  const todayKey = getBerlinClockSnapshot(startNow).dateKey;
 
   const source = loadPropertyValuationSource(propertyId, todayKey);
   if (!source) {
@@ -93,7 +94,7 @@ export async function runPropertyValuation(
         valuation: null,
         decision: null,
         outcome: "not_valuable",
-        nowIso,
+        nowIso: startNowIso,
         markDone: false,
       });
     }
@@ -124,9 +125,10 @@ export async function runPropertyValuation(
 
   const valuator = options.valuator ?? createDefaultPropertyValuator(todayKey);
   const estimateResult = await valuator.estimate(requestJson);
+  const completedAtIso = getNow().toISOString();
 
   if (estimateResult.quota) {
-    upsertQuotaSnapshot(estimateResult.quota, nowIso);
+    upsertQuotaSnapshot(estimateResult.quota, completedAtIso);
   }
 
   if (!estimateResult.ok) {
@@ -138,7 +140,7 @@ export async function runPropertyValuation(
           valuation: null,
           decision: null,
           outcome: "not_valuable",
-          nowIso,
+          nowIso: completedAtIso,
           markDone: true,
         });
       } else if (
@@ -151,7 +153,7 @@ export async function runPropertyValuation(
           valuation: null,
           decision: null,
           outcome: "error",
-          nowIso,
+          nowIso: completedAtIso,
           markDone: false,
         });
       }
@@ -186,7 +188,7 @@ export async function runPropertyValuation(
           validation.reason === "not_reliably_valuable"
             ? "not_valuable"
             : "rejected",
-        nowIso,
+        nowIso: completedAtIso,
         markDone: true,
       });
     }
@@ -213,7 +215,7 @@ export async function runPropertyValuation(
     valuation: validation.valuation,
     decision,
     outcome: decision.action === "write" ? "written" : "history_only",
-    nowIso,
+    nowIso: completedAtIso,
     markDone: options.trigger === "auto",
   });
 

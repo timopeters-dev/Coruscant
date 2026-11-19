@@ -49,7 +49,8 @@ interface RegisteredJob {
 const JOBS: Record<SchedulerJobId, RegisteredJob> = {
   property_valuation: {
     isEnabled: isValuationJobEnabled,
-    run: ({ now, env }) => runAutoValuationJob({ now, env }),
+    run: ({ now, env }) =>
+      runAutoValuationJob({ now, nowFn: () => new Date(), env }),
     disabledMessage: "Dev: Opt-in mit ENABLE_VALUATION_SCHEDULER=1",
   },
   balance_snapshot: {
