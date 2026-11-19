@@ -32,6 +32,7 @@ import {
   pickDefaultEquityPot,
   type EquityPotOption,
 } from "./purchase-calculator-state";
+import { buildPropertyVsEtfHrefFromPurchase } from "./property-vs-etf-query";
 
 interface PurchaseCalculatorWorkspaceProps {
   asOfDate: string;
@@ -773,6 +774,17 @@ export function PurchaseCalculatorWorkspace({
                       className="inline-flex items-center rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-elevated)]"
                     >
                       Als Objekt anlegen
+                    </Link>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs text-[var(--text-secondary)]">
+                      öffnet den Vergleich Immobilie vs. ETF, Wohnfläche und Kaltmiete/qm dort ergänzen
+                    </span>
+                    <Link
+                      href={buildPropertyVsEtfHrefFromPurchase(computed.input)}
+                      className="inline-flex items-center rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-elevated)]"
+                    >
+                      Mit ETF vergleichen
                     </Link>
                   </div>
                 </>

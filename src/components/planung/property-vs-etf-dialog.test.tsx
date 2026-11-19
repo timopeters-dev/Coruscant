@@ -184,4 +184,44 @@ describe("PropertyVsEtfWorkbench", () => {
       expect(html).toContain(item.hint);
     }
   });
+
+  it("zeigt bei gültigem Zustand den zugeklappten Erklär-Aufklapper mit Domänenwerten", () => {
+    const state = build(...fillObject);
+    const html = render(state);
+    expect(html).toContain("Wie wurde gerechnet?");
+    const evaluation = evaluatePropertyVsEtf(state);
+    if (evaluation.status !== "ok") throw new Error("nicht ok");
+    const marker = html.indexOf("Wie wurde gerechnet?");
+    const detailsStart = html.lastIndexOf("<details", marker);
+    expect(html.slice(detailsStart, marker)).not.toContain(" open");
+    expect(html).toContain(formatWholeEuroDE(evaluation.result.loanPrincipalCents));
+  });
+
+  it("zeigt im Leerzustand keinen Erklär-Aufklapper", () => {
+    expect(render(createPropertyVsEtfFormState())).not.toContain(
+      "Wie wurde gerechnet?",
+    );
+  });
+
+  it("zeigt den Kaufrechner-Hinweis nur mit origin im Leerzustand", () => {
+    const empty = createPropertyVsEtfFormState();
+    const withOrigin = renderToStaticMarkup(
+      <PropertyVsEtfWorkbench state={empty} dispatch={() => undefined} origin="kaufrechner" />,
+    );
+    expect(withOrigin).toContain("Aus dem Kaufrechner übernommen");
+    expect(render(empty)).not.toContain("Aus dem Kaufrechner übernommen");
+  });
+
+  it("rendert „Link kopieren“ nur mit onCopyLink", () => {
+    const state = createPropertyVsEtfFormState();
+    const withCopy = renderToStaticMarkup(
+      <PropertyVsEtfWorkbench
+        state={state}
+        dispatch={() => undefined}
+        onCopyLink={async () => ({ copied: true, url: "x" })}
+      />,
+    );
+    expect(withCopy).toContain("Link kopieren");
+    expect(render(state)).not.toContain("Link kopieren");
+  });
 });

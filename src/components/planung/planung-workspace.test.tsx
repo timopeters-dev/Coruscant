@@ -35,6 +35,7 @@ vi.mock("next/link", () => ({
 
 import { buildPrepaymentDefaults } from "@/lib/domain/scenarios";
 import { PlanungWorkspace } from "./planung-workspace";
+import { parsePropertyVsEtfQuery } from "./property-vs-etf-query";
 
 const sampleLoan: LoanOption = {
   id: "loan-1",
@@ -153,5 +154,34 @@ describe("PlanungWorkspace", () => {
     const html = renderWorkspace("coach");
     expect(html).toContain("Erklär mir das");
     expect(html).toContain("Freies Geld einsetzen");
+  });
+
+  it("öffnet den Immobilie-vs-ETF-Dialog mit Werten aus initialPropertyVsEtf", () => {
+    mockFrage = null;
+    mockAnsicht = null;
+    const html = renderToStaticMarkup(
+      <PlanungWorkspace
+        asOfDate="2026-11-19"
+        loanOptions={[sampleLoan]}
+        baseSurplusCents={75_000}
+        hasHouseholdData={true}
+        isDummy={true}
+        pots={[]}
+        startMonth="2026-12"
+        coachContext={emptyCoachContext}
+        coachRefLabels={{}}
+        initialPropertyVsEtf={parsePropertyVsEtfQuery(
+          new URLSearchParams("dialog=immo-etf&kp=35000000&wfl=6550&kmqm=1250"),
+        )}
+      />,
+    );
+    expect(html).toContain("Immobilie vs. ETF");
+    expect(html).toContain("350000,00");
+    expect(html).toContain("Steuern berücksichtigen");
+  });
+
+  it("lässt den Dialog ohne initialPropertyVsEtf geschlossen", () => {
+    const html = renderWorkspace(null);
+    expect(html).not.toContain("Steuern berücksichtigen");
   });
 });

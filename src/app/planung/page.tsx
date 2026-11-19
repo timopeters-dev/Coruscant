@@ -15,6 +15,7 @@ import { buildPrepaymentDefaults } from "@/lib/domain/scenarios";
 import type { DomainPot } from "@/lib/domain/waterfall";
 import { isDevMode } from "@/lib/server/dev-mode";
 import { PlanungWorkspace } from "@/components/planung/planung-workspace";
+import { parsePropertyVsEtfQuery } from "@/components/planung/property-vs-etf-query";
 import {
   parsePlanningEntry,
   parsePlanningLoanId,
@@ -25,11 +26,7 @@ import {
 export const dynamic = "force-dynamic";
 
 interface PlanungPageProps {
-  searchParams?: Promise<{
-    frage?: string | string[];
-    ansicht?: string | string[];
-    kredit?: string | string[];
-  }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export default async function PlanungPage({ searchParams }: PlanungPageProps) {
@@ -42,6 +39,7 @@ export default async function PlanungPage({ searchParams }: PlanungPageProps) {
   }
   const initialEntry = parsePlanningEntry(resolved.frage);
   const initialView = parsePlanningView(resolved.ansicht);
+  const initialPropertyVsEtf = parsePropertyVsEtfQuery(resolved);
 
   const asOfDate = getTodayIsoDate();
   const base = loadPlanningBase();
@@ -105,6 +103,7 @@ export default async function PlanungPage({ searchParams }: PlanungPageProps) {
         recommendationState={recommendationState}
         recommendationLabels={{ potNames, loanNames }}
         showDebug={showDebug}
+        initialPropertyVsEtf={initialPropertyVsEtf}
       />
     </React.Suspense>
   );

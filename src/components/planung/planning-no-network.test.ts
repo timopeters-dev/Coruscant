@@ -39,6 +39,9 @@ describe("planning-no-network", () => {
           name === "planung-workspace.tsx" ||
           name === "property-vs-etf-state.ts" ||
           name === "property-vs-etf-chart-data.ts" ||
+          name === "property-vs-etf-query.ts" ||
+          name === "property-vs-etf-explanation.ts" ||
+          name === "property-vs-etf-link.ts" ||
           name === "property-vs-etf-dialog.tsx" ||
           name === "recommendation-text.ts" ||
           name.startsWith("planning-")),

@@ -10,9 +10,16 @@ import { CoachEntryPanel } from "./coach-entry-panel";
 import { FreeMoneyPanel } from "./free-money-panel";
 import { PlanningEntryPicker } from "./planning-entry-picker";
 import { PropertyVsEtfDialog } from "./property-vs-etf-dialog";
+import { copyPropertyVsEtfLink } from "./property-vs-etf-link";
+import {
+  buildPropertyVsEtfHref,
+  mergePropertyVsEtfQuery,
+  type PropertyVsEtfQueryState,
+} from "./property-vs-etf-query";
 import {
   createPropertyVsEtfFormState,
   propertyVsEtfReducer,
+  type PropertyVsEtfAction,
 } from "./property-vs-etf-state";
 import {
   buildPlanningHref,
@@ -51,6 +58,7 @@ interface PlanungWorkspaceProps {
   recommendationState?: RecommendationState;
   recommendationLabels?: RecommendationLabels;
   showDebug?: boolean;
+  initialPropertyVsEtf?: PropertyVsEtfQueryState;
 }
 
 const GELD_TABS: Array<{ id: PlanningView; label: string }> = [
@@ -75,6 +83,7 @@ export function PlanungWorkspace({
   recommendationState,
   recommendationLabels,
   showDebug = false,
+  initialPropertyVsEtf,
 }: PlanungWorkspaceProps) {
   const searchParams = useSearchParams();
   const activeEntry =
@@ -112,12 +121,60 @@ export function PlanungWorkspace({
   );
 
   // Nur Speicher, keine Persistenz: überlebt Schließen/Öffnen des Dialogs.
-  const [immoOpen, setImmoOpen] = React.useState(false);
-  const [immoState, immoDispatch] = React.useReducer(
-    propertyVsEtfReducer,
-    undefined,
-    createPropertyVsEtfFormState,
+  const [immoOpen, setImmoOpen] = React.useState(
+    initialPropertyVsEtf?.open ?? false,
   );
+  const [immoState, immoReducerDispatch] = React.useReducer(
+    propertyVsEtfReducer,
+    initialPropertyVsEtf,
+    (initial) => initial?.state ?? createPropertyVsEtfFormState(),
+  );
+  const [immoOrigin, setImmoOrigin] = React.useState(
+    initialPropertyVsEtf?.origin ?? null,
+  );
+  const immoDispatch = React.useCallback((action: PropertyVsEtfAction) => {
+    if (action.type === "resetAll") setImmoOrigin(null);
+    immoReducerDispatch(action);
+  }, []);
+
+  // URL ist nur ein Spiegel des Formularzustands (Einbahnstraße, kein History-Spam).
+  const deferredImmo = React.useDeferredValue(immoState);
+  React.useEffect(() => {
+    const timer = window.setTimeout(
+      () => {
+        try {
+          const current = window.location.search.replace(/^\?/, "");
+          const next = mergePropertyVsEtfQuery(
+            window.location.search,
+            immoOpen,
+            deferredImmo,
+          );
+          if (next === current) return;
+          window.history.replaceState(
+            window.history.state,
+            "",
+            buildPropertyVsEtfHref(window.location.pathname, next),
+          );
+        } catch {
+          // Die URL ist nur Komfort (z. B. Safari-Drosselung): Fehler ignorieren.
+        }
+      },
+      immoOpen ? 300 : 0,
+    );
+    return () => window.clearTimeout(timer);
+  }, [immoOpen, deferredImmo]);
+
+  const handleCopyImmoLink = React.useCallback(async () => {
+    const href = buildPropertyVsEtfHref(
+      window.location.pathname,
+      mergePropertyVsEtfQuery(window.location.search, true, immoState),
+    );
+    const url = `${window.location.origin}${href}`;
+    return copyPropertyVsEtfLink(
+      url,
+      typeof navigator !== "undefined" ? navigator.clipboard : null,
+    );
+  }, [immoState]);
 
   const [recUiState, recUiDispatch] = React.useReducer(
     recommendationReducer,
@@ -226,6 +283,8 @@ export function PlanungWorkspace({
         onOpenChange={setImmoOpen}
         state={immoState}
         dispatch={immoDispatch}
+        origin={immoOrigin}
+        onCopyLink={handleCopyImmoLink}
       />
 
       {activeEntry === "geld" ? (

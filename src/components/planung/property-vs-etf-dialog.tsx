@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Link as LinkIcon } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { centsToEuroInputString, formatBpsDE, parseEuroInputToCents } from "@/lib/domain/money";
 import { CURRENT_PURCHASE_COST_RULE_SET } from "@/lib/domain/property-purchase-defaults";
@@ -24,6 +25,7 @@ import {
   toPropertyVsEtfKpis,
   type PropertyVsEtfKpi,
 } from "./property-vs-etf-chart-data";
+import { buildPropertyVsEtfExplanation } from "./property-vs-etf-explanation";
 import {
   evaluatePropertyVsEtf,
   FORM_ERROR_KEY,
@@ -147,6 +149,89 @@ function NumberField({
 interface WorkbenchProps {
   state: PropertyVsEtfFormState;
   dispatch: React.Dispatch<PropertyVsEtfAction>;
+  /** Herkunft der Vorbelegung (nur für den Hinweis im Leerzustand). */
+  origin?: "kaufrechner" | null;
+  /** Ohne diese Prop gibt es keinen „Link kopieren“-Button. */
+  onCopyLink?: () => Promise<{ copied: boolean; url: string }>;
+}
+
+function ExplanationDetails({ shown }: { shown: OkEvaluation }) {
+  const sections = React.useMemo(
+    () => buildPropertyVsEtfExplanation(shown),
+    [shown],
+  );
+  return (
+    <details className="rounded-lg border border-[var(--border)] px-3 py-2 text-xs">
+      <summary className="cursor-pointer text-sm font-medium text-[var(--text-primary)]">
+        Wie wurde gerechnet?
+      </summary>
+      <div className="mt-3 flex flex-col gap-4">
+        {sections.map((section) => (
+          <section key={section.key} className="flex flex-col gap-1.5">
+            <h4 className="text-xs font-semibold text-[var(--text-primary)]">
+              {section.title}
+            </h4>
+            <dl className="flex flex-col gap-1">
+              {section.items.map((item) => (
+                <div
+                  key={item.label}
+                  className="flex flex-wrap justify-between gap-x-4 gap-y-0.5"
+                >
+                  <dt className="text-[var(--text-secondary)]">{item.label}</dt>
+                  <dd className="text-right tabular-nums">{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+            {section.note ? (
+              <p className="text-[var(--text-secondary)]">{section.note}</p>
+            ) : null}
+          </section>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function CopyLinkControl({
+  onCopyLink,
+}: {
+  onCopyLink: () => Promise<{ copied: boolean; url: string }>;
+}) {
+  const [status, setStatus] = React.useState<{
+    copied: boolean;
+    url: string;
+  } | null>(null);
+  return (
+    <div className="flex flex-col items-start gap-1.5">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={async () => setStatus(await onCopyLink())}
+      >
+        <LinkIcon className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+        Link kopieren
+      </Button>
+      {status ? (
+        <div role="status" className="flex flex-col gap-1 text-xs text-[var(--text-secondary)]">
+          {status.copied ? (
+            <span>Link kopiert</span>
+          ) : (
+            <>
+              <span>Kopieren nicht möglich – Link markieren und kopieren:</span>
+              <input
+                readOnly
+                value={status.url}
+                aria-label="Link"
+                onFocus={(e) => e.currentTarget.select()}
+                className="w-72 max-w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-xs"
+              />
+            </>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function ModifiedSuffix({ modified }: { modified: boolean }) {
@@ -169,7 +254,12 @@ export function costRuleHint(purchaseCostsCents: number | null): string {
   return parts.join(" ");
 }
 
-export function PropertyVsEtfWorkbench({ state, dispatch }: WorkbenchProps) {
+export function PropertyVsEtfWorkbench({
+  state,
+  dispatch,
+  origin = null,
+  onCopyLink,
+}: WorkbenchProps) {
   const baseId = React.useId();
   const fid = (key: string) => `${baseId}-${key}`;
 
@@ -614,6 +704,7 @@ export function PropertyVsEtfWorkbench({ state, dispatch }: WorkbenchProps) {
                 <p className="tabular-nums">{describeInitialCashflow(shown.result)}</p>
                 <p className="tabular-nums">{describeFinancing(shown.result)}</p>
               </div>
+              <ExplanationDetails shown={shown} />
             </div>
           ) : (
             <div className="flex flex-col gap-4">
@@ -624,6 +715,13 @@ export function PropertyVsEtfWorkbench({ state, dispatch }: WorkbenchProps) {
                       Kaufpreis, Wohnfläche und Kaltmiete pro qm eingeben – dann erscheint
                       der Vergleich.
                     </p>
+                    {origin === "kaufrechner" ? (
+                      <p className="mt-2 text-xs">
+                        Aus dem Kaufrechner übernommen: Kaufpreis, Nebenkosten,
+                        Eigenkapital, Zins, Tilgung und WEG-Kosten. Wohnfläche und
+                        Kaltmiete pro qm bitte ergänzen.
+                      </p>
+                    ) : null}
                     <ul className="mt-2 text-xs">
                       {evaluation.missing.map((key) => (
                         <li key={key}>{MISSING_LABELS[key]}</li>
@@ -659,14 +757,17 @@ export function PropertyVsEtfWorkbench({ state, dispatch }: WorkbenchProps) {
           </p>
           <p>Vorabpauschale und Bundesland-Besonderheiten werden nicht abgebildet.</p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => dispatch({ type: "resetAll" })}
-        >
-          Alles zurücksetzen
-        </Button>
+        <div className="flex flex-wrap items-start gap-2">
+          {onCopyLink ? <CopyLinkControl onCopyLink={onCopyLink} /> : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => dispatch({ type: "resetAll" })}
+          >
+            Alles zurücksetzen
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -682,6 +783,8 @@ export function PropertyVsEtfDialog({
   onOpenChange,
   state,
   dispatch,
+  origin,
+  onCopyLink,
 }: DialogProps) {
   return (
     <Dialog
@@ -691,7 +794,12 @@ export function PropertyVsEtfDialog({
       description="Inserat-Schnellcheck – reine Simulation, nichts wird gespeichert."
       className="max-w-6xl"
     >
-      <PropertyVsEtfWorkbench state={state} dispatch={dispatch} />
+      <PropertyVsEtfWorkbench
+        state={state}
+        dispatch={dispatch}
+        origin={origin}
+        onCopyLink={onCopyLink}
+      />
     </Dialog>
   );
 }
