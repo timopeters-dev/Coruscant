@@ -6,6 +6,14 @@ export const CHART_ROLE_COLOR = {
   pot: "var(--accent)",
   unallocated: "var(--border-sub)",
   bound: "var(--sky)",
+  optionA: "var(--sky)",
+  optionB: "var(--accent)",
+  baseline: "var(--text-secondary)",
+  scenario: "var(--accent)",
+  grid: "var(--border)",
+  axisText: "var(--text-secondary)",
 } as const;
+
+export const CHART_DASH_ARRAY = "6 4";
 
 export type ChartRole = keyof typeof CHART_ROLE_COLOR;
