@@ -14,8 +14,10 @@ import {
   AlertTriangle,
   ArrowRight,
   CalendarClock,
+  FileText,
   RefreshCw,
 } from "lucide-react";
+import { AdvisorReportDialog } from "@/components/bericht/advisor-report-dialog";
 import { BalanceBar } from "@/components/cockpit/balance-bar";
 import { BalanceHistoryDrawer } from "@/components/cockpit/balance-history-drawer";
 import { cockpitHistoryRangeStore } from "@/components/cockpit/history-range-store";
@@ -45,10 +47,12 @@ import {
   resolveSkippedFreshReschedule,
   shouldRunAutoSyncOnVisibility,
 } from "@/lib/domain/external-sync";
+import type { AdvisorReportOutlineItem } from "@/lib/domain/advisor-report";
 import { formatBpsDE, formatCentsDE } from "@/lib/domain/money";
 
 interface CockpitWorkspaceProps {
   data: CockpitPageData;
+  advisorOutline?: readonly AdvisorReportOutlineItem[];
 }
 
 interface SyncBannerState {
@@ -87,9 +91,13 @@ function formatDaysRemaining(daysRemaining: number): string {
     : `seit ${overdueDays} Tagen überfällig`;
 }
 
-export function CockpitWorkspace({ data }: CockpitWorkspaceProps) {
+export function CockpitWorkspace({
+  data,
+  advisorOutline = [],
+}: CockpitWorkspaceProps) {
   const router = useRouter();
   const [isSyncing, setIsSyncing] = useState(false);
+  const [advisorDialogOpen, setAdvisorDialogOpen] = useState(false);
   const [banner, setBanner] = useState<SyncBannerState | null>(null);
   const isSyncingRef = useRef(false);
   const lastAutoAttemptMsRef = useRef(0);
@@ -356,6 +364,16 @@ export function CockpitWorkspace({ data }: CockpitWorkspaceProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setAdvisorDialogOpen(true)}
+            className="print:hidden"
+          >
+            <FileText className="h-4 w-4" />
+            Berater-Bericht
+          </Button>
           {latestSnapshotFetchedAt ? (
             <StatusBadge
               variant="calibrated"
@@ -719,6 +737,12 @@ export function CockpitWorkspace({ data }: CockpitWorkspaceProps) {
           </CardContent>
         </Card>
       </div>
+
+      <AdvisorReportDialog
+        open={advisorDialogOpen}
+        onOpenChange={setAdvisorDialogOpen}
+        outline={advisorOutline}
+      />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import {
   formatRecommendationNote,
   formatRecommendationReason,
 } from "./recommendation-text";
+import { formatRecommendationReason as reExportedReason } from "@/components/planung/recommendation-text";
 
 describe("recommendation-text", () => {
   it("formats every RecommendationReason code into a non-empty German string without Cent", () => {
@@ -106,5 +107,9 @@ describe("recommendation-text", () => {
       expect(text.trim().length).toBeGreaterThan(0);
       expect(text.toLowerCase()).not.toContain("cent");
     }
+  });
+
+  it("re-exports formatRecommendationReason from old planung path", () => {
+    expect(reExportedReason).toBe(formatRecommendationReason);
   });
 });

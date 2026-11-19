@@ -41,6 +41,7 @@ describe("planning-no-network", () => {
     ...collectFiles(chartsDir, (name) => !name.includes(".test.")),
     path.join(domainDir, "recommendation.ts"),
     path.join(domainDir, "recommendation-llm.ts"),
+    path.join(domainDir, "recommendation-text.ts"),
   ];
 
   it("contains no fetch, use server, db imports, or router mutations", () => {

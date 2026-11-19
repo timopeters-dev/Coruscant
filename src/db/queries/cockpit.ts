@@ -63,6 +63,7 @@ export interface HouseholdBalanceResult {
   properties: ReturnType<typeof listProperties>;
   contracts: ReturnType<typeof listContracts>;
   pots: ReturnType<typeof listPots>;
+  exclusionByPotId: Map<string, "link_conflict" | "out_of_scope">;
   latestSnapshot: ReturnType<typeof getLatestExternalSnapshot>;
   activeContractsCount: number;
   projectedContractsCount: number;
@@ -141,6 +142,7 @@ export function loadHouseholdBalance(
     properties,
     contracts,
     pots,
+    exclusionByPotId,
     latestSnapshot,
     activeContractsCount,
     projectedContractsCount,

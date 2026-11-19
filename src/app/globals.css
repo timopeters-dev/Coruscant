@@ -40,8 +40,31 @@
     margin: 15mm;
   }
 
+  @page advisor {
+    size: A4;
+    margin: 15mm 15mm 18mm;
+    @bottom-left {
+      content: "Orientierung, keine Anlageberatung";
+      font-size: 8pt;
+      color: #475569;
+    }
+    @bottom-right {
+      content: "Seite " counter(page) " von " counter(pages);
+      font-size: 8pt;
+      color: #475569;
+    }
+  }
+
+  .advisor-report {
+    page: advisor;
+  }
+
   .print-avoid-break {
     break-inside: avoid;
+  }
+
+  .print-break-before {
+    break-before: page;
   }
 
   thead {
