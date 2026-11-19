@@ -179,7 +179,7 @@ export function PurchaseCalculatorWorkspace({
             className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           >
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-            Szenario-Labor
+            Planung
           </Link>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
