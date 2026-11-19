@@ -223,3 +223,45 @@ export function addDaysToIsoDate(isoDate: string, days: number): string {
   const targetDay = String(utc.getUTCDate()).padStart(2, "0");
   return `${targetYear}-${targetMonth}-${targetDay}`;
 }
+
+/**
+ * Subtracts a non-negative whole number of months from a YYYY-MM-DD date with
+ * end-of-month clamping (2027-05-31 - 3 -> 2027-02-28).
+ */
+export function subtractMonthsFromIsoDate(
+  isoDate: string,
+  months: number,
+): string {
+  const { year, month, day } = parseIsoDate(isoDate, "isoDate");
+  const safeMonths = assertSafeInteger(months, "months");
+  if (safeMonths < 0) {
+    throw new RangeError(
+      `months must be a non-negative integer, received: ${months}`,
+    );
+  }
+  const zeroBased = year * 12 + (month - 1) - safeMonths;
+  const targetYear = Math.floor(zeroBased / 12);
+  const targetMonth = (((zeroBased % 12) + 12) % 12) + 1;
+  const targetDay = Math.min(day, daysInMonth(targetYear, targetMonth));
+  return `${formatYearMonth(targetYear, targetMonth)}-${String(targetDay).padStart(2, "0")}`;
+}
+
+/**
+ * Converts a YYYY-MM-DD date into whole UTC days since 1970-01-01.
+ */
+export function isoDateToDayNumber(isoDate: string): number {
+  const { year, month, day } = parseIsoDate(isoDate, "isoDate");
+  return Math.trunc(Date.UTC(year, month - 1, day) / MS_PER_DAY);
+}
+
+/**
+ * Converts whole UTC days since 1970-01-01 back into a YYYY-MM-DD date.
+ */
+export function dayNumberToIsoDate(dayNumber: number): string {
+  const safeDay = assertSafeInteger(dayNumber, "dayNumber");
+  const utc = new Date(safeDay * MS_PER_DAY);
+  const targetYear = String(utc.getUTCFullYear()).padStart(4, "0");
+  const targetMonth = String(utc.getUTCMonth() + 1).padStart(2, "0");
+  const targetDay = String(utc.getUTCDate()).padStart(2, "0");
+  return `${targetYear}-${targetMonth}-${targetDay}`;
+}

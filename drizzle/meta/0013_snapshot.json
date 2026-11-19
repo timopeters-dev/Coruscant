@@ -1,0 +1,1536 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "2ba95d97-e569-457f-8f2d-0a5f13e07c50",
+  "prevId": "4314a0ef-5541-4ac2-87ae-7b6784d385f5",
+  "tables": {
+    "app_meta": {
+      "name": "app_meta",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "value": {
+          "name": "value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "balance_snapshots": {
+      "name": "balance_snapshots",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "snapshot_date": {
+          "name": "snapshot_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "total_assets_cents": {
+          "name": "total_assets_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "liabilities_cents": {
+          "name": "liabilities_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "net_worth_cents": {
+          "name": "net_worth_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "free_assets_cents": {
+          "name": "free_assets_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "bound_assets_cents": {
+          "name": "bound_assets_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "properties_value_cents": {
+          "name": "properties_value_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "savings_contracts_value_cents": {
+          "name": "savings_contracts_value_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "has_modeled_values": {
+          "name": "has_modeled_values",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "trigger": {
+          "name": "trigger",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "captured_at": {
+          "name": "captured_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "balance_snapshots_snapshot_date_unique": {
+          "name": "balance_snapshots_snapshot_date_unique",
+          "columns": [
+            "snapshot_date"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "balance_snapshots_total_assets_non_negative": {
+          "name": "balance_snapshots_total_assets_non_negative",
+          "value": "\"balance_snapshots\".\"total_assets_cents\" >= 0"
+        },
+        "balance_snapshots_liabilities_non_negative": {
+          "name": "balance_snapshots_liabilities_non_negative",
+          "value": "\"balance_snapshots\".\"liabilities_cents\" >= 0"
+        },
+        "balance_snapshots_free_assets_non_negative": {
+          "name": "balance_snapshots_free_assets_non_negative",
+          "value": "\"balance_snapshots\".\"free_assets_cents\" >= 0"
+        },
+        "balance_snapshots_bound_assets_non_negative": {
+          "name": "balance_snapshots_bound_assets_non_negative",
+          "value": "\"balance_snapshots\".\"bound_assets_cents\" >= 0"
+        },
+        "balance_snapshots_properties_value_non_negative": {
+          "name": "balance_snapshots_properties_value_non_negative",
+          "value": "\"balance_snapshots\".\"properties_value_cents\" >= 0"
+        },
+        "balance_snapshots_savings_contracts_non_negative": {
+          "name": "balance_snapshots_savings_contracts_non_negative",
+          "value": "\"balance_snapshots\".\"savings_contracts_value_cents\" >= 0"
+        },
+        "balance_snapshots_total_equals_free_plus_bound": {
+          "name": "balance_snapshots_total_equals_free_plus_bound",
+          "value": "\"balance_snapshots\".\"total_assets_cents\" = \"balance_snapshots\".\"free_assets_cents\" + \"balance_snapshots\".\"bound_assets_cents\""
+        },
+        "balance_snapshots_bound_equals_properties_plus_savings": {
+          "name": "balance_snapshots_bound_equals_properties_plus_savings",
+          "value": "\"balance_snapshots\".\"bound_assets_cents\" = \"balance_snapshots\".\"properties_value_cents\" + \"balance_snapshots\".\"savings_contracts_value_cents\""
+        },
+        "balance_snapshots_net_equals_total_minus_liabilities": {
+          "name": "balance_snapshots_net_equals_total_minus_liabilities",
+          "value": "\"balance_snapshots\".\"net_worth_cents\" = \"balance_snapshots\".\"total_assets_cents\" - \"balance_snapshots\".\"liabilities_cents\""
+        },
+        "balance_snapshots_snapshot_date_format": {
+          "name": "balance_snapshots_snapshot_date_format",
+          "value": "\"balance_snapshots\".\"snapshot_date\" GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'"
+        }
+      }
+    },
+    "cashflow_items": {
+      "name": "cashflow_items",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "direction": {
+          "name": "direction",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "frequency": {
+          "name": "frequency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'manual'"
+        },
+        "linked_contract_id": {
+          "name": "linked_contract_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "active": {
+          "name": "active",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "cashflow_items_linked_contract_id_financial_contracts_id_fk": {
+          "name": "cashflow_items_linked_contract_id_financial_contracts_id_fk",
+          "tableFrom": "cashflow_items",
+          "tableTo": "financial_contracts",
+          "columnsFrom": [
+            "linked_contract_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "cashflow_items_amount_non_negative": {
+          "name": "cashflow_items_amount_non_negative",
+          "value": "\"cashflow_items\".\"amount_cents\" >= 0"
+        }
+      }
+    },
+    "documents": {
+      "name": "documents",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "filename": {
+          "name": "filename",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "storage_path": {
+          "name": "storage_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sha256_hash": {
+          "name": "sha256_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'pending_review'"
+        },
+        "document_type": {
+          "name": "document_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'other'"
+        },
+        "document_date": {
+          "name": "document_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "issuer": {
+          "name": "issuer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "total_amount_cents": {
+          "name": "total_amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "linked_property_id": {
+          "name": "linked_property_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "linked_contract_id": {
+          "name": "linked_contract_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "is_tax_relevant": {
+          "name": "is_tax_relevant",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "tax_year": {
+          "name": "tax_year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "tax_category": {
+          "name": "tax_category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "deductible_amount_cents": {
+          "name": "deductible_amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "detected_balance_cents": {
+          "name": "detected_balance_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "extracted_contract_json": {
+          "name": "extracted_contract_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "documents_sha256_hash_unique": {
+          "name": "documents_sha256_hash_unique",
+          "columns": [
+            "sha256_hash"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "documents_linked_property_id_properties_id_fk": {
+          "name": "documents_linked_property_id_properties_id_fk",
+          "tableFrom": "documents",
+          "tableTo": "properties",
+          "columnsFrom": [
+            "linked_property_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "documents_linked_contract_id_financial_contracts_id_fk": {
+          "name": "documents_linked_contract_id_financial_contracts_id_fk",
+          "tableFrom": "documents",
+          "tableTo": "financial_contracts",
+          "columnsFrom": [
+            "linked_contract_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "documents_total_amount_non_negative": {
+          "name": "documents_total_amount_non_negative",
+          "value": "\"documents\".\"total_amount_cents\" IS NULL OR \"documents\".\"total_amount_cents\" >= 0"
+        },
+        "documents_deductible_amount_non_negative": {
+          "name": "documents_deductible_amount_non_negative",
+          "value": "\"documents\".\"deductible_amount_cents\" IS NULL OR \"documents\".\"deductible_amount_cents\" >= 0"
+        },
+        "documents_detected_balance_non_negative": {
+          "name": "documents_detected_balance_non_negative",
+          "value": "\"documents\".\"detected_balance_cents\" IS NULL OR \"documents\".\"detected_balance_cents\" >= 0"
+        }
+      }
+    },
+    "external_snapshots": {
+      "name": "external_snapshots",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'finanz_cockpit'"
+        },
+        "liquid_cash_cents": {
+          "name": "liquid_cash_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "etf_stocks_cents": {
+          "name": "etf_stocks_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "crypto_cents": {
+          "name": "crypto_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "total_personal_net_worth_cents": {
+          "name": "total_personal_net_worth_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "household_json": {
+          "name": "household_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "accounts_json": {
+          "name": "accounts_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "positions_json": {
+          "name": "positions_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "fetched_at": {
+          "name": "fetched_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "external_snapshots_liquid_cash_non_negative": {
+          "name": "external_snapshots_liquid_cash_non_negative",
+          "value": "\"external_snapshots\".\"liquid_cash_cents\" >= 0"
+        },
+        "external_snapshots_etf_stocks_non_negative": {
+          "name": "external_snapshots_etf_stocks_non_negative",
+          "value": "\"external_snapshots\".\"etf_stocks_cents\" >= 0"
+        },
+        "external_snapshots_crypto_non_negative": {
+          "name": "external_snapshots_crypto_non_negative",
+          "value": "\"external_snapshots\".\"crypto_cents\" >= 0"
+        }
+      }
+    },
+    "financial_contracts": {
+      "name": "financial_contracts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "sphere": {
+          "name": "sphere",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'household'"
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'active'"
+        },
+        "current_balance_cents": {
+          "name": "current_balance_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "balance_as_of_date": {
+          "name": "balance_as_of_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "monthly_rate_cents": {
+          "name": "monthly_rate_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "interest_rate_bps": {
+          "name": "interest_rate_bps",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "linked_property_id": {
+          "name": "linked_property_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "milestone_date": {
+          "name": "milestone_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "milestone_label": {
+          "name": "milestone_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "repayment_type": {
+          "name": "repayment_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "special_repayment_max_yearly_cents": {
+          "name": "special_repayment_max_yearly_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "fixed_interest_until": {
+          "name": "fixed_interest_until",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "target_sum_cents": {
+          "name": "target_sum_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "allocation_threshold_percent": {
+          "name": "allocation_threshold_percent",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "future_loan_interest_rate_bps": {
+          "name": "future_loan_interest_rate_bps",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "financial_contracts_linked_property_id_properties_id_fk": {
+          "name": "financial_contracts_linked_property_id_properties_id_fk",
+          "tableFrom": "financial_contracts",
+          "tableTo": "properties",
+          "columnsFrom": [
+            "linked_property_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "financial_contracts_balance_non_negative": {
+          "name": "financial_contracts_balance_non_negative",
+          "value": "\"financial_contracts\".\"current_balance_cents\" >= 0"
+        },
+        "financial_contracts_monthly_rate_non_negative": {
+          "name": "financial_contracts_monthly_rate_non_negative",
+          "value": "\"financial_contracts\".\"monthly_rate_cents\" >= 0"
+        },
+        "financial_contracts_interest_rate_non_negative": {
+          "name": "financial_contracts_interest_rate_non_negative",
+          "value": "\"financial_contracts\".\"interest_rate_bps\" >= 0"
+        },
+        "financial_contracts_allocation_threshold_range": {
+          "name": "financial_contracts_allocation_threshold_range",
+          "value": "\"financial_contracts\".\"allocation_threshold_percent\" IS NULL OR (\"financial_contracts\".\"allocation_threshold_percent\" >= 0 AND \"financial_contracts\".\"allocation_threshold_percent\" <= 100)"
+        }
+      }
+    },
+    "pot_allocations": {
+      "name": "pot_allocations",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "pot_id": {
+          "name": "pot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source_label": {
+          "name": "source_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "allocated_at": {
+          "name": "allocated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "pot_allocations_pot_id_pots_id_fk": {
+          "name": "pot_allocations_pot_id_pots_id_fk",
+          "tableFrom": "pot_allocations",
+          "tableTo": "pots",
+          "columnsFrom": [
+            "pot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "pot_allocations_amount_non_negative": {
+          "name": "pot_allocations_amount_non_negative",
+          "value": "\"pot_allocations\".\"amount_cents\" >= 0"
+        }
+      }
+    },
+    "pots": {
+      "name": "pots",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "priority": {
+          "name": "priority",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "current_cents": {
+          "name": "current_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "target_cents": {
+          "name": "target_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "target_date": {
+          "name": "target_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "rule_type": {
+          "name": "rule_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fixed_monthly_cents": {
+          "name": "fixed_monthly_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "remainder_percentage": {
+          "name": "remainder_percentage",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "linked_contract_id": {
+          "name": "linked_contract_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "linked_property_id": {
+          "name": "linked_property_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "external_link_kind": {
+          "name": "external_link_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "external_link_ref": {
+          "name": "external_link_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "external_link_scope": {
+          "name": "external_link_scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "purpose": {
+          "name": "purpose",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "external_synced_at": {
+          "name": "external_synced_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "external_linked_at": {
+          "name": "external_linked_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "pots_external_link_unique": {
+          "name": "pots_external_link_unique",
+          "columns": [
+            "external_link_kind",
+            "external_link_ref"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "pots_linked_contract_id_financial_contracts_id_fk": {
+          "name": "pots_linked_contract_id_financial_contracts_id_fk",
+          "tableFrom": "pots",
+          "tableTo": "financial_contracts",
+          "columnsFrom": [
+            "linked_contract_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "pots_linked_property_id_properties_id_fk": {
+          "name": "pots_linked_property_id_properties_id_fk",
+          "tableFrom": "pots",
+          "tableTo": "properties",
+          "columnsFrom": [
+            "linked_property_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "pots_external_link_pair": {
+          "name": "pots_external_link_pair",
+          "value": "(\"pots\".\"external_link_kind\" IS NULL AND \"pots\".\"external_link_ref\" IS NULL) OR (\"pots\".\"external_link_kind\" IS NOT NULL AND \"pots\".\"external_link_ref\" IS NOT NULL)"
+        },
+        "pots_current_non_negative": {
+          "name": "pots_current_non_negative",
+          "value": "\"pots\".\"current_cents\" >= 0"
+        },
+        "pots_target_non_negative": {
+          "name": "pots_target_non_negative",
+          "value": "\"pots\".\"target_cents\" IS NULL OR \"pots\".\"target_cents\" >= 0"
+        },
+        "pots_fixed_monthly_non_negative": {
+          "name": "pots_fixed_monthly_non_negative",
+          "value": "\"pots\".\"fixed_monthly_cents\" IS NULL OR \"pots\".\"fixed_monthly_cents\" >= 0"
+        },
+        "pots_remainder_percentage_range": {
+          "name": "pots_remainder_percentage_range",
+          "value": "\"pots\".\"remainder_percentage\" IS NULL OR (\"pots\".\"remainder_percentage\" >= 0 AND \"pots\".\"remainder_percentage\" <= 100)"
+        }
+      }
+    },
+    "properties": {
+      "name": "properties",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "usage": {
+          "name": "usage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'owner_occupied'"
+        },
+        "purchase_date": {
+          "name": "purchase_date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "purchase_price_cents": {
+          "name": "purchase_price_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "estimated_value_cents": {
+          "name": "estimated_value_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "estimated_value_as_of": {
+          "name": "estimated_value_as_of",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "maintenance_reserve_pot_id": {
+          "name": "maintenance_reserve_pot_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "monthly_cold_rent_cents": {
+          "name": "monthly_cold_rent_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "monthly_non_recoverable_costs_cents": {
+          "name": "monthly_non_recoverable_costs_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "monthly_maintenance_allowance_cents": {
+          "name": "monthly_maintenance_allowance_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "depreciation_basis_cents": {
+          "name": "depreciation_basis_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "street": {
+          "name": "street",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "house_number": {
+          "name": "house_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "postal_code": {
+          "name": "postal_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "living_area_sqm": {
+          "name": "living_area_sqm",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "usable_area_sqm": {
+          "name": "usable_area_sqm",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "plot_area_sqm": {
+          "name": "plot_area_sqm",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "construction_year": {
+          "name": "construction_year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "energy_class": {
+          "name": "energy_class",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "renovations": {
+          "name": "renovations",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "features": {
+          "name": "features",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "image_path": {
+          "name": "image_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "property_type": {
+          "name": "property_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "auto_valuation_interval": {
+          "name": "auto_valuation_interval",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'off'"
+        },
+        "last_auto_valuation_at": {
+          "name": "last_auto_valuation_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_auto_valuation_attempt_at": {
+          "name": "last_auto_valuation_attempt_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_auto_valuation_outcome": {
+          "name": "last_auto_valuation_outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "estimated_value_source": {
+          "name": "estimated_value_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'manual'"
+        },
+        "valuation_adjustments": {
+          "name": "valuation_adjustments",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "properties_maintenance_reserve_pot_id_pots_id_fk": {
+          "name": "properties_maintenance_reserve_pot_id_pots_id_fk",
+          "tableFrom": "properties",
+          "tableTo": "pots",
+          "columnsFrom": [
+            "maintenance_reserve_pot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "properties_estimated_value_non_negative": {
+          "name": "properties_estimated_value_non_negative",
+          "value": "\"properties\".\"estimated_value_cents\" >= 0"
+        },
+        "properties_purchase_price_non_negative": {
+          "name": "properties_purchase_price_non_negative",
+          "value": "\"properties\".\"purchase_price_cents\" IS NULL OR \"properties\".\"purchase_price_cents\" >= 0"
+        },
+        "properties_living_area_positive": {
+          "name": "properties_living_area_positive",
+          "value": "\"properties\".\"living_area_sqm\" IS NULL OR \"properties\".\"living_area_sqm\" > 0"
+        },
+        "properties_usable_area_positive": {
+          "name": "properties_usable_area_positive",
+          "value": "\"properties\".\"usable_area_sqm\" IS NULL OR \"properties\".\"usable_area_sqm\" > 0"
+        },
+        "properties_plot_area_positive": {
+          "name": "properties_plot_area_positive",
+          "value": "\"properties\".\"plot_area_sqm\" IS NULL OR \"properties\".\"plot_area_sqm\" > 0"
+        },
+        "properties_construction_year_range": {
+          "name": "properties_construction_year_range",
+          "value": "\"properties\".\"construction_year\" IS NULL OR (\"properties\".\"construction_year\" >= 1500 AND \"properties\".\"construction_year\" <= 2100)"
+        }
+      }
+    },
+    "property_valuation_history": {
+      "name": "property_valuation_history",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "property_id": {
+          "name": "property_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "valued_at": {
+          "name": "valued_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "data_as_of": {
+          "name": "data_as_of",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "lower_cents": {
+          "name": "lower_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "median_cents": {
+          "name": "median_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "upper_cents": {
+          "name": "upper_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "confidence": {
+          "name": "confidence",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "confidence_score": {
+          "name": "confidence_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "valuability": {
+          "name": "valuability",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "trigger": {
+          "name": "trigger",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "applied_at": {
+          "name": "applied_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "previous_value_cents": {
+          "name": "previous_value_cents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "adjustment_bps": {
+          "name": "adjustment_bps",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "adjustments_json": {
+          "name": "adjustments_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "applied_choice": {
+          "name": "applied_choice",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "property_valuation_history_property_valued_idx": {
+          "name": "property_valuation_history_property_valued_idx",
+          "columns": [
+            "property_id",
+            "valued_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "property_valuation_history_property_id_properties_id_fk": {
+          "name": "property_valuation_history_property_id_properties_id_fk",
+          "tableFrom": "property_valuation_history",
+          "tableTo": "properties",
+          "columnsFrom": [
+            "property_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "property_valuation_history_lower_positive": {
+          "name": "property_valuation_history_lower_positive",
+          "value": "\"property_valuation_history\".\"lower_cents\" > 0"
+        },
+        "property_valuation_history_bounds_order": {
+          "name": "property_valuation_history_bounds_order",
+          "value": "\"property_valuation_history\".\"lower_cents\" <= \"property_valuation_history\".\"median_cents\" AND \"property_valuation_history\".\"median_cents\" <= \"property_valuation_history\".\"upper_cents\""
+        },
+        "property_valuation_history_confidence_score_range": {
+          "name": "property_valuation_history_confidence_score_range",
+          "value": "\"property_valuation_history\".\"confidence_score\" IS NULL OR (\"property_valuation_history\".\"confidence_score\" >= 0 AND \"property_valuation_history\".\"confidence_score\" <= 100)"
+        },
+        "property_valuation_history_adjustment_bps_range": {
+          "name": "property_valuation_history_adjustment_bps_range",
+          "value": "\"property_valuation_history\".\"adjustment_bps\" >= -5000 AND \"property_valuation_history\".\"adjustment_bps\" <= 5000"
+        }
+      }
+    },
+    "valuation_provider_quota": {
+      "name": "valuation_provider_quota",
+      "columns": {
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "limit_count": {
+          "name": "limit_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "used_count": {
+          "name": "used_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "remaining_count": {
+          "name": "remaining_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reset_at": {
+          "name": "reset_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "tariff": {
+          "name": "tariff",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "observed_at": {
+          "name": "observed_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "valuation_provider_quota_limit_non_negative": {
+          "name": "valuation_provider_quota_limit_non_negative",
+          "value": "\"valuation_provider_quota\".\"limit_count\" >= 0"
+        },
+        "valuation_provider_quota_used_non_negative": {
+          "name": "valuation_provider_quota_used_non_negative",
+          "value": "\"valuation_provider_quota\".\"used_count\" >= 0"
+        },
+        "valuation_provider_quota_remaining_non_negative": {
+          "name": "valuation_provider_quota_remaining_non_negative",
+          "value": "\"valuation_provider_quota\".\"remaining_count\" >= 0"
+        }
+      }
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

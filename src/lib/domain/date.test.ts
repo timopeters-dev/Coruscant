@@ -3,11 +3,14 @@ import {
   addMonthsToIsoDate,
   addMonthsToYearMonth,
   countCompletedMonths,
+  dayNumberToIsoDate,
   daysInMonth,
   diffCalendarDays,
   getTodayIsoDate,
+  isoDateToDayNumber,
   parseIsoDate,
   parseYearMonth,
+  subtractMonthsFromIsoDate,
   toYearMonth,
 } from "./date";
 
@@ -110,5 +113,46 @@ describe("year-month helpers", () => {
     expect(() => parseYearMonth("2026-00")).toThrow(RangeError);
     expect(() => addMonthsToYearMonth("2026-01", -1)).toThrow(RangeError);
     expect(() => toYearMonth("2026-1-1")).toThrow(RangeError);
+  });
+});
+
+describe("subtractMonthsFromIsoDate", () => {
+  it("clamps to end of month incl. leap years and crosses year boundaries", () => {
+    expect(subtractMonthsFromIsoDate("2027-05-31", 3)).toBe("2027-02-28");
+    expect(subtractMonthsFromIsoDate("2028-05-31", 3)).toBe("2028-02-29");
+    expect(subtractMonthsFromIsoDate("2026-01-15", 1)).toBe("2025-12-15");
+    expect(subtractMonthsFromIsoDate("2026-05-15", 0)).toBe("2026-05-15");
+  });
+
+  it("rejects negative, float and invalid inputs", () => {
+    expect(() => subtractMonthsFromIsoDate("2026-01-01", -1)).toThrow(
+      RangeError,
+    );
+    expect(() => subtractMonthsFromIsoDate("2026-01-01", 1.5)).toThrow(
+      RangeError,
+    );
+    expect(() => subtractMonthsFromIsoDate("2026-02-30", 1)).toThrow(
+      RangeError,
+    );
+  });
+});
+
+describe("isoDateToDayNumber & dayNumberToIsoDate", () => {
+  it("roundtrips dates including epoch and leap-year Feb 29", () => {
+    expect(isoDateToDayNumber("1970-01-01")).toBe(0);
+    expect(dayNumberToIsoDate(0)).toBe("1970-01-01");
+    expect(dayNumberToIsoDate(isoDateToDayNumber("2028-02-29"))).toBe(
+      "2028-02-29",
+    );
+    expect(dayNumberToIsoDate(isoDateToDayNumber("2026-11-19"))).toBe(
+      "2026-11-19",
+    );
+    expect(
+      isoDateToDayNumber("2026-11-20") - isoDateToDayNumber("2026-11-19"),
+    ).toBe(1);
+  });
+
+  it("rejects non-integer dayNumber", () => {
+    expect(() => dayNumberToIsoDate(1.5)).toThrow(RangeError);
   });
 });

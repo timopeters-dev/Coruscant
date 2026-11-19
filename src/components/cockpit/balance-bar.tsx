@@ -6,10 +6,26 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { BalanceBarBreakdown } from "@/lib/domain/balance";
+import type { ComponentDeltas } from "@/lib/domain/balance-history";
 import { formatBpsDE, formatCentsDE } from "@/lib/domain/money";
 
 interface BalanceBarProps {
   breakdown: BalanceBarBreakdown;
+  deltas?: ComponentDeltas | null;
+  onShowDetails?: () => void;
+}
+
+function formatDateDE(isoDate: string): string {
+  const [y, m, d] = isoDate.split("-");
+  return `${d}.${m}.${y}`;
+}
+
+function deltaToneClass(key: "free" | "bound" | "liabilities", deltaCents: number): string {
+  if (deltaCents === 0) {
+    return "text-[var(--text-secondary)]";
+  }
+  const isGood = key === "liabilities" ? deltaCents < 0 : deltaCents > 0;
+  return isGood ? "text-[var(--emerald)]" : "text-[var(--rose)]";
 }
 
 const SEGMENT_META = [
@@ -36,19 +52,26 @@ const SEGMENT_META = [
   },
 ] as const;
 
-export function BalanceBar({ breakdown }: BalanceBarProps) {
+export function BalanceBar({
+  breakdown,
+  deltas,
+  onShowDetails,
+}: BalanceBarProps) {
   const values = {
     free: {
       amountCents: breakdown.freeCents,
       shareBps: breakdown.freeShareBps,
+      deltaCents: deltas?.freeAssetsDeltaCents ?? null,
     },
     bound: {
       amountCents: breakdown.boundCents,
       shareBps: breakdown.boundShareBps,
+      deltaCents: deltas?.boundAssetsDeltaCents ?? null,
     },
     liabilities: {
       amountCents: breakdown.liabilitiesCents,
       shareBps: breakdown.liabilitiesShareBps,
+      deltaCents: deltas?.liabilitiesDeltaCents ?? null,
     },
   };
 
@@ -64,13 +87,26 @@ export function BalanceBar({ breakdown }: BalanceBarProps) {
               Normiert auf das Gesamtvolumen (Aktiva + Passiva)
             </CardDescription>
           </div>
-          {breakdown.hasData ? (
-            <span className="tabular-nums text-xs text-[var(--text-secondary)]">
-              Gesamtvolumen:{" "}
-              <span className="font-medium text-[var(--text-primary)]">
-                {formatCentsDE(breakdown.totalVolumeCents)}
-              </span>
-            </span>
+          {breakdown.hasData || onShowDetails ? (
+            <div className="flex flex-wrap items-center gap-3">
+              {breakdown.hasData ? (
+                <span className="tabular-nums text-xs text-[var(--text-secondary)]">
+                  Gesamtvolumen:{" "}
+                  <span className="font-medium text-[var(--text-primary)]">
+                    {formatCentsDE(breakdown.totalVolumeCents)}
+                  </span>
+                </span>
+              ) : null}
+              {onShowDetails ? (
+                <button
+                  type="button"
+                  onClick={onShowDetails}
+                  className="text-xs font-medium text-[var(--accent)] hover:underline"
+                >
+                  Details
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </div>
       </CardHeader>
@@ -130,6 +166,14 @@ export function BalanceBar({ breakdown }: BalanceBarProps) {
                 <div className="mt-1 tabular-nums text-sm font-semibold text-[var(--text-primary)]">
                   {formatCentsDE(segData.amountCents)}
                 </div>
+                {segData.deltaCents !== null && deltas ? (
+                  <p
+                    className={`mt-0.5 tabular-nums text-[11px] font-medium ${deltaToneClass(seg.key, segData.deltaCents)}`}
+                  >
+                    {formatCentsDE(segData.deltaCents, { showPlusSign: true })}{" "}
+                    seit {formatDateDE(deltas.sinceDate)}
+                  </p>
+                ) : null}
                 <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
                   {seg.description}
                 </p>

@@ -83,4 +83,42 @@ describe("LineChart", () => {
     expect(shouldCloseOnPointerLeave("mouse")).toBe(true);
     expect(shouldCloseOnPointerLeave("pen")).toBe(true);
   });
+
+  it("splits path with M on gapBefore, draws circles for isolated single points, and renders negative y-ticks", () => {
+    const html = renderToStaticMarkup(
+      <LineChart
+        series={[
+          {
+            id: "net",
+            label: "Nettovermögen",
+            role: "netWorth",
+            dashed: true,
+            points: [
+              { x: 1, y: -50_000 },
+              { x: 2, y: 100_000, gapBefore: true },
+              { x: 10, y: 200_000, gapBefore: true },
+              { x: 11, y: 250_000 },
+            ],
+          },
+        ]}
+        xTicks={[
+          { x: 1, label: "01.11." },
+          { x: 11, label: "heute" },
+        ]}
+        xTooltipLabel={(x) => `Tag ${x}`}
+        ariaLabel="Nettovermögen mit Lücken"
+      />,
+    );
+
+    const pathMatch = html.match(/<path d="([^"]+)"/);
+    expect(pathMatch?.[1]).toBeDefined();
+    const mCount = ((pathMatch?.[1] ?? "").match(/M/g) ?? []).length;
+    expect(mCount).toBe(3); // start + 2 gapBefore points
+    // Points 1 (isolated before gap) and 2 (isolated between two gaps) get <circle>
+    const circleMatches = html.match(/<circle /g) ?? [];
+    expect(circleMatches).toHaveLength(2);
+    // Negative y-tick with unicode minus and 0 € tick
+    expect(html).toContain("0 €");
+    expect(html).toContain("−");
+  });
 });

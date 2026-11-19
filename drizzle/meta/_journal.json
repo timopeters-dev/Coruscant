@@ -92,6 +92,13 @@
       "when": 1795018882740,
       "tag": "0012_household_only",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1795072794087,
+      "tag": "0013_balance_snapshots",
+      "breakpoints": true
     }
   ]
 }

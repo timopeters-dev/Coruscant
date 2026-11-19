@@ -13,12 +13,18 @@ import { CHART_DASH_ARRAY, CHART_ROLE_COLOR, type ChartRole } from "./chart-toke
 import { ChartTooltip } from "./chart-tooltip";
 import { useElementWidth } from "./use-element-width";
 
+export interface LinePoint {
+  x: number;
+  y: number;
+  gapBefore?: boolean;
+}
+
 export interface LineSeries {
   id: string;
   label: string;
   role: ChartRole;
   dashed: boolean;
-  points: { x: number; y: number }[];
+  points: LinePoint[];
 }
 
 export interface LineChartMarker {
@@ -37,6 +43,7 @@ export interface LineChartProps {
   ariaLabel: string;
   tooltipExtra?: (
     values: Record<string, number>,
+    x?: number,
   ) => { label: string; value: string } | null;
   emptyText?: string;
 }
@@ -159,7 +166,9 @@ export function LineChart({
 
   const activeTitle = activeX !== null ? xTooltipLabel(activeX) : "";
   const extraRow =
-    activeX !== null && tooltipExtra ? tooltipExtra(activeValues) : null;
+    activeX !== null && tooltipExtra
+      ? tooltipExtra(activeValues, activeX)
+      : null;
 
   const liveAnnouncement =
     activeX !== null && tooltipItems.length > 0
@@ -286,20 +295,36 @@ export function LineChart({
           const d = s.points
             .map(
               (pt, idx) =>
-                `${idx === 0 ? "M" : "L"}${xScale(pt.x).toFixed(1)},${yScale(pt.y).toFixed(1)}`,
+                `${idx === 0 || pt.gapBefore ? "M" : "L"}${xScale(pt.x).toFixed(1)},${yScale(pt.y).toFixed(1)}`,
             )
             .join(" ");
+          const isolatedPoints = s.points.filter((pt, idx) => {
+            const disconnectedBefore = idx === 0 || Boolean(pt.gapBefore);
+            const disconnectedAfter =
+              idx === s.points.length - 1 || Boolean(s.points[idx + 1]?.gapBefore);
+            return disconnectedBefore && disconnectedAfter;
+          });
           return (
-            <path
-              key={s.id}
-              d={d}
-              fill="none"
-              stroke={CHART_ROLE_COLOR[s.role]}
-              strokeWidth={2}
-              strokeDasharray={s.dashed ? CHART_DASH_ARRAY : undefined}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+            <g key={s.id}>
+              <path
+                d={d}
+                fill="none"
+                stroke={CHART_ROLE_COLOR[s.role]}
+                strokeWidth={2}
+                strokeDasharray={s.dashed ? CHART_DASH_ARRAY : undefined}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              {isolatedPoints.map((pt) => (
+                <circle
+                  key={`${s.id}-pt-${pt.x}`}
+                  cx={xScale(pt.x).toFixed(1)}
+                  cy={yScale(pt.y).toFixed(1)}
+                  r={2.5}
+                  fill={CHART_ROLE_COLOR[s.role]}
+                />
+              ))}
+            </g>
           );
         })}
 

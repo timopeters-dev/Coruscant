@@ -7,6 +7,7 @@ import {
   fetchFinanzCockpitSummary,
   getFinanzCockpitBridgeConfig,
 } from "@/lib/integrations/finanz-cockpit-client";
+import { runBalanceSnapshotJob } from "@/lib/server/balance-snapshot-job";
 import { externalSyncRequestSchema } from "@/lib/validation/external";
 
 export const dynamic = "force-dynamic";
@@ -121,11 +122,20 @@ export async function POST(request?: Request): Promise<Response> {
           )
           .map((o) => o.potId),
       };
+      let historyRecorded = false;
+      try {
+        const historyResult = await runBalanceSnapshotJob({ trigger: "sync" });
+        historyRecorded = historyResult.status === "success";
+      } catch {
+        historyRecorded = false;
+      }
+
       return NextResponse.json(
         {
           status: "synced",
           snapshot,
           potSync,
+          historyRecorded,
           message: "finanz_cockpit erfolgreich synchronisiert.",
         },
         { status: 200 },

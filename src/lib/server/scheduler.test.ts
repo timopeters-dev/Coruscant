@@ -119,16 +119,121 @@ describe("scheduler & berlin-clock", () => {
     await firstPromise;
   });
 
-  it("includes property_valuation with enabled flag in status snapshot", () => {
-    const snap = getSchedulerStatusSnapshot(
-      new Date("2026-11-18T02:00:00Z"),
+  it("includes property_valuation and balance_snapshot in status snapshot", () => {
+    const before = getSchedulerStatusSnapshot(
+      new Date("2026-11-18T02:00:00Z"), // 03:00 Berlin
       { NODE_ENV: "development" },
     );
-    expect(snap.jobs).toHaveLength(1);
-    expect(snap.jobs[0]).toMatchObject({
+    expect(before.jobs).toHaveLength(2);
+    expect(before.jobs[0]).toMatchObject({
       jobId: "property_valuation",
       enabled: false,
       nextSlotAt: "2026-11-18 04:30",
     });
+    expect(before.jobs[1]).toMatchObject({
+      jobId: "balance_snapshot",
+      enabled: true,
+      nextSlotAt: "2026-11-18 23:45",
+    });
+
+    const after = getSchedulerStatusSnapshot(
+      new Date("2026-11-18T22:50:00Z"), // 23:50 Berlin
+      { NODE_ENV: "development" },
+    );
+    expect(after.jobs[1]).toMatchObject({
+      jobId: "balance_snapshot",
+      enabled: true,
+      nextSlotAt: "nächster Tag 23:45",
+    });
+  });
+
+  it("matches 23:45 Berlin slot for balance_snapshot independently of 04:30", () => {
+    const clock = getBerlinClockSnapshot(new Date("2026-11-18T22:45:00Z")); // 23:45 Berlin
+    const triggered = new Map<"property_valuation" | "balance_snapshot", string>();
+    expect(getDueDailyJobSlots(clock, triggered)).toEqual(["balance_snapshot"]);
+
+    triggered.set("balance_snapshot", clock.slotKey);
+    expect(getDueDailyJobSlots(clock, triggered)).toEqual([]);
+  });
+
+  it("runs balance_snapshot in development without ENABLE_VALUATION_SCHEDULER while property_valuation stays gated", async () => {
+    const snapshotRunner = vi.fn(async () => ({
+      status: "success" as const,
+      message: "ok",
+      processed: 1,
+      written: 1,
+      historyOnly: 0,
+      failed: 0,
+    }));
+    const valuationRunner = vi.fn(async () => ({
+      status: "success" as const,
+      message: "ok",
+      processed: 0,
+      written: 0,
+      historyOnly: 0,
+      failed: 0,
+    }));
+
+    const valResult = await runScheduledJob("property_valuation", {
+      env: { NODE_ENV: "development" },
+      runner: valuationRunner,
+    });
+    const snapResult = await runScheduledJob("balance_snapshot", {
+      env: { NODE_ENV: "development" },
+      runner: snapshotRunner,
+    });
+
+    expect(valResult).toBeNull();
+    expect(valuationRunner).not.toHaveBeenCalled();
+    expect(snapResult?.status).toBe("success");
+    expect(snapshotRunner).toHaveBeenCalledTimes(1);
+  });
+
+  it("isolates in-flight locks per jobId", async () => {
+    let resolveBalance!: () => void;
+    const balanceRunner = vi.fn(
+      () =>
+        new Promise<{
+          status: "success";
+          message: string;
+          processed: number;
+          written: number;
+          historyOnly: number;
+          failed: number;
+        }>((resolve) => {
+          resolveBalance = () =>
+            resolve({
+              status: "success",
+              message: "ok",
+              processed: 1,
+              written: 1,
+              historyOnly: 0,
+              failed: 0,
+            });
+        }),
+    );
+    const valuationRunner = vi.fn(async () => ({
+      status: "success" as const,
+      message: "ok",
+      processed: 0,
+      written: 0,
+      historyOnly: 0,
+      failed: 0,
+    }));
+
+    const pendingBalance = runScheduledJob("balance_snapshot", {
+      env: { NODE_ENV: "production" },
+      runner: balanceRunner,
+    });
+    const valWhileBalanceRuns = await runScheduledJob("property_valuation", {
+      env: { NODE_ENV: "production" },
+      runner: valuationRunner,
+    });
+
+    expect(valWhileBalanceRuns?.status).toBe("success");
+    expect(valuationRunner).toHaveBeenCalledTimes(1);
+
+    resolveBalance();
+    await pendingBalance;
   });
 });

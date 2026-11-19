@@ -1,4 +1,10 @@
-import { addMonthsToYearMonth, parseYearMonth } from "@/lib/domain/date";
+import {
+  addMonthsToYearMonth,
+  dayNumberToIsoDate,
+  isoDateToDayNumber,
+  parseIsoDate,
+  parseYearMonth,
+} from "@/lib/domain/date";
 import { assertSafeInteger } from "@/lib/domain/money";
 
 const deIntegerFormatter = new Intl.NumberFormat("de-DE", {
@@ -238,4 +244,82 @@ export function nearestIndex(xs: readonly number[], x: number): number {
   }
 
   return x - xs[lo]! <= xs[hi]! - x ? lo : hi;
+}
+
+/**
+ * Picks calendar date ticks (month starts for <= ~13M, year starts for longer spans)
+ * between UTC day numbers fromDay and toDay, always including start ("TT.MM.") and end ("heute").
+ */
+export function pickDateTicks(
+  fromDay: number,
+  toDay: number,
+  maxTicks = 6,
+): ChartTick[] {
+  const safeFrom = assertSafeInteger(fromDay, "fromDay");
+  const safeTo = assertSafeInteger(toDay, "toDay");
+  if (safeTo <= safeFrom) {
+    return [{ x: safeTo, label: "heute" }];
+  }
+
+  const fromIso = dayNumberToIsoDate(safeFrom);
+  const toIso = dayNumberToIsoDate(safeTo);
+  const fromParts = parseIsoDate(fromIso, "fromIso");
+  const toParts = parseIsoDate(toIso, "toIso");
+  const span = safeTo - safeFrom;
+
+  const innerCandidates: ChartTick[] = [];
+  if (span <= 400) {
+    let year = fromParts.year;
+    let month = fromParts.month;
+    while (year < toParts.year || (year === toParts.year && month <= toParts.month)) {
+      const monthStartIso = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-01`;
+      const dayNum = isoDateToDayNumber(monthStartIso);
+      if (dayNum > safeFrom && dayNum < safeTo) {
+        innerCandidates.push({
+          x: dayNum,
+          label: `${String(month).padStart(2, "0")}/${year}`,
+        });
+      }
+      month += 1;
+      if (month > 12) {
+        month = 1;
+        year += 1;
+      }
+    }
+  } else {
+    for (let year = fromParts.year; year <= toParts.year; year += 1) {
+      const yearStartIso = `${String(year).padStart(4, "0")}-01-01`;
+      const dayNum = isoDateToDayNumber(yearStartIso);
+      if (dayNum > safeFrom && dayNum < safeTo) {
+        innerCandidates.push({
+          x: dayNum,
+          label: String(year),
+        });
+      }
+    }
+  }
+
+  const availableInner = Math.max(1, maxTicks - 2);
+  const step =
+    innerCandidates.length > availableInner
+      ? Math.ceil(innerCandidates.length / availableInner)
+      : 1;
+  const thinned = innerCandidates.filter((_, idx) => idx % step === 0);
+
+  const startLabel = `${String(fromParts.day).padStart(2, "0")}.${String(fromParts.month).padStart(2, "0")}.`;
+  const ticks: ChartTick[] = [{ x: safeFrom, label: startLabel }];
+  const minGap = Math.max(1, Math.round(span / Math.max(4, maxTicks * 2)));
+
+  for (const candidate of thinned) {
+    const prev = ticks[ticks.length - 1]!;
+    if (candidate.x - prev.x >= minGap && safeTo - candidate.x >= minGap) {
+      ticks.push(candidate);
+    }
+  }
+
+  if (ticks[ticks.length - 1]!.x !== safeTo) {
+    ticks.push({ x: safeTo, label: "heute" });
+  }
+
+  return ticks;
 }

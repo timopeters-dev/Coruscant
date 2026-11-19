@@ -790,7 +790,10 @@ export function PropertyValuationCard({
     return null;
   }, [historyEntries]);
 
-  const schedulerJob = statusData?.scheduler.jobs[0] ?? null;
+  const schedulerJob =
+    statusData?.scheduler.jobs.find(
+      (job) => job.jobId === "property_valuation",
+    ) ?? null;
   const quotaSnapshot = statusData?.quota.snapshot ?? null;
   const quotaEval = statusData?.quota.evaluation ?? null;
   const planned = statusData?.plannedConsumption ?? null;

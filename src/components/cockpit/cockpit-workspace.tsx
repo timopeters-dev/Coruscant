@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -10,6 +17,9 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { BalanceBar } from "@/components/cockpit/balance-bar";
+import { BalanceHistoryDrawer } from "@/components/cockpit/balance-history-drawer";
+import { cockpitHistoryRangeStore } from "@/components/cockpit/history-range-store";
+import { NetWorthHistoryCard } from "@/components/cockpit/net-worth-history-card";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +31,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { CockpitPageData } from "@/db/queries/cockpit";
+import {
+  computeComponentDeltas,
+  filterHistoryByRange,
+  markHistoryGaps,
+  summarizeHistoryRange,
+  thinHistory,
+  type HistoryRangeId,
+} from "@/lib/domain/balance-history";
 import {
   computeNextAutoSyncDelayMs,
   resolveInitialLastAutoAttemptMs,
@@ -255,7 +273,49 @@ export function CockpitWorkspace({ data }: CockpitWorkspaceProps) {
     potDeadlines,
     topPots,
     latestSnapshotFetchedAt,
+    history,
   } = data;
+
+  const range = useSyncExternalStore(
+    cockpitHistoryRangeStore.subscribe,
+    cockpitHistoryRangeStore.getSnapshot,
+    cockpitHistoryRangeStore.getServerSnapshot,
+  );
+  const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
+
+  const handleRangeChange = useCallback((next: HistoryRangeId) => {
+    cockpitHistoryRangeStore.setRange(next);
+  }, []);
+
+  const historyView = useMemo(() => {
+    const filtered = filterHistoryByRange(history, range, data.asOfDate);
+    const marked = markHistoryGaps(filtered.points);
+    const thinned = thinHistory(marked);
+    const summary = summarizeHistoryRange(marked);
+    const deltas = computeComponentDeltas(
+      {
+        freeAssetsCents: barBreakdown.freeCents,
+        boundAssetsCents: barBreakdown.boundCents,
+        liabilitiesCents: barBreakdown.liabilitiesCents,
+      },
+      summary.first,
+      data.asOfDate,
+    );
+    return {
+      fromIso: filtered.from,
+      rawPoints: marked,
+      points: thinned,
+      summary,
+      deltas,
+    };
+  }, [
+    history,
+    range,
+    data.asOfDate,
+    barBreakdown.freeCents,
+    barBreakdown.boundCents,
+    barBreakdown.liabilitiesCents,
+  ]);
   const totalDeadlineIssues =
     potDeadlines.atRiskCount + potDeadlines.overdueCount;
   const netWorthClass =
@@ -442,7 +502,37 @@ export function CockpitWorkspace({ data }: CockpitWorkspaceProps) {
         </Card>
       </div>
 
-      <BalanceBar breakdown={barBreakdown} />
+      <NetWorthHistoryCard
+        totalCount={history.length}
+        singlePoint={history.length === 1 ? (history[0] ?? null) : null}
+        points={historyView.points}
+        summary={historyView.summary}
+        range={range}
+        fromIso={historyView.fromIso}
+        todayIso={data.asOfDate}
+        onRangeChange={handleRangeChange}
+      />
+
+      <BalanceBar
+        breakdown={barBreakdown}
+        deltas={historyView.deltas}
+        onShowDetails={
+          historyView.summary.count >= 2
+            ? () => setHistoryDrawerOpen(true)
+            : undefined
+        }
+      />
+
+      <BalanceHistoryDrawer
+        open={historyDrawerOpen}
+        onOpenChange={setHistoryDrawerOpen}
+        points={historyView.points}
+        rawPoints={historyView.rawPoints}
+        summary={historyView.summary}
+        range={range}
+        fromIso={historyView.fromIso}
+        todayIso={data.asOfDate}
+      />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

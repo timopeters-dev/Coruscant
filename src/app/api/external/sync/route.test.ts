@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as dbModule from "@/db";
 import { createPot, getPotById, listPots } from "@/db/queries/allocation";
+import { listBalanceSnapshots } from "@/db/queries/balance-history";
 import { eq, sql } from "drizzle-orm";
 import { pots } from "@/db/schema";
 import { potCreateSchema } from "@/lib/validation/allocation";
@@ -15,7 +16,9 @@ import {
   parseSnapshotPositions,
 } from "@/db/queries/cockpit";
 import * as allocationQueries from "@/db/queries/allocation";
+import { getTodayIsoDate } from "@/lib/domain/date";
 import * as bridgeClient from "@/lib/integrations/finanz-cockpit-client";
+import * as balanceSnapshotJob from "@/lib/server/balance-snapshot-job";
 import { POST as syncExternal } from "./route";
 
 const tempDirs: string[] = [];
@@ -635,6 +638,116 @@ describe("POST /api/external/sync", () => {
       expect(parseSnapshotAccounts({ accountsJson: '[{"id":1}]' })).toEqual([]);
       expect(parseSnapshotAccounts({ accountsJson: null })).toEqual([]);
       expect(listPots()).toEqual([]);
+    });
+  });
+
+  describe("balance history snapshot hook", () => {
+    it("records a daily balance snapshot on successful sync when balance is non-empty", async () => {
+      createPot(
+        potCreateSchema.parse({
+          name: "Notgroschen",
+          currentCents: 250_000,
+          targetCents: 500_000,
+          ruleType: "fill_to_target",
+        }),
+      );
+      vi.spyOn(bridgeClient, "fetchFinanzCockpitSummary").mockResolvedValue({
+        ok: true,
+        data: {
+          source: "finanz_cockpit",
+          liquidCashCents: 100_000,
+          etfStocksCents: 0,
+          cryptoCents: 0,
+          totalPersonalNetWorthCents: 100_000,
+          fetchedAt: new Date().toISOString(),
+        },
+      });
+
+      const response = await syncExternal(createSyncRequest({ mode: "manual" }));
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.status).toBe("synced");
+      expect(body.historyRecorded).toBe(true);
+      const snapshots = listBalanceSnapshots();
+      expect(snapshots).toHaveLength(1);
+      expect(snapshots[0]?.date).toBe(getTodayIsoDate());
+    });
+
+    it("keeps 200 synced with historyRecorded=false when runBalanceSnapshotJob throws", async () => {
+      createPot(
+        potCreateSchema.parse({
+          name: "Notgroschen",
+          currentCents: 250_000,
+          targetCents: 500_000,
+          ruleType: "fill_to_target",
+        }),
+      );
+      vi.spyOn(bridgeClient, "fetchFinanzCockpitSummary").mockResolvedValue({
+        ok: true,
+        data: {
+          source: "finanz_cockpit",
+          liquidCashCents: 100_000,
+          etfStocksCents: 0,
+          cryptoCents: 0,
+          totalPersonalNetWorthCents: 100_000,
+          fetchedAt: new Date().toISOString(),
+        },
+      });
+      const spy = vi
+        .spyOn(balanceSnapshotJob, "runBalanceSnapshotJob")
+        .mockRejectedValue(new Error("snapshot boom"));
+
+      const response = await syncExternal(createSyncRequest({ mode: "manual" }));
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.status).toBe("synced");
+      expect(body.historyRecorded).toBe(false);
+      expect(spy).toHaveBeenCalledWith({ trigger: "sync" });
+    });
+
+    it("does not write a balance snapshot on skipped/fresh, offline_fallback, or unconfigured", async () => {
+      createPot(
+        potCreateSchema.parse({
+          name: "Notgroschen",
+          currentCents: 250_000,
+          targetCents: 500_000,
+          ruleType: "fill_to_target",
+        }),
+      );
+
+      // 1) unconfigured
+      vi.spyOn(bridgeClient, "fetchFinanzCockpitSummary").mockResolvedValue({
+        ok: false,
+        code: "not_configured",
+        message: "Nicht konfiguriert.",
+      });
+      const unconf = await syncExternal(createSyncRequest({ mode: "manual" }));
+      expect(unconf.status).toBe(503);
+
+      // 2) offline_fallback
+      vi.spyOn(bridgeClient, "fetchFinanzCockpitSummary").mockResolvedValue({
+        ok: false,
+        code: "http_error",
+        httpStatus: 500,
+        message: "Fehler",
+      });
+      const fallback = await syncExternal(createSyncRequest({ mode: "manual" }));
+      expect(fallback.status).toBe(502);
+
+      // 3) skipped fresh
+      insertExternalSnapshot({
+        source: "finanz_cockpit",
+        liquidCashCents: 100_000,
+        etfStocksCents: 0,
+        cryptoCents: 0,
+        totalPersonalNetWorthCents: 100_000,
+        fetchedAt: new Date().toISOString(),
+      });
+      const skipped = await syncExternal(createSyncRequest({ mode: "auto" }));
+      expect(skipped.status).toBe(200);
+      expect((await skipped.json()).status).toBe("skipped");
+
+      expect(listBalanceSnapshots()).toEqual([]);
     });
   });
 });

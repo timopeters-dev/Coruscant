@@ -5,6 +5,7 @@ import {
   parseSnapshotHousehold,
   parseSnapshotPositions,
 } from "@/db/queries/external-snapshots";
+import { listBalanceSnapshots } from "@/db/queries/balance-history";
 import { listPots } from "@/db/queries/allocation";
 import { listContracts, listProperties } from "@/db/queries/contracts";
 import { loadPlanningBase } from "@/db/queries/planning-base";
@@ -14,6 +15,7 @@ import {
   calculateBalanceBarBreakdown,
   calculateHouseholdBalance,
 } from "@/lib/domain/balance";
+import type { BalanceHistoryPoint } from "@/lib/domain/balance-history";
 import {
   type ActiveMilestonesResult,
   type PotProgressItem,
@@ -53,6 +55,19 @@ export interface CockpitPageData {
   isSnapshotStale: boolean;
   nextSyncAtMs: number | null;
   rentalPortfolioHint: RentalPortfolioHint | null;
+  history: BalanceHistoryPoint[];
+}
+
+export interface HouseholdBalanceResult {
+  balance: BalanceSummary;
+  properties: ReturnType<typeof listProperties>;
+  contracts: ReturnType<typeof listContracts>;
+  pots: ReturnType<typeof listPots>;
+  latestSnapshot: ReturnType<typeof getLatestExternalSnapshot>;
+  activeContractsCount: number;
+  projectedContractsCount: number;
+  projectedAssetContractsCount: number;
+  projectedLiabilityContractsCount: number;
 }
 
 export {
@@ -63,20 +78,17 @@ export {
   parseSnapshotPositions,
 };
 
-export function loadCockpitData(
+/**
+ * Loads the household balance sheet and contract projection counts using the
+ * exact same liquidity exclusion rules as the cockpit.
+ */
+export function loadHouseholdBalance(
   asOfDate: string = getTodayIsoDate(),
-  now: Date = new Date(),
-): CockpitPageData {
+): HouseholdBalanceResult {
   const properties = listProperties();
   const contracts = listContracts();
   const pots = listPots();
   const latestSnapshot = getLatestExternalSnapshot();
-  const bridgeConfig = getFinanzCockpitBridgeConfig();
-  const freshness = evaluateSnapshotFreshness({
-    latestFetchedAt: latestSnapshot?.fetchedAt ?? null,
-    intervalMinutes: bridgeConfig.syncIntervalMinutes,
-    now,
-  });
 
   // Pots whose link overlaps another linked pot (double count) or points outside
   // the household must not count towards liquidity.
@@ -103,18 +115,6 @@ export function loadCockpitData(
     })),
   });
 
-  const barBreakdown = calculateBalanceBarBreakdown(balance);
-  const milestones = selectUpcomingActiveMilestones(contracts, asOfDate, 5);
-  const planningBase = loadPlanningBase();
-  const potDeadlines = summarizeDeadlineRisks(
-    evaluatePotDeadlines({
-      pots: planningBase.pots,
-      monthlySurplusCents: planningBase.consolidated.monthlySurplusCents,
-      todayIsoDate: asOfDate,
-    }),
-  );
-  const topPots = selectTopPotProgress(pots, 3);
-
   let activeContractsCount = 0;
   let projectedContractsCount = 0;
   let projectedAssetContractsCount = 0;
@@ -135,6 +135,53 @@ export function loadCockpitData(
       }
     }
   }
+
+  return {
+    balance,
+    properties,
+    contracts,
+    pots,
+    latestSnapshot,
+    activeContractsCount,
+    projectedContractsCount,
+    projectedAssetContractsCount,
+    projectedLiabilityContractsCount,
+  };
+}
+
+export function loadCockpitData(
+  asOfDate: string = getTodayIsoDate(),
+  now: Date = new Date(),
+): CockpitPageData {
+  const {
+    balance,
+    properties,
+    contracts,
+    pots,
+    latestSnapshot,
+    activeContractsCount,
+    projectedContractsCount,
+    projectedAssetContractsCount,
+    projectedLiabilityContractsCount,
+  } = loadHouseholdBalance(asOfDate);
+  const bridgeConfig = getFinanzCockpitBridgeConfig();
+  const freshness = evaluateSnapshotFreshness({
+    latestFetchedAt: latestSnapshot?.fetchedAt ?? null,
+    intervalMinutes: bridgeConfig.syncIntervalMinutes,
+    now,
+  });
+
+  const barBreakdown = calculateBalanceBarBreakdown(balance);
+  const milestones = selectUpcomingActiveMilestones(contracts, asOfDate, 5);
+  const planningBase = loadPlanningBase();
+  const potDeadlines = summarizeDeadlineRisks(
+    evaluatePotDeadlines({
+      pots: planningBase.pots,
+      monthlySurplusCents: planningBase.consolidated.monthlySurplusCents,
+      todayIsoDate: asOfDate,
+    }),
+  );
+  const topPots = selectTopPotProgress(pots, 3);
 
   const portfolio = summarizeRentalPortfolio(properties, contracts, asOfDate);
   const rentalPortfolioHint: RentalPortfolioHint | null = portfolio.hasData
@@ -162,5 +209,6 @@ export function loadCockpitData(
     isSnapshotStale: freshness.shouldSync,
     nextSyncAtMs: freshness.nextSyncAtMs,
     rentalPortfolioHint,
+    history: listBalanceSnapshots(),
   };
 }

@@ -5,8 +5,10 @@ import {
   linearScale,
   nearestIndex,
   niceCentTicks,
+  pickDateTicks,
   pickYearTicks,
 } from "./chart-scale";
+import { isoDateToDayNumber } from "@/lib/domain/date";
 
 describe("linearScale", () => {
   it("maps domain endpoints to range endpoints", () => {
@@ -124,5 +126,34 @@ describe("pickYearTicks", () => {
     expect(ticks[0]).toEqual({ x: 0, label: "heute" });
     expect(ticks.find((t) => t.label === "2027")?.x).toBe(2);
     expect(ticks[ticks.length - 1]).toEqual({ x: 12, label: "11/2027" });
+  });
+});
+
+describe("pickDateTicks", () => {
+  it("picks month ticks for ~3M span, year ticks for 3Y span, and single 'heute' for zero span", () => {
+    const from3m = isoDateToDayNumber("2026-08-19");
+    const to3m = isoDateToDayNumber("2026-11-19");
+    const ticks3m = pickDateTicks(from3m, to3m);
+    expect(ticks3m[0]).toEqual({ x: from3m, label: "19.08." });
+    expect(ticks3m[ticks3m.length - 1]).toEqual({ x: to3m, label: "heute" });
+    expect(ticks3m.some((t) => t.label === "09/2026")).toBe(true);
+    expect(ticks3m.some((t) => t.label === "10/2026")).toBe(true);
+
+    const from3y = isoDateToDayNumber("2024-05-01");
+    const to3y = isoDateToDayNumber("2027-08-01");
+    const ticks3y = pickDateTicks(from3y, to3y);
+    expect(ticks3y[0]).toEqual({ x: from3y, label: "01.05." });
+    expect(ticks3y[ticks3y.length - 1]).toEqual({ x: to3y, label: "heute" });
+    expect(ticks3y.some((t) => t.label === "2025")).toBe(true);
+    expect(ticks3y.some((t) => t.label === "2026")).toBe(true);
+    expect(ticks3y.some((t) => t.label === "2027")).toBe(true);
+
+    // Strictly ascending and no duplicates
+    for (let i = 1; i < ticks3y.length; i++) {
+      expect(ticks3y[i]!.x).toBeGreaterThan(ticks3y[i - 1]!.x);
+    }
+
+    // Zero span
+    expect(pickDateTicks(to3m, to3m)).toEqual([{ x: to3m, label: "heute" }]);
   });
 });
