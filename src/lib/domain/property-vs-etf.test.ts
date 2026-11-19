@@ -106,7 +106,7 @@ describe("Handrechnung A (Zinsen, Rendite, Steigerungen)", () => {
     expect(r.flags.hadSurplus).toBe(false);
     expect(r.years.every((y) => y.accumulatedSurplusCents === 0)).toBe(true);
     expect(r.years[1]!.etfTopUpYearCents).toBe(648_000);
-    expect(r.final).toEqual({
+    expect(r.final).toMatchObject({
       propertyNetWorthCents: 1_631_420,
       etfNetWorthCents: 3_611_166,
       advantageCents: -1_979_746,

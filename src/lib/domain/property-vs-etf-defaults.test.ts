@@ -6,9 +6,15 @@ import {
   PROPERTY_VS_ETF_DEFAULTS,
   PROPERTY_VS_ETF_LIMITS,
   PROPERTY_VS_ETF_SLIDER_RANGES,
+  PROPERTY_VS_ETF_TAX_DEFAULTS,
+  PROPERTY_VS_ETF_TAX_LIMITS,
   sumPurchaseCostRuleSetBps,
 } from "./property-vs-etf-defaults";
 import { simulatePropertyVsEtf } from "./property-vs-etf";
+import {
+  validatePropertyVsEtfTaxInput,
+  type PropertyVsEtfTaxInput,
+} from "./property-vs-etf-tax";
 import { MAX_ETF_RETURN_BPS, MIN_ETF_RETURN_BPS } from "./scenarios";
 
 describe("property-vs-etf-defaults", () => {
@@ -73,5 +79,34 @@ describe("property-vs-etf-defaults", () => {
       ),
     });
     expect(result.years).toHaveLength(21);
+  });
+
+  describe("Steuer-Defaults", () => {
+    it("sind als PropertyVsEtfTaxInput zuweisbar und gültig", () => {
+      const tax: PropertyVsEtfTaxInput = PROPERTY_VS_ETF_TAX_DEFAULTS;
+      expect(() => validatePropertyVsEtfTaxInput(tax)).not.toThrow();
+    });
+
+    it("entsprechen der Roadmap", () => {
+      expect(PROPERTY_VS_ETF_TAX_DEFAULTS).toEqual({
+        taxesEnabled: true,
+        marginalTaxRateBps: 3_000,
+        depreciationRateBps: 200,
+        buildingShareBps: 8_000,
+        speculationPeriodYears: 10,
+        saverAllowanceCents: 100_000,
+        partialExemptionBps: 3_000,
+        churchTaxBps: 0,
+        saleCostsBps: 0,
+      });
+    });
+
+    it("liegen innerhalb der Limits", () => {
+      for (const [key, range] of Object.entries(PROPERTY_VS_ETF_TAX_LIMITS)) {
+        const value = PROPERTY_VS_ETF_TAX_DEFAULTS[key as keyof typeof PROPERTY_VS_ETF_TAX_LIMITS];
+        expect(value).toBeGreaterThanOrEqual(range.min);
+        expect(value).toBeLessThanOrEqual(range.max);
+      }
+    });
   });
 });

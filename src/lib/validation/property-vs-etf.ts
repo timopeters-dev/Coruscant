@@ -3,7 +3,9 @@ import type { PropertyVsEtfInput } from "../domain/property-vs-etf";
 import {
   calculatePurchaseCostsCents,
   PROPERTY_VS_ETF_LIMITS,
+  PROPERTY_VS_ETF_TAX_LIMITS,
 } from "../domain/property-vs-etf-defaults";
+import type { PropertyVsEtfTaxInput } from "../domain/property-vs-etf-tax";
 
 const limits = PROPERTY_VS_ETF_LIMITS;
 
@@ -168,3 +170,63 @@ const _parsedToDomain = (v: PropertyVsEtfInputParsed): PropertyVsEtfInput => v;
 const _domainToParsed = (v: PropertyVsEtfInput): PropertyVsEtfInputParsed => v;
 void _parsedToDomain;
 void _domainToParsed;
+
+const taxLimits = PROPERTY_VS_ETF_TAX_LIMITS;
+
+export const propertyVsEtfTaxInputSchema = z.object({
+  taxesEnabled: z.boolean({ message: "Steuern berücksichtigen: Ja/Nein angeben" }),
+  marginalTaxRateBps: percent(
+    "Grenzsteuersatz",
+    taxLimits.marginalTaxRateBps,
+    "mindestens 0,00 %",
+    "höchstens 50,00 %",
+  ),
+  depreciationRateBps: percent(
+    "AfA-Satz",
+    taxLimits.depreciationRateBps,
+    "mindestens 0,00 %",
+    "höchstens 10,00 %",
+  ),
+  buildingShareBps: percent(
+    "Gebäudeanteil",
+    taxLimits.buildingShareBps,
+    "mindestens 0,00 %",
+    "höchstens 100,00 %",
+  ),
+  speculationPeriodYears: intField("Spekulationsfrist", taxLimits.speculationPeriodYears, {
+    invalid: "gültige Jahreszahl angeben",
+    unit: "ganze Jahre zwischen 0 und 40",
+    min: "ganze Jahre zwischen 0 und 40",
+    max: "ganze Jahre zwischen 0 und 40",
+  }),
+  saverAllowanceCents: money(
+    "Sparerpauschbetrag",
+    taxLimits.saverAllowanceCents,
+    "mindestens 0,00 €",
+    "höchstens 2.000,00 €",
+  ),
+  partialExemptionBps: percent(
+    "Teilfreistellung",
+    taxLimits.partialExemptionBps,
+    "mindestens 0,00 %",
+    "höchstens 100,00 %",
+  ),
+  churchTaxBps: z
+    .number({ message: "Kirchensteuer: 0 %, 8 % oder 9 %" })
+    .refine((v): boolean => v === 0 || v === 800 || v === 900, {
+      message: "Kirchensteuer: 0 %, 8 % oder 9 %",
+    }),
+  saleCostsBps: percent(
+    "Verkaufskosten",
+    taxLimits.saleCostsBps,
+    "mindestens 0,00 %",
+    "höchstens 20,00 %",
+  ),
+});
+
+export type PropertyVsEtfTaxInputParsed = z.infer<typeof propertyVsEtfTaxInputSchema>;
+
+const _taxParsedToDomain = (v: PropertyVsEtfTaxInputParsed): PropertyVsEtfTaxInput => v;
+const _taxDomainToParsed = (v: PropertyVsEtfTaxInput): PropertyVsEtfTaxInputParsed => v;
+void _taxParsedToDomain;
+void _taxDomainToParsed;

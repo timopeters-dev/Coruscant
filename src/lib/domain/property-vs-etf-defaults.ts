@@ -4,7 +4,13 @@ import {
   PROPERTY_PURCHASE_LIMITS,
   type PurchaseCostRuleSet,
 } from "./property-purchase-defaults";
-import { MAX_ETF_RETURN_BPS, MIN_ETF_RETURN_BPS } from "./scenarios";
+import {
+  DEFAULT_SAVER_ALLOWANCE_CENTS,
+  MAX_ETF_RETURN_BPS,
+  MAX_SAVER_ALLOWANCE_CENTS,
+  MIN_ETF_RETURN_BPS,
+  PARTIAL_EXEMPTION_EQUITY_ETF_BPS,
+} from "./scenarios";
 
 /** Summe aller Nebenkosten-Posten eines Regelwerks in Basispunkten. */
 export function sumPurchaseCostRuleSetBps(ruleSet: PurchaseCostRuleSet): number {
@@ -66,4 +72,32 @@ export const PROPERTY_VS_ETF_DEFAULTS = {
   maintenanceReserveBps: 100,
   etfAnnualReturnBps: 600,
   horizonYears: 20,
+} as const;
+
+/** Grenzen der Steuer-Eingaben (Slice 25b). `churchTaxBps`: siehe `ALLOWED_CHURCH_TAX_BPS`. */
+export const PROPERTY_VS_ETF_TAX_LIMITS = {
+  marginalTaxRateBps: { min: 0, max: 5_000 },
+  depreciationRateBps: { min: 0, max: 1_000 },
+  buildingShareBps: { min: 0, max: 10_000 },
+  speculationPeriodYears: { min: 0, max: 40 },
+  saverAllowanceCents: { min: 0, max: MAX_SAVER_ALLOWANCE_CENTS },
+  partialExemptionBps: { min: 0, max: 10_000 },
+  saleCostsBps: { min: 0, max: 2_000 },
+} as const;
+
+/**
+ * Produkt-Standardwerte der Steuer-Eingaben (Schalter an). Der Kern
+ * `simulatePropertyVsEtf(input)` ohne `tax` rechnet bewusst steuerfrei wie 25a;
+ * die UI (25c) übergibt diese Defaults explizit.
+ */
+export const PROPERTY_VS_ETF_TAX_DEFAULTS = {
+  taxesEnabled: true,
+  marginalTaxRateBps: 3_000,
+  depreciationRateBps: 200,
+  buildingShareBps: 8_000,
+  speculationPeriodYears: 10,
+  saverAllowanceCents: DEFAULT_SAVER_ALLOWANCE_CENTS,
+  partialExemptionBps: PARTIAL_EXEMPTION_EQUITY_ETF_BPS,
+  churchTaxBps: 0,
+  saleCostsBps: 0,
 } as const;
