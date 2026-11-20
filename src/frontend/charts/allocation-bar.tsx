@@ -2,7 +2,7 @@ import * as React from "react";
 import { ChartDataTable } from "./chart-data-table";
 import { CHART_ROLE_COLOR } from "./chart-tokens";
 import { formatEuroDE } from "@/domain/core/money";
-import type { RecommendationItemKind } from "@/domain/recommendation/recommendation";
+import type { RecommendationItemKind } from "@/domain/recommendation/types";
 
 export interface AllocationBarSegment {
   ref: string;

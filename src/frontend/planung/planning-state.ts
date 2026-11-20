@@ -1,9 +1,6 @@
 import type { DomainContract } from "@/domain/contracts/contract";
 import { parseIsoDate, parseYearMonth } from "@/domain/core/date";
-import {
-  DEFAULT_RECOMMENDATION_ASSUMPTIONS,
-  type RecommendationAssumptions,
-} from "@/domain/recommendation/recommendation";
+import { DEFAULT_RECOMMENDATION_ASSUMPTIONS, type RecommendationAssumptions } from "@/domain/recommendation/types";
 import {
   ALLOWED_CHURCH_TAX_BPS,
   DEFAULT_CASHFLOW_HORIZON_MONTHS,

@@ -6,12 +6,8 @@ import { Sparkles } from "lucide-react";
 import { AllocationBar, type AllocationBarSegment } from "@/frontend/charts/allocation-bar";
 import { Button } from "@/frontend/ui/button";
 import { formatEuroDE } from "@/domain/core/money";
-import {
-  computeRecommendationFingerprint,
-  type RecommendationAssumptions,
-  type RecommendationLoan,
-  type RecommendationResult,
-} from "@/domain/recommendation/recommendation";
+import { computeRecommendationFingerprint } from "@/domain/recommendation/recommendation";
+import type { RecommendationAssumptions, RecommendationLoan, RecommendationResult } from "@/domain/recommendation/types";
 import {
   ALLOWED_CHURCH_TAX_BPS,
   MAX_ETF_RETURN_BPS,

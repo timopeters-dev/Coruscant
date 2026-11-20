@@ -1,13 +1,6 @@
 import { formatMonthDE } from "@/domain/core/date-format";
 import { formatBpsDE, formatEuroDE } from "@/domain/core/money";
-import type {
-  RecommendationAssumptions,
-  RecommendationItem,
-  RecommendationItemKind,
-  RecommendationNote,
-  RecommendationReason,
-  RecommendationResult,
-} from "./recommendation";
+import type { RecommendationAssumptions, RecommendationItem, RecommendationItemKind, RecommendationNote, RecommendationReason, RecommendationResult } from "./types";
 
 export interface RecommendationLabels {
   potNames: Record<string, string>;

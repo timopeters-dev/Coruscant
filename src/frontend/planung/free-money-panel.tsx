@@ -27,7 +27,7 @@ import {
 } from "@/domain/core/date";
 import { buildLoanComparison } from "@/domain/contracts/loan-comparison";
 import { formatBpsDE, formatCentsDE } from "@/domain/core/money";
-import { DEFAULT_RECOMMENDATION_ASSUMPTIONS } from "@/domain/recommendation/recommendation";
+import { DEFAULT_RECOMMENDATION_ASSUMPTIONS } from "@/domain/recommendation/types";
 import {
   ALLOWED_CHURCH_TAX_BPS,
   MAX_SAVER_ALLOWANCE_CENTS,

@@ -22,10 +22,7 @@ import {
 } from "@/domain/core/pii-patterns";
 import type { PotDeadlineStatus } from "@/domain/allocation/pot-deadline";
 import type { PropertyUsage } from "@/domain/properties/properties";
-import type {
-  RecommendationItemKind,
-  RecommendationResult,
-} from "@/domain/recommendation/recommendation";
+import type { RecommendationItemKind, RecommendationResult } from "@/domain/recommendation/types";
 import {
   formatAssumptionsSummary,
   formatRecommendationHeadline,

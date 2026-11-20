@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildInvestmentContext, type InvestmentContextInput } from "@/domain/recommendation/investment-context";
-import {
-  recommendMonthlySavings,
-  recommendUse,
-  type RecommendationState,
-} from "@/domain/recommendation/recommendation";
+import { recommendMonthlySavings, recommendUse } from "@/domain/recommendation/recommendation";
+import type { RecommendationState } from "@/domain/recommendation/types";
 import {
   buildLlmInvestmentContextView,
   buildRecommendationLlmView,

@@ -19,11 +19,7 @@ import {
   collectRawCentValues,
   serializeLlmContext,
 } from "@/domain/recommendation/llm";
-import {
-  computeRecommendationFingerprint,
-  recommendMonthlySavings,
-  recommendUse,
-} from "@/domain/recommendation/recommendation";
+import { computeRecommendationFingerprint, recommendMonthlySavings, recommendUse } from "@/domain/recommendation/recommendation";
 import type { CoachChatRequest } from "@/validation/coach";
 import type { ExplainRequest } from "@/validation/recommendation";
 

@@ -4,11 +4,8 @@ import * as React from "react";
 import Link from "next/link";
 import { StatusBadge } from "@/frontend/ui/status-badge";
 import { formatEuroDE } from "@/domain/core/money";
-import {
-  computeRecommendationFingerprint,
-  recommendMonthlySavings,
-  type RecommendationState,
-} from "@/domain/recommendation/recommendation";
+import { computeRecommendationFingerprint, recommendMonthlySavings } from "@/domain/recommendation/recommendation";
+import type { RecommendationState } from "@/domain/recommendation/types";
 import { SliderField } from "./euro-slider-field";
 import { PlanningPanelLayout } from "./planning-panel-layout";
 import {

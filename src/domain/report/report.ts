@@ -49,14 +49,8 @@ import {
   type PropertyUsage,
   summarizeProperties,
 } from "@/domain/properties/properties";
-import {
-  DEFAULT_RECOMMENDATION_ASSUMPTIONS,
-  type RecommendationPot,
-  type RecommendationResult,
-  type RecommendationState,
-  recommendMonthlySavings,
-  recommendUse,
-} from "@/domain/recommendation/recommendation";
+import { DEFAULT_RECOMMENDATION_ASSUMPTIONS, type RecommendationPot, type RecommendationResult, type RecommendationState } from "@/domain/recommendation/types";
+import { recommendMonthlySavings, recommendUse } from "@/domain/recommendation/recommendation";
 import {
   type DomainRentalProfile,
   type DomainRentalProperty,

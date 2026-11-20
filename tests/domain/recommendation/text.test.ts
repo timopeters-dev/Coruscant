@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type {
-  RecommendationNote,
-  RecommendationReason,
-} from "@/domain/recommendation/recommendation";
+import type { RecommendationNote, RecommendationReason } from "@/domain/recommendation/types";
 import {
   formatRecommendationNote,
   formatRecommendationReason,
