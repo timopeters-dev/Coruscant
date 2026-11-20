@@ -623,7 +623,7 @@ function ContractDetailDrawerInner({
                   size="sm"
                   onClick={handleDelete}
                   disabled={isMutating}
-                  className="bg-[var(--rose)] text-white hover:opacity-90"
+                  variant="destructive"
                 >
                   {isMutating ? "Löscht..." : "Endgültig löschen"}
                 </Button>

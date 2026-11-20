@@ -25,9 +25,9 @@ import { cockpitHistoryRangeStore } from "@/components/cockpit/history-range-sto
 import { NetWorthHistoryCard } from "@/components/cockpit/net-worth-history-card";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
+import { Equation, EquationOperator, EquationTerm } from "@/components/ui/equation";
 import { Button } from "@/components/ui/button";
 import {
-  CARD_SURFACE,
   Card,
   CardContent,
   CardDescription,
@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/card";
 import type { CockpitPageData } from "@/db/queries/cockpit";
 import { cn } from "@/lib/utils";
+import { COMPANION_APP_NAME } from "@/lib/companion-app";
 import {
   computeComponentDeltas,
   filterHistoryByRange,
@@ -76,62 +77,50 @@ function formatDaysRemaining(daysRemaining: number): string {
     : `seit ${overdueDays} Tagen überfällig`;
 }
 
-/** Ein Glied der Bilanzgleichung: Bezeichnung, Betrag, optionale Details. */
-function BalanceTerm({
-  label,
-  valueCents,
-  valueClassName,
-  modeled,
-  emphasis = false,
-  children,
+/** Fußzeile der Bilanz: woher die Kontostände stammen, wann geeicht, Abgleich. */
+function SyncFooter({
+  fetchedAt,
+  isSyncing,
+  onSync,
 }: {
-  label: string;
-  valueCents: number;
-  valueClassName?: string;
-  modeled: boolean;
-  emphasis?: boolean;
-  children?: React.ReactNode;
+  fetchedAt: string | null;
+  isSyncing: boolean;
+  onSync: () => void;
 }) {
   return (
-    <div className="min-w-0">
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-sm font-medium text-[var(--text-secondary)] [font-family:var(--font-sans)]">
-          {label}
-        </h2>
-        {modeled ? <StatusBadge variant="modeled" /> : null}
-      </div>
-      <p
-        className={cn(
-          "figure mt-1.5 text-[var(--text-primary)]",
-          emphasis
-            ? "text-[2.5rem] leading-[2.875rem] sm:text-[2.75rem] sm:leading-[3.125rem]"
-            : "text-[2rem] leading-10",
-          valueClassName,
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-[var(--text-secondary)]">
+      <p className="flex flex-wrap items-center gap-2">
+        {fetchedAt ? (
+          <>
+            <StatusBadge variant="calibrated" />
+            <span>
+              Kontostände aus dem {COMPANION_APP_NAME}, abgeglichen am{" "}
+              <span className="font-medium text-[var(--text-primary)]">
+                {formatDateTimeDE(fetchedAt)}
+              </span>
+            </span>
+          </>
+        ) : (
+          <>
+            <StatusBadge variant="modeled" label="Nicht abgeglichen" />
+            <span>Noch keine Kontostände aus dem {COMPANION_APP_NAME}.</span>
+          </>
         )}
-      >
-        {formatCentsDE(valueCents)}
       </p>
-      {children ? <div className="mt-2.5 space-y-1.5">{children}</div> : null}
-    </div>
-  );
-}
-
-/** Rechenzeichen zwischen den Gliedern – auf schmalen Schirmen als Trennlinie. */
-function BalanceOperator({ symbol, label }: { symbol: string; label: string }) {
-  return (
-    <div
-      className="flex items-center gap-3 md:flex-col md:items-center md:pt-5"
-      aria-label={label}
-      role="img"
-    >
-      <span className="h-px flex-1 bg-[var(--border)] md:hidden" aria-hidden="true" />
-      <span
-        aria-hidden="true"
-        className="font-[family-name:var(--font-display)] text-xl font-medium leading-6 text-[var(--text-muted)] md:text-[2rem] md:leading-10"
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={onSync}
+        disabled={isSyncing}
+        className="print:hidden"
       >
-        {symbol}
-      </span>
-      <span className="h-px flex-1 bg-[var(--border)] md:hidden" aria-hidden="true" />
+        <RefreshCw
+          className={cn("h-3.5 w-3.5", isSyncing && "animate-spin")}
+          aria-hidden="true"
+        />
+        {isSyncing ? "Gleiche ab …" : "Jetzt abgleichen"}
+      </Button>
     </div>
   );
 }
@@ -221,8 +210,8 @@ export function CockpitWorkspace({
         const reason =
           payload.message ??
           (payload.status === "unconfigured"
-            ? "finanz_cockpit-Bridge ist noch nicht konfiguriert (FINANZ_COCKPIT_URL / EXTERNAL_SUMMARY_TOKEN)."
-            : "finanz_cockpit aktuell nicht erreichbar.");
+            ? "Verbindung zum Haushaltsbuch ist noch nicht eingerichtet (FINANZ_COCKPIT_URL / EXTERNAL_SUMMARY_TOKEN in .env.local)."
+            : "Haushaltsbuch aktuell nicht erreichbar.");
         const messageWithFallback = fallbackDate
           ? `${reason} Anzeige nutzt letzten Snapshot vom ${formatTimestampDE(fallbackDate)}.`
           : reason;
@@ -238,8 +227,8 @@ export function CockpitWorkspace({
         setBanner({
           tone: "warning",
           message: latestFetchedAt
-            ? `finanz_cockpit aktuell nicht erreichbar – Anzeige nutzt letzten Snapshot vom ${formatTimestampDE(latestFetchedAt)}.`
-            : "finanz_cockpit aktuell nicht erreichbar.",
+            ? `Haushaltsbuch aktuell nicht erreichbar – Anzeige nutzt den letzten Stand vom ${formatTimestampDE(latestFetchedAt)}.`
+            : "Haushaltsbuch aktuell nicht erreichbar.",
         });
       } finally {
         isSyncingRef.current = false;
@@ -408,45 +397,15 @@ export function CockpitWorkspace({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setAdvisorDialogOpen(true)}
-            className="print:hidden"
-          >
-            <FileText className="h-4 w-4" />
-            Berater-Bericht
-          </Button>
-          {latestSnapshotFetchedAt ? (
-            <StatusBadge
-              variant="calibrated"
-              label="finanz_cockpit Geeicht"
-              detail={formatTimestampDE(latestSnapshotFetchedAt)}
-            />
-          ) : (
-            <Badge
-              variant="outline"
-              className="border-[var(--border-sub)] bg-[var(--surface-elevated)] text-[var(--text-secondary)]"
-            >
-              Kein Sync
-            </Badge>
-          )}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => void runSync("manual")}
-            disabled={isSyncing}
-          >
-            <RefreshCw
-              className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`}
-              aria-hidden="true"
-            />
-            <span>{isSyncing ? "Synchronisiere…" : "finanz_cockpit Sync"}</span>
-          </Button>
-        </div>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setAdvisorDialogOpen(true)}
+          className="print:hidden"
+        >
+          <FileText className="h-4 w-4" aria-hidden="true" />
+          Bericht erstellen
+        </Button>
       </div>
 
       {banner ? (
@@ -466,17 +425,20 @@ export function CockpitWorkspace({
         </div>
       ) : null}
 
-      <section
-        aria-label="Bilanz"
-        className={cn(
-          CARD_SURFACE,
-          "grid gap-y-3 p-5 sm:p-6 md:gap-y-5 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1.15fr)] md:gap-x-6",
-          hasModeledNetWorth && "border-dashed border-[var(--border-sub)]",
-        )}
+      <Equation
+        label="Bilanz"
+        modeled={hasModeledNetWorth}
+        footer={
+          <SyncFooter
+            fetchedAt={latestSnapshotFetchedAt}
+            isSyncing={isSyncing}
+            onSync={() => void runSync("manual")}
+          />
+        }
       >
-        <BalanceTerm
+        <EquationTerm
           label="Aktiva"
-          valueCents={balance.totalAssetsCents}
+          value={formatCentsDE(balance.totalAssetsCents)}
           modeled={hasModeledAssets}
         >
             <p className="tabular-nums text-xs text-[var(--text-secondary)]">
@@ -520,27 +482,27 @@ export function CockpitWorkspace({
               />
             </div>
           ) : null}
-        </BalanceTerm>
+        </EquationTerm>
 
-        <BalanceOperator symbol="−" label="minus" />
+        <EquationOperator symbol="−" label="minus" />
 
-        <BalanceTerm
+        <EquationTerm
           label="Passiva"
-          valueCents={balance.liabilitiesCents}
+          value={formatCentsDE(balance.liabilitiesCents)}
           valueClassName={liabilitiesClass}
           modeled={hasModeledLiabilities}
         />
 
-        <BalanceOperator symbol="=" label="ergibt" />
+        <EquationOperator symbol="=" label="ergibt" />
 
-        <BalanceTerm
+        <EquationTerm
           label="Nettovermögen"
-          valueCents={balance.netWorthCents}
+          value={formatCentsDE(balance.netWorthCents)}
           valueClassName={netWorthClass}
           modeled={hasModeledNetWorth}
           emphasis
         />
-      </section>
+      </Equation>
 
       <NetWorthHistoryCard
         totalCount={history.length}
@@ -741,7 +703,7 @@ export function CockpitWorkspace({
                           className={`h-full rounded-full transition-all ${
                             pot.isTargetReached
                               ? "bg-[var(--emerald)]"
-                              : "bg-[var(--accent)]"
+                              : "bg-[var(--meter-fill)]"
                           }`}
                           style={{ width: `${pot.cappedProgressBps / 100}%` }}
                         />

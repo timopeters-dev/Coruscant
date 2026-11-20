@@ -114,7 +114,7 @@ export async function PATCH(
     }
     if (error instanceof PotLinkedBalanceReadOnlyError) {
       return badRequestResponse(error.message, {
-        currentCents: "Wird beim Sync aus finanz_cockpit übernommen.",
+        currentCents: "Wird beim Abgleich aus dem Haushaltsbuch übernommen.",
       });
     }
     if (error instanceof LinkedPropertyNotFoundError) {

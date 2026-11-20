@@ -1,5 +1,6 @@
 "use client";
 
+import { Equation, EquationOperator, EquationTerm } from "@/components/ui/equation";
 import { formatDateDE } from "@/lib/domain/date-format";
 import * as React from "react";
 import Link from "next/link";
@@ -359,114 +360,138 @@ export function VertraegeWorkspace({
             </Card>
           ) : (
             <>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <Card className="border-dashed border-[var(--border-sub)] p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-[var(--text-secondary)]">
-                      Mieten / Monat
-                    </p>
-                    <StatusBadge variant="modeled" />
-                  </div>
-                  <p className="mt-1 tabular-nums text-lg font-semibold text-[var(--text-primary)]">
-                    {formatCentsDE(rentalPortfolio.totals.monthlyColdRentCents)}
-                  </p>
-                </Card>
+              {(() => {
+                const t = rentalPortfolio.totals;
+                const ratesCents =
+                  t.monthlyLoanRatesCents + t.monthlySavingsRatesCents;
+                const ltvBps = rentalPortfolio.ltvBps;
+                return (
+                  <>
+                    <Equation label="Monatlicher Cashflow vor Steuern" modeled>
+                      <EquationTerm
+                        size="md"
+                        label="Kaltmiete / Monat"
+                        value={formatCentsDE(t.monthlyColdRentCents)}
+                      />
+                      {t.monthlyNonRecoverableCostsCents > 0 ? (
+                        <EquationOperator symbol="−" label="minus" />
+                      ) : null}
+                      {t.monthlyNonRecoverableCostsCents > 0 ? (
+                        <EquationTerm
+                          size="md"
+                          label="Objektkosten"
+                          value={formatCentsDE(
+                            t.monthlyNonRecoverableCostsCents,
+                          )}
+                          valueClassName="text-[var(--rose)]"
+                        >
+                          <p className="text-xs text-[var(--text-secondary)]">
+                            nicht umlagefähig
+                          </p>
+                        </EquationTerm>
+                      ) : null}
+                      <EquationOperator symbol="−" label="minus" />
+                      <EquationTerm
+                        size="md"
+                        label="Raten"
+                        value={formatCentsDE(ratesCents)}
+                        valueClassName="text-[var(--rose)]"
+                      />
+                      <EquationOperator symbol="=" label="ergibt" />
+                      <EquationTerm
+                        size="md"
+                        emphasis
+                        modeled
+                        label="Cashflow / Monat"
+                        value={formatCentsDE(t.netCashflowBeforeReserveCents, {
+                          showPlusSign: true,
+                        })}
+                        valueClassName={
+                          t.netCashflowBeforeReserveCents >= 0
+                            ? "text-[var(--emerald)]"
+                            : "text-[var(--rose)]"
+                        }
+                      >
+                        <p className="text-xs text-[var(--text-secondary)]">
+                          nach Instandhaltungsrücklage{" "}
+                          <span className="font-medium text-[var(--text-primary)]">
+                            {formatCentsDE(t.netCashflowAfterReserveCents, {
+                              showPlusSign: true,
+                            })}
+                          </span>
+                        </p>
+                      </EquationTerm>
+                    </Equation>
 
-                <Card className="border-dashed border-[var(--border-sub)] p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-[var(--text-secondary)]">
-                      Raten / Monat
-                    </p>
-                    <StatusBadge variant="modeled" />
-                  </div>
-                  <p className="mt-1 tabular-nums text-lg font-semibold text-[var(--rose)]">
-                    {formatCentsDE(
-                      rentalPortfolio.totals.monthlyLoanRatesCents +
-                        rentalPortfolio.totals.monthlySavingsRatesCents,
-                    )}
-                  </p>
-                </Card>
-
-                <Card className="border-dashed border-[var(--border-sub)] p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-[var(--text-secondary)]">
-                      Netto-Cashflow vor Steuern / Monat
-                    </p>
-                    <StatusBadge variant="modeled" />
-                  </div>
-                  <p
-                    className={`mt-1 tabular-nums text-lg font-semibold ${
-                      rentalPortfolio.totals.netCashflowBeforeReserveCents >= 0
-                        ? "text-[var(--emerald)]"
-                        : "text-[var(--rose)]"
-                    }`}
-                  >
-                    {formatCentsDE(
-                      rentalPortfolio.totals.netCashflowBeforeReserveCents,
-                      { showPlusSign: true },
-                    )}
-                  </p>
-                  <p className="mt-0.5 tabular-nums text-xs text-[var(--text-secondary)]">
-                    nach Rücklage{" "}
-                    {formatCentsDE(
-                      rentalPortfolio.totals.netCashflowAfterReserveCents,
-                      { showPlusSign: true },
-                    )}
-                  </p>
-                </Card>
-
-                <Card className="border-dashed border-[var(--border-sub)] p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-[var(--text-secondary)]">Wert</p>
-                    <StatusBadge variant="modeled" />
-                  </div>
-                  <p className="mt-1 tabular-nums text-lg font-semibold text-[var(--sky)]">
-                    {formatCentsDE(rentalPortfolio.totals.estimatedValueCents)}
-                  </p>
-                </Card>
-
-                <Card className="border-dashed border-[var(--border-sub)] p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-[var(--text-secondary)]">
-                      Restschuld
-                    </p>
-                    <StatusBadge variant="modeled" />
-                  </div>
-                  <p className="mt-1 tabular-nums text-lg font-semibold text-[var(--rose)]">
-                    {formatCentsDE(
-                      rentalPortfolio.totals.linkedLoanBalanceCents,
-                    )}
-                  </p>
-                </Card>
-
-                <Card className="border-dashed border-[var(--border-sub)] p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-[var(--text-secondary)]">
-                      Eigenkapital im Objekt
-                    </p>
-                    <StatusBadge variant="modeled" />
-                  </div>
-                  <p
-                    className={`mt-1 tabular-nums text-lg font-semibold ${
-                      rentalPortfolio.totals.capitalTiedCents >= 0
-                        ? "text-[var(--emerald)]"
-                        : "text-[var(--rose)]"
-                    }`}
-                  >
-                    {formatCentsDE(rentalPortfolio.totals.capitalTiedCents)}
-                  </p>
-                </Card>
-              </div>
+                    <Equation
+                      label="Vermögen in den Mietobjekten"
+                      modeled
+                      footer={
+                        ltvBps !== null ? (
+                          <div className="space-y-1.5">
+                            <div className="flex items-baseline justify-between gap-3 text-xs text-[var(--text-secondary)]">
+                              <span>Beleihung</span>
+                              <span className="font-medium text-[var(--text-primary)]">
+                                {formatBpsDE(ltvBps)}
+                              </span>
+                            </div>
+                            <div
+                              className="meter h-2.5 w-full overflow-hidden"
+                              role="img"
+                              aria-label={`Beleihung ${formatBpsDE(ltvBps)} des Objektwerts`}
+                            >
+                              <div
+                                className="h-full bg-[var(--rose)]"
+                                style={{
+                                  width: `${Math.min(100, Math.max(0, ltvBps / 100))}%`,
+                                }}
+                              />
+                            </div>
+                            <div className="scale-ticks" aria-hidden="true" />
+                          </div>
+                        ) : null
+                      }
+                    >
+                      <EquationTerm
+                        size="md"
+                        label="Objektwert"
+                        value={formatCentsDE(t.estimatedValueCents)}
+                        valueClassName="text-[var(--sky)]"
+                      />
+                      <EquationOperator symbol="−" label="minus" />
+                      <EquationTerm
+                        size="md"
+                        label="Restschuld"
+                        value={formatCentsDE(t.linkedLoanBalanceCents)}
+                        valueClassName="text-[var(--rose)]"
+                      />
+                      <EquationOperator symbol="=" label="ergibt" />
+                      <EquationTerm
+                        size="md"
+                        emphasis
+                        modeled
+                        label="Eigenkapital im Objekt"
+                        value={formatCentsDE(t.capitalTiedCents)}
+                        valueClassName={
+                          t.capitalTiedCents >= 0
+                            ? "text-[var(--emerald)]"
+                            : "text-[var(--rose)]"
+                        }
+                      />
+                    </Equation>
+                  </>
+                );
+              })()}
 
               <Card className="overflow-x-auto border-dashed border-[var(--border-sub)]">
-                <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-2.5">
-                  <span className="section-label text-[var(--text-secondary)]">
-                    Objekt-Übersicht (vor Steuern)
-                  </span>
+                <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-3">
+                  <h2 className="text-base font-semibold text-[var(--text-primary)]">
+                    Je Objekt
+                  </h2>
                   <StatusBadge variant="modeled" />
                 </div>
                 <table className="w-full text-left text-sm">
-                  <thead className="border-b border-[var(--border)] bg-[var(--surface-elevated)]/60 text-xs text-[var(--text-secondary)]">
+                  <thead className="border-b border-[var(--border-sub)] text-xs text-[var(--text-secondary)]">
                     <tr>
                       <th className="px-4 py-3 font-medium">Objekt</th>
                       <th className="px-4 py-3 text-right font-medium">

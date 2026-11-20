@@ -57,6 +57,14 @@
   --rose: #a8283a;
   --sky: #2f5d8a;
 
+  /* Gefüllte Bedienelemente: gedeckter Schiefer statt reiner Tinte. */
+  --control: #3c4a44;
+  --control-hover: #313d38;
+  --control-edge: #27312d;
+  --control-foreground: #f2f5f0;
+  /* Füllung von Skalen und Fortschrittsbalken */
+  --meter-fill: #4a5852;
+
   --accent-soft: color-mix(in srgb, var(--accent) 7%, transparent);
   --focus: color-mix(in srgb, var(--sky) 55%, transparent);
   --surface-glass: #eceeea;
@@ -98,6 +106,12 @@
   --emerald: #78c49a;
   --rose: #ee8b8b;
   --sky: #8db2de;
+
+  --control: #3f4e48;
+  --control-hover: #485851;
+  --control-edge: #5a6963;
+  --control-foreground: #e3e8e2;
+  --meter-fill: #9aa8a1;
 
   --accent-soft: color-mix(in srgb, var(--accent) 9%, transparent);
   --focus: color-mix(in srgb, var(--sky) 60%, transparent);
@@ -162,6 +176,9 @@
     --accent: #18201d;
     --accent-strong: #000000;
     --accent-foreground: #ffffff;
+    --control: #3c4a44;
+    --control-foreground: #ffffff;
+    --meter-fill: #4a5852;
     --amber: #a35f00;
     --emerald: #2e6b4c;
     --rose: #a8283a;
@@ -248,7 +265,7 @@
 
   input[type="checkbox"],
   input[type="radio"] {
-    --control: var(--accent);
+    --mark: var(--control);
     appearance: none;
     flex-shrink: 0;
     display: inline-grid;
@@ -277,14 +294,14 @@
 
   input[type="checkbox"][class*="--amber"],
   input[type="radio"][class*="--amber"] {
-    --control: var(--amber);
+    --mark: var(--amber);
   }
 
   input[type="checkbox"]::before {
     content: "";
     width: 0.65em;
     height: 0.65em;
-    background-color: var(--accent-foreground);
+    background-color: var(--control-foreground);
     clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
     transform: scale(0);
     transition: transform var(--dur) var(--ease-out);
@@ -295,20 +312,20 @@
     width: 0.4rem;
     height: 0.4rem;
     border-radius: 9999px;
-    background-color: var(--accent-foreground);
+    background-color: var(--control-foreground);
     transform: scale(0);
     transition: transform var(--dur) var(--ease-out);
   }
 
   input[type="checkbox"]:hover:not(:disabled),
   input[type="radio"]:hover:not(:disabled) {
-    border-color: var(--control);
+    border-color: var(--mark);
   }
 
   input[type="checkbox"]:checked,
   input[type="radio"]:checked {
-    border-color: var(--control);
-    background-color: var(--control);
+    border-color: var(--mark);
+    background-color: var(--mark);
   }
 
   input[type="checkbox"]:checked::before,
@@ -342,7 +359,7 @@
     border-radius: 1px;
     background: linear-gradient(
       to right,
-      var(--accent) 0 var(--fill),
+      var(--meter-fill) 0 var(--fill),
       var(--border) var(--fill) 100%
     );
   }
@@ -356,7 +373,7 @@
   input[type="range"]::-moz-range-progress {
     height: 4px;
     border-radius: 1px;
-    background: var(--accent);
+    background: var(--meter-fill);
   }
 
   input[type="range"]::-webkit-slider-thumb {
@@ -366,7 +383,7 @@
     margin-top: -8px;
     border-radius: 2px;
     background: var(--surface);
-    border: 1.5px solid var(--accent);
+    border: 1.5px solid var(--meter-fill);
     transition: transform var(--dur-fast) var(--ease-out),
       box-shadow var(--dur) var(--ease-out);
   }
@@ -376,7 +393,7 @@
     height: 18px;
     border-radius: 2px;
     background: var(--surface);
-    border: 1.5px solid var(--accent);
+    border: 1.5px solid var(--meter-fill);
     transition: transform var(--dur-fast) var(--ease-out);
   }
 

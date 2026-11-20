@@ -284,8 +284,8 @@ const DAY_PICKER_CLASSES = {
   day: "group/day relative h-9 w-9 p-0 text-center",
   day_button:
     "relative m-0.5 inline-flex h-8 w-8 items-center justify-center rounded-lg text-sm tabular-nums text-[var(--text-primary)] transition-[background-color,color,box-shadow,transform] duration-150 hover:bg-[var(--surface-elevated)] active:scale-95 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)] " +
-    "group-data-[selected=true]/day:bg-[var(--accent)] group-data-[selected=true]/day:font-semibold group-data-[selected=true]/day:text-white group-data-[selected=true]/day:shadow-[var(--shadow-accent)] " +
-    "group-data-[today=true]/day:font-semibold group-data-[today=true]/day:text-[var(--accent)] group-data-[today=true]/day:group-data-[selected=true]/day:text-white " +
+    "group-data-[selected=true]/day:bg-[var(--control)] group-data-[selected=true]/day:font-semibold group-data-[selected=true]/day:text-[var(--control-foreground)] group-data-[selected=true]/day:shadow-[var(--shadow-accent)] " +
+    "group-data-[today=true]/day:font-semibold group-data-[today=true]/day:text-[var(--accent)] group-data-[today=true]/day:group-data-[selected=true]/day:text-[var(--control-foreground)] " +
     "group-data-[outside=true]/day:text-[var(--text-muted)] group-data-[outside=true]/day:opacity-60 " +
     "group-data-[disabled=true]/day:pointer-events-none group-data-[disabled=true]/day:opacity-30",
   selected: "",
@@ -422,7 +422,7 @@ export function MonthPicker({
                   className={cn(
                     "h-9 rounded-lg text-sm transition-[background-color,color,transform] duration-150 active:scale-95 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)] disabled:pointer-events-none disabled:opacity-30",
                     active
-                      ? "bg-[var(--accent)] font-semibold text-white shadow-[var(--shadow-accent)]"
+                      ? "bg-[var(--control)] font-semibold text-[var(--control-foreground)]"
                       : "text-[var(--text-primary)] hover:bg-[var(--surface-elevated)]",
                   )}
                 >

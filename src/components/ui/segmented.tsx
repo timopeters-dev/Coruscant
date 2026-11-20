@@ -18,7 +18,7 @@ export function segmentItemClass(active: boolean, size: "sm" | "md" = "sm") {
     "relative inline-flex items-center justify-center gap-1.5 rounded-md font-medium whitespace-nowrap transition-colors duration-150 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)] motion-reduce:transition-none",
     size === "sm" ? "px-2.5 py-1 text-xs" : "px-3 py-1.5 text-sm",
     active
-      ? "text-[var(--accent-foreground)]"
+      ? "text-[var(--text-primary)]"
       : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
   );
 }
@@ -37,7 +37,7 @@ export function SegmentPill({ className }: { className?: string }) {
       aria-hidden="true"
       transition={SPRING_SNAPPY}
       className={cn(
-        "absolute inset-0 -z-0 rounded-md bg-[var(--accent)]",
+        "absolute inset-0 -z-0 rounded-md bg-[var(--surface-elevated)] shadow-[inset_0_0_0_1px_var(--border-sub)]",
         className,
       )}
     />

@@ -1209,7 +1209,7 @@ function DocumentReviewSplitView({
                     size="sm"
                     onClick={handleDelete}
                     disabled={isSubmitting}
-                    className="bg-[var(--rose)] text-white hover:opacity-90"
+                    variant="destructive"
                   >
                     Endgültig löschen
                   </Button>

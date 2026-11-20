@@ -417,7 +417,8 @@ function HistoryList({
                     <Button
                       type="button"
                       size="sm"
-                      className="h-7 bg-[var(--rose)] text-white"
+                      variant="destructive"
+                      className="h-7"
                       disabled={isDeleting}
                       onClick={() => void handleConfirmDelete(entry.id)}
                     >

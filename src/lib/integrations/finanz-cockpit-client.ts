@@ -154,14 +154,14 @@ export async function fetchFinanzCockpitSummary(
       return {
         ok: false,
         code: "timeout",
-        message: "Zeitüberschreitung beim Abruf von finanz_cockpit.",
+        message: "Zeitüberschreitung beim Abruf aus dem Haushaltsbuch.",
       };
     }
 
     return {
       ok: false,
       code: "network_error",
-      message: "finanz_cockpit ist aktuell nicht erreichbar.",
+      message: "Haushaltsbuch ist aktuell nicht erreichbar.",
     };
   }
 
@@ -169,7 +169,7 @@ export async function fetchFinanzCockpitSummary(
     return {
       ok: false,
       code: "unauthorized",
-      message: "Authentifizierung bei finanz_cockpit fehlgeschlagen.",
+      message: "Anmeldung beim Haushaltsbuch fehlgeschlagen (Token prüfen).",
       httpStatus: response.status,
     };
   }
@@ -178,7 +178,7 @@ export async function fetchFinanzCockpitSummary(
     return {
       ok: false,
       code: "http_error",
-      message: `finanz_cockpit antwortete mit HTTP ${response.status}.`,
+      message: `Haushaltsbuch antwortete mit HTTP ${response.status}.`,
       httpStatus: response.status,
     };
   }
@@ -190,7 +190,7 @@ export async function fetchFinanzCockpitSummary(
     return {
       ok: false,
       code: "invalid_payload",
-      message: "Ungültiges JSON-Format von finanz_cockpit.",
+      message: "Ungültiges JSON-Format vom Haushaltsbuch.",
     };
   }
 
@@ -199,7 +199,7 @@ export async function fetchFinanzCockpitSummary(
     return {
       ok: false,
       code: "invalid_payload",
-      message: "Ungültiges Antwortformat von finanz_cockpit.",
+      message: "Ungültiges Antwortformat vom Haushaltsbuch.",
     };
   }
 

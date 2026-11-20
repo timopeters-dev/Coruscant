@@ -16,7 +16,7 @@ Leitidee: Coruscant ist ein Messinstrument für das eigene Vermögen. Die App un
 
 ## 2. Farbe: Tinte auf Kalkpapier
 
-**Farbe gehört dem Geld.** Bedien-Elemente (Buttons, Navigation, Schalter, Segment-Umschalter, Checkboxen) sind einfarbig in Tinte. Farbe erscheint nur, wo sie finanzielle Bedeutung trägt. Die Variablennamen in `globals.css` sind historisch (`--emerald`, `--rose` …) und bleiben stabil; Komponenten referenzieren nur Rollen.
+**Farbe gehört dem Geld.** Bedien-Elemente (Buttons, Navigation, Schalter, Segment-Umschalter, Checkboxen) sind farblos: Tinte für Text und Linien, gedeckter Schiefer für Flächen. Farbe erscheint nur, wo sie finanzielle Bedeutung trägt. Die Variablennamen in `globals.css` sind historisch (`--emerald`, `--rose` …) und bleiben stabil; Komponenten referenzieren nur Rollen.
 
 ### Basis-Flächen & Text
 | Token | Light | Dark | Verwendung |
@@ -27,7 +27,11 @@ Leitidee: Coruscant ist ein Messinstrument für das eigene Vermögen. Die App un
 | `--border` / `--border-sub` | `#D3D8D2` / `#B6BDB6` | `#29332F` / `#3C4843` | Haarlinien / Feld- und Steuerrahmen |
 | `--text-primary` (Tinte) | `#18201D` | `#E3E8E2` | Überschriften, Beträge |
 | `--text-secondary` (Graphit) | `#535E59` | `#9AA49E` | Labels, Erklärtexte |
-| `--accent` | = Tinte | = Tinte (hell) | Primär-Button, aktive Navigation, Füllungen |
+| `--accent` | = Tinte | = Tinte (hell) | Links, aktive Navigation (Strich), Linien |
+| `--control` / `-hover` / `-edge` / `-foreground` | `#3C4A44` … | `#3F4E48` … | Gefüllte Bedienelemente: Primär-Button, gewählter Tag, gewählte Option, Checkbox |
+| `--meter-fill` | `#4A5852` | `#9AA8A1` | Füllung neutraler Skalen, Fortschrittsbalken, Slider |
+
+Reines Schwarz bzw. Weiß als Fläche ist tabu – gefüllte Elemente nutzen immer `--control`.
 
 ### Finanz-Semantik
 | Rolle | Token | Light | Dark |
@@ -65,7 +69,7 @@ Leitidee: Coruscant ist ein Messinstrument für das eigene Vermögen. Die App un
 ## 6. Signatur-Elemente
 - **Eichskala:** Jeder Fortschritts-/Anteilsbalken trägt `.meter` – flache Skala mit Kerben alle 10 %, Füllung in Tinte oder Semantikfarbe. `.scale-ticks` ergänzt eine Teilstrich-Skala (0/50/100 %) unter Balken, wo Anteile gelesen werden.
 - **Prüfzeichen im `StatusBadge`:** Geeicht = Eichmarke (voller Kern im Ring), Modelliert = gestrichelter Ring, KI-Vorschlag = Raute, Eich-Hinweis = Dreieck. Detailwerte stehen hinter einer feinen Trennlinie, nicht hinter `·`.
-- **Bilanzgleichung (Cockpit):** Aktiva − Passiva = Nettovermögen als ein Band mit Rechenzeichen statt drei gleichförmiger Kennzahl-Kacheln.
+- **Rechenbänder (`src/components/ui/equation.tsx`):** Kennzahlen, die rechnerisch zusammenhängen, stehen als Gleichung (`Equation`, `EquationTerm`, `EquationOperator`) statt als Kachel-Reihe – Cockpit: Aktiva − Passiva = Nettovermögen; Portfolio: Kaltmiete − Objektkosten − Raten = Cashflow und Objektwert − Restschuld = Eigenkapital (mit Beleihungsskala). Herkunft und Abgleich gehören in die Fußzeile des Bandes, dessen Zahlen sie betreffen.
 - **Slider:** Tintenfüllung bis zum Schieber über `rangeFillStyle(value, min, max)` (`src/components/ui/range-fill.ts`).
 
 ## 7. Bewegung
@@ -74,7 +78,16 @@ Leitidee: Coruscant ist ein Messinstrument für das eigene Vermögen. Die App un
 - Easing `--ease-out`, Dauern `--dur-fast` 120 ms / `--dur` 200 ms / `--dur-slow` 380 ms; Federn zentral in `src/components/ui/motion.ts`.
 - **Pflicht:** `prefers-reduced-motion` schaltet alle Animationen ab; Druck rendert ohne Animation.
 
-## 8. Komponenten-Bausteine (`src/components/ui/`)
+## 8. Buttons
+- Halbschmale Schrift (`--font-display`, 600) wie auf Geräte-Tasten; feine Unterkante (`inset 0 -2px 0`), die beim Drücken nachgibt (`active:translate-y-px`).
+- Varianten: `default` (Schiefer-Fläche, eine Hauptaktion je Bereich), `outline` (Bogen mit Kante, Nebenaktionen wie „Bericht erstellen“), `secondary`, `ghost` (Aktionen in Fußzeilen, z. B. „Jetzt abgleichen“), `soft`, `destructive` (Löschen – nie per Klasse nachbauen).
+- Beschriftung nennt die Aktion im Aktiv: „Bericht erstellen“, „Jetzt abgleichen“.
+
+## 9. Sprache
+- Die Begleit-App `finanz_cockpit` heißt in der Oberfläche **Haushaltsbuch** (`COMPANION_APP_NAME` in `src/lib/companion-app.ts`). Technische Namen, Env-Variablen-Namen ausgenommen, erscheinen nicht in sichtbaren Texten.
+- Datenübernahme heißt durchgängig **Abgleich / abgleichen**, nicht „Sync“.
+
+## 10. Komponenten-Bausteine (`src/components/ui/`)
 - `Select` – eigene Listbox (Radix Popover), API wie natives `<select>`, Tastatur & Type-ahead.
 - `DatePicker` / `MonthPicker` – Eingabe `TT.MM.JJJJ` oder Kalender (react-day-picker, de, Montag zuerst); Werte bleiben ISO.
 - `Dialog` / `Sheet` – animiert, Portal nach `body`, Fokus-Falle, Scroll-Lock, Escape respektiert innere Popover.

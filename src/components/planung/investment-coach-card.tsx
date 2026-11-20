@@ -25,7 +25,7 @@ interface InvestmentCoachCardProps {
 }
 
 const SEGMENT_CLASS = {
-  etf: "bg-[var(--accent)]",
+  etf: "bg-[var(--meter-fill)]",
   stock: "bg-[var(--sky)]",
   crypto: "bg-[var(--text-secondary)]",
 } as const;
@@ -55,7 +55,7 @@ export function InvestmentCoachCard({
           <div className="rounded-lg border border-dashed border-[var(--border-sub)] px-3 py-2 text-sm text-[var(--text-secondary)]">
             <p className="font-medium">Kein Haushalts-Depot vorhanden</p>
             <p>
-              Sobald in finanz_cockpit ein Haushalts-Depot synchronisiert ist,
+              Sobald im Haushaltsbuch ein Haushalts-Depot abgeglichen ist,
               erscheint hier die Einordnung. Ohne Depot kannst du direkt{" "}
               <Link
                 href="/planung?frage=geld"
@@ -85,7 +85,7 @@ export function InvestmentCoachCard({
                     {context.dataQuality.snapshotAgeDays === 1 ? "Tag" : "Tagen"}
                   </span>
                 ) : null}
-                <StatusBadge variant="calibrated" detail="finanz_cockpit" />
+                <StatusBadge variant="calibrated" detail="Haushaltsbuch" />
               </span>
             </div>
             <div

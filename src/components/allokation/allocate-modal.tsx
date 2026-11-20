@@ -342,7 +342,7 @@ function AllocateModalInner({
               className={cn(
                 "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
                 mode === "monthly"
-                  ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-foreground)]"
+                  ? "border-[var(--control-edge)] bg-[var(--control)] text-[var(--control-foreground)]"
                   : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
               )}
             >
@@ -354,7 +354,7 @@ function AllocateModalInner({
               className={cn(
                 "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
                 mode === "one_time"
-                  ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-foreground)]"
+                  ? "border-[var(--control-edge)] bg-[var(--control)] text-[var(--control-foreground)]"
                   : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
               )}
             >

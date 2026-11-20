@@ -117,7 +117,7 @@ export class PotExternalLinkConflictError extends Error {
 
 export class PotExternalLinkTargetNotFoundError extends Error {
   constructor() {
-    super("Das Kopplungsziel ist im letzten finanz_cockpit-Snapshot nicht enthalten.");
+    super("Das Kopplungsziel ist im letzten Stand aus dem Haushaltsbuch nicht enthalten.");
     this.name = "PotExternalLinkTargetNotFoundError";
   }
 }

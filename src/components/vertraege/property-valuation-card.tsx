@@ -1081,7 +1081,7 @@ export function PropertyValuationCard({
                             }}
                             className={`rounded-md border px-2 py-1 text-2xs font-medium transition-colors outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)] disabled:cursor-not-allowed disabled:opacity-45 ${
                               isSelected
-                                ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-foreground)]"
+                                ? "border-[var(--control-edge)] bg-[var(--control)] text-[var(--control-foreground)]"
                                 : "border-[var(--border)] bg-[var(--surface-elevated)]/60 text-[var(--text-primary)] hover:border-[var(--accent)]"
                             }`}
                           >
