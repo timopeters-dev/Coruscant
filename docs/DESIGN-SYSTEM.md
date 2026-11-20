@@ -47,12 +47,17 @@ Verbindliche UX- und UI-Leitplanken für alle Komponenten in **Coruscant**.
 - **Ebenen:** `--shadow-xs|sm|md|lg` statt harter Schatten; Karten tragen zusätzlich eine feine Lichtkante oben (`inset 0 1px 0 var(--hairline-highlight)`). Basis: `CARD_SURFACE` in `src/components/ui/card.tsx`.
 - **Klickbare Karten:** `<Card interactive>` (dezentes Anheben beim Hover, respektiert `prefers-reduced-motion`).
 - **Fokus:** einheitlicher 3px-Glow (`focus-visible:ring-[3px]` in Akzent-Mischung) mit `outline-hidden` (nicht `outline-none`), damit der Fokus im Kontrastmodus sichtbar bleibt.
-- **Glas:** Header, Mobile-Dock und schwebende Panels nutzen `surface-glass` bzw. `--surface-overlay` mit Blur.
+- **Glas:** Header, Mobile-Dock und schwebende Panels nutzen `surface-glass` bzw. `--surface-overlay` mit Blur – fast deckend, damit beim Scrollen nichts durch die Navigation scheint.
+- **Primär-Button:** satte Akzentfläche mit feiner, dunklerer Kante und neutralem Schatten – kein Verlauf, kein farbiger Glow. Für Links im Button-Look `buttonVariants()` nutzen statt eigener Klassen.
+- **Cursor:** klickbare Elemente zeigen die Hand, deaktivierte den Verbotszeiger (globale Regel in `globals.css`).
 - **Hintergrund:** statischer Ambient-Verlauf + feines Punktraster (`.ambient-backdrop`), kein Flackern; im Druck ausgeblendet.
 
 ## 5. Bewegung
 - **Prinzip:** Bewegung erklärt Zustandswechsel, lenkt nicht ab. Easing `--ease-out` (`cubic-bezier(0.16, 1, 0.3, 1)`), Dauern `--dur-fast` 140 ms / `--dur` 220 ms / `--dur-slow` 420 ms; Federn zentral in `src/components/ui/motion.ts`.
 - **Muster:** Seiten blenden per `template.tsx` ein (`.page-enter`), Raster staffeln (`.stagger`), Balken decken sich von links auf (`.meter`, `.reveal-x`), Line-Charts per Clip-Reveal (gestrichelte *Modelliert*-Serien bleiben gestrichelt), Kennzahlen gleiten per `AnimatedNumber` zum Zielwert (SSR zeigt immer den exakten Wert).
+- **Aufklappen:** per `Collapse` (Höhen-Animation) bzw. nativ animiertes `<details>` (`interpolate-size`); Pfeile drehen sich per `CollapseChevron`.
+- **Laden:** `app/loading.tsx` zeigt beim Seitenwechsel ein ruhiges Skelett (`.skeleton`), das erst nach ~160 ms einblendet; der angeklickte Navigationspunkt trägt einen feinen Lichtstreif (`useLinkStatus`).
+- **Hover-Feedback in Charts:** Fadenkreuz und Tooltip folgen der Maus ohne spürbare Verzögerung (≤ 70 ms, linear).
 - **Pflicht:** `prefers-reduced-motion` schaltet alle Animationen ab; Druck rendert ohne Animation.
 
 ## 6. Komponenten-Bausteine (`src/components/ui/`)
@@ -62,4 +67,7 @@ Verbindliche UX- und UI-Leitplanken für alle Komponenten in **Coruscant**.
 - Segment-Umschalter (`segmented.tsx`) – einheitliche Schiene mit gleitender Pille für Tabs, Zeiträume und Ansichten.
 - `KpiCard` – Kennzahl-Kachel mit Icon-Chip, semantischem Ton und optionaler Hero-Variante.
 - Befehlspalette (`command-menu.tsx`, ⌘K / Strg+K) für Navigation und Farbschema.
+- `InfoTip` – erklärt Schalter, Umschalter und Fachbegriffe direkt am Element (`align="end"` für Symbole am rechten Rand). Neue Toggles bekommen einen InfoTip, wenn ihre Wirkung nicht selbsterklärend ist.
+- `Collapse` / `CollapseChevron` – weiches Auf-/Zuklappen für per State gesteuerte Bereiche.
+- Formulare in geteilten Ansichten nutzen Container-Queries (`@container`, `@md:`/`@xl:`), damit Spalten nach verfügbarer Breite statt nach Fenstergröße umbrechen.
 - Native Checkboxen, Radios und Slider sind global im App-Look gestylt (`globals.css`).

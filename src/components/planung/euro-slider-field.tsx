@@ -49,17 +49,22 @@ export function SliderField({
   error,
   info,
 }: SliderFieldProps) {
+  // Ein Regler mit negativem Minimum muss negative Werte auch darstellen können –
+  // sonst wirft die Formatierung beim Ziehen unter 0 einen RangeError.
+  const negativeAllowed = allowNegative || min < 0;
   const format =
     kind === "euro"
       ? centsToEuroInputString
       : kind === "percent"
-        ? (v: number) => bpsToPercentInputString(v, { allowNegative })
+        ? (v: number) =>
+            bpsToPercentInputString(v, { allowNegative: negativeAllowed })
         : (v: number) => String(v);
   const parse =
     kind === "euro"
       ? parseEuroInputToCents
       : kind === "percent"
-        ? (raw: string) => parsePercentInputToBps(raw, { allowNegative })
+        ? (raw: string) =>
+            parsePercentInputToBps(raw, { allowNegative: negativeAllowed })
         : parseIntegerInput;
   // Keep the user's draft while typing (even if invalid or still incomplete,
   // e.g. "-"). Fall back to the formatted value once the value was changed

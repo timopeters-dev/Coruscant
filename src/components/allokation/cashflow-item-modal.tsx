@@ -6,6 +6,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { InfoTip } from "@/components/ui/info-tip";
 import type { CashflowItemRow } from "@/db/queries/allocation";
 import {
   type CashflowDirection,
@@ -242,6 +243,11 @@ function CashflowItemModalInner({
             className="h-4 w-4 rounded border-[var(--border)] accent-[var(--accent)]"
           />
           <span>Plan-Posten aktiv im Haushalts-Überschuss berücksichtigen</span>
+          <InfoTip
+            id="cashflow-item-active-info"
+            label="Plan-Posten aktiv"
+            text="Deaktivierte Posten bleiben gespeichert, fließen aber nicht in den monatlichen Überschuss ein – praktisch für pausierte oder nur gelegentliche Zahlungen."
+          />
         </label>
 
         <div className="flex items-center justify-end gap-2 border-t border-[var(--border)] pt-4">

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -31,6 +31,14 @@ import {
   parsePercentInputToBps,
 } from "@/lib/domain/money";
 import { DatePicker } from "@/components/ui/date-picker";
+import { Collapse, CollapseChevron } from "@/components/ui/collapse";
+import {
+  SEGMENT_TRACK,
+  SegmentGroup,
+  SegmentLabel,
+  SegmentPill,
+  segmentItemClass,
+} from "@/components/ui/segmented";
 
 export interface ContractFormValues {
   name: string;
@@ -950,8 +958,8 @@ export function ContractFormFields({
   const isOptionsExpanded = optionsOpen || hasLoanOptionErrors;
 
   return (
-    <div className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-2">
+    <div className="@container space-y-5">
+      <div className="grid gap-4 @md:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor={`${idPrefix}-name`}>Vertragsname *</Label>
           <Input
@@ -985,7 +993,7 @@ export function ContractFormFields({
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-4 @md:grid-cols-2 @xl:grid-cols-4">
         <div className="space-y-1.5">
           <Label htmlFor={`${idPrefix}-category`}>Kategorie</Label>
           <Select
@@ -1017,7 +1025,7 @@ export function ContractFormFields({
           </Select>
         </div>
 
-        <div className="space-y-1.5 sm:col-span-2">
+        <div className="space-y-1.5 @md:col-span-2">
           <Label htmlFor={`${idPrefix}-property`}>Immobilie (optional)</Label>
           <Select
             id={`${idPrefix}-property`}
@@ -1041,7 +1049,7 @@ export function ContractFormFields({
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-4 @md:grid-cols-2 @xl:grid-cols-4">
         <div className="space-y-1.5">
           <Label htmlFor={`${idPrefix}-balance`}>
             {values.category === "loan" ? "Restschuld (€) *" : "Guthaben (€) *"}
@@ -1125,7 +1133,7 @@ export function ContractFormFields({
           <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
             Kredit-Konditionen
           </h3>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 @md:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor={`${idPrefix}-repayment-type`}>Tilgungsart</Label>
               <Select
@@ -1185,17 +1193,13 @@ export function ContractFormFields({
               className="flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
             >
               <span>Darlehensoptionen (Sondertilgung &amp; Tilgungswechsel)</span>
-              {isOptionsExpanded ? (
-                <ChevronDown className="h-4 w-4 text-[var(--text-secondary)]" />
-              ) : (
-                <ChevronRight className="h-4 w-4 text-[var(--text-secondary)]" />
-              )}
+              <CollapseChevron open={isOptionsExpanded} className="h-4 w-4 text-[var(--text-secondary)]" />
             </button>
 
-            {isOptionsExpanded ? (
+            <Collapse open={isOptionsExpanded}>
               <div className="mt-4 space-y-5">
                 {/* Ursprungsbetrag */}
-                <div className="space-y-1.5 sm:max-w-xs">
+                <div className="space-y-1.5 @md:max-w-xs">
                   <Label htmlFor={`${idPrefix}-original-principal`}>
                     Ursprungsbetrag / Nennbetrag (€, optional)
                   </Label>
@@ -1224,38 +1228,37 @@ export function ContractFormFields({
                     <span className="block text-xs font-medium text-[var(--text-primary)]">
                       Sondertilgungsrecht
                     </span>
-                    <div
-                      role="group"
-                      aria-label="Sondertilgungsrecht"
-                      className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-0.5"
-                    >
-                      {OPTION_RIGHT_SEGMENTS.map((seg) => {
-                        const active = values.specialRepaymentRight === seg.value;
-                        return (
-                          <button
-                            key={seg.value}
-                            type="button"
-                            disabled={disabled}
-                            aria-pressed={active}
-                            onClick={() =>
-                              updateField("specialRepaymentRight", seg.value)
-                            }
-                            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                              active
-                                ? "bg-[var(--accent)] text-white"
-                                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                            }`}
-                          >
-                            {seg.label}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <SegmentGroup>
+                      <div
+                        role="group"
+                        aria-label="Sondertilgungsrecht"
+                        className={SEGMENT_TRACK}
+                      >
+                        {OPTION_RIGHT_SEGMENTS.map((seg) => {
+                          const active = values.specialRepaymentRight === seg.value;
+                          return (
+                            <button
+                              key={seg.value}
+                              type="button"
+                              disabled={disabled}
+                              aria-pressed={active}
+                              onClick={() =>
+                                updateField("specialRepaymentRight", seg.value)
+                              }
+                              className={segmentItemClass(active)}
+                            >
+                              {active ? <SegmentPill /> : null}
+                              <SegmentLabel>{seg.label}</SegmentLabel>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </SegmentGroup>
                   </div>
 
                   {values.specialRepaymentRight === "allowed" ? (
                     <div className="space-y-3">
-                      <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="grid gap-3 @lg:grid-cols-3">
                         <div className="space-y-1.5">
                           <Label htmlFor={`${idPrefix}-sr-basis`}>
                             Deckel-Basis
@@ -1393,38 +1396,37 @@ export function ContractFormFields({
                       <span className="block text-xs font-medium text-[var(--text-primary)]">
                         Tilgungssatzwechsel
                       </span>
-                      <div
-                        role="group"
-                        aria-label="Tilgungssatzwechsel"
-                        className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-0.5"
-                      >
-                        {OPTION_RIGHT_SEGMENTS.map((seg) => {
-                          const active = values.rateChangeRight === seg.value;
-                          return (
-                            <button
-                              key={seg.value}
-                              type="button"
-                              disabled={disabled}
-                              aria-pressed={active}
-                              onClick={() =>
-                                updateField("rateChangeRight", seg.value)
-                              }
-                              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                                active
-                                  ? "bg-[var(--accent)] text-white"
-                                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                              }`}
-                            >
-                              {seg.label}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <SegmentGroup>
+                        <div
+                          role="group"
+                          aria-label="Tilgungssatzwechsel"
+                          className={SEGMENT_TRACK}
+                        >
+                          {OPTION_RIGHT_SEGMENTS.map((seg) => {
+                            const active = values.rateChangeRight === seg.value;
+                            return (
+                              <button
+                                key={seg.value}
+                                type="button"
+                                disabled={disabled}
+                                aria-pressed={active}
+                                onClick={() =>
+                                  updateField("rateChangeRight", seg.value)
+                                }
+                                className={segmentItemClass(active)}
+                              >
+                                {active ? <SegmentPill /> : null}
+                                <SegmentLabel>{seg.label}</SegmentLabel>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </SegmentGroup>
                     </div>
 
                     {values.rateChangeRight === "allowed" ? (
                       <div className="space-y-3">
-                        <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="grid gap-3 @lg:grid-cols-3">
                           <div className="space-y-1.5">
                             <Label htmlFor={`${idPrefix}-rc-count`}>
                               Erlaubte Wechsel (optional)
@@ -1500,7 +1502,7 @@ export function ContractFormFields({
                           </div>
                         </div>
 
-                        <div className="grid gap-3 sm:grid-cols-4">
+                        <div className="grid gap-3 @md:grid-cols-2 @xl:grid-cols-4">
                           <div className="space-y-1.5">
                             <Label htmlFor={`${idPrefix}-rc-min-bps`}>
                               Tilgung Min (%)
@@ -1659,7 +1661,7 @@ export function ContractFormFields({
                   </p>
                 </div>
               </div>
-            ) : null}
+            </Collapse>
           </div>
         </div>
       ) : (
@@ -1667,7 +1669,7 @@ export function ContractFormFields({
           <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
             Bauspar-Konditionen
           </h3>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 @lg:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor={`${idPrefix}-target-sum`}>Bausparsumme (€)</Label>
               <Input
@@ -1736,7 +1738,7 @@ export function ContractFormFields({
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 @md:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor={`${idPrefix}-milestone-date`}>
             Meilenstein-Datum (optional)

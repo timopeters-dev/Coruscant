@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutGroup, motion } from "motion/react";
 import { ArrowUpRight } from "lucide-react";
@@ -17,6 +17,18 @@ import {
 
 const FOCUS_RING =
   "outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_32%,transparent)]";
+
+/** Feiner Lade-Hinweis am angeklickten Navigationspunkt (immer gerendert, nur die Deckkraft wechselt – kein Layout-Sprung). */
+function NavPendingHint() {
+  const { pending } = useLinkStatus();
+  return (
+    <span
+      aria-hidden="true"
+      data-pending={pending ? "true" : undefined}
+      className="nav-pending-hint pointer-events-none absolute inset-x-2 bottom-0.5 h-[2px] overflow-hidden rounded-full opacity-0 transition-opacity duration-200 data-[pending=true]:opacity-100"
+    />
+  );
+}
 
 export function AppShell({
   children,
@@ -97,6 +109,7 @@ export function AppShell({
                       <span className="relative">
                         <span className="sr-only lg:not-sr-only">{label}</span>
                       </span>
+                      <NavPendingHint />
                     </Link>
                   );
                 })}
@@ -178,6 +191,7 @@ export function AppShell({
                 <span className="relative">
                   <span>{label}</span>
                 </span>
+                <NavPendingHint />
               </Link>
             );
           })}

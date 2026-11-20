@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowRight, ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
+import { ArrowRight, RotateCcw } from "lucide-react";
 import {
   formatWholeEuroDE,
   pickDateTicks,
@@ -32,6 +32,8 @@ import {
 import { formatBpsDE, formatCentsDE } from "@/lib/domain/money";
 import { formatDurationMonthsDE, formatMonthYearDE } from "./labels";
 import { MonthPicker } from "@/components/ui/date-picker";
+import { Collapse, CollapseChevron } from "@/components/ui/collapse";
+import { InfoTip } from "@/components/ui/info-tip";
 
 export interface LoanAdjustmentSimulatorProps {
   contract: DomainContract;
@@ -314,14 +316,10 @@ export function LoanAdjustmentSimulator({
         className="flex w-full items-center justify-between text-left text-xs font-medium text-[var(--text-primary)] hover:text-[var(--accent)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
       >
         <span>Anpassung simulieren</span>
-        {simOpen ? (
-          <ChevronDown className="h-4 w-4" />
-        ) : (
-          <ChevronRight className="h-4 w-4" />
-        )}
+        <CollapseChevron open={simOpen} className="h-4 w-4" />
       </button>
 
-      {simOpen ? (
+      <Collapse open={simOpen}>
         <div className="mt-3 space-y-4">
           {/* Sondertilgung */}
           <div className="space-y-2.5 rounded-lg border border-[var(--border)] p-3">
@@ -408,6 +406,11 @@ export function LoanAdjustmentSimulator({
                     className="rounded border-[var(--border)] accent-[var(--accent)] disabled:opacity-50"
                   />
                   jährlich wiederholen
+                  <InfoTip
+                    id={`sr-repeat-info-${contract.id}`}
+                    label="Sondertilgung jährlich wiederholen"
+                    text="Simuliert dieselbe Sondertilgung jedes Jahr im gewählten Monat erneut, bis der Kredit getilgt ist. Die jährliche Obergrenze deines Sondertilgungsrechts wird dabei berücksichtigt."
+                  />
                 </label>
               </div>
             </div>
@@ -680,14 +683,10 @@ export function LoanAdjustmentSimulator({
                     aria-expanded={timingOpen}
                     className="flex items-center gap-1 text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                   >
-                    {timingOpen ? (
-                      <ChevronDown className="h-3.5 w-3.5" />
-                    ) : (
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    )}
+                    <CollapseChevron open={timingOpen} className="h-3.5 w-3.5" />
                     <span>Erweitert: Effekt nach Startmonat</span>
                   </button>
-                  {timingOpen ? (
+                  <Collapse open={timingOpen}>
                     <div className="mt-2">
                       <LineChart
                         series={timingChart.series}
@@ -700,7 +699,7 @@ export function LoanAdjustmentSimulator({
                         ariaLabel={`Zinsersparnis je Startmonat für ${contract.name}`}
                       />
                     </div>
-                  ) : null}
+                  </Collapse>
                 </div>
               ) : null}
 
@@ -752,7 +751,7 @@ export function LoanAdjustmentSimulator({
             </div>
           ) : null}
         </div>
-      ) : null}
+      </Collapse>
     </div>
   );
 }

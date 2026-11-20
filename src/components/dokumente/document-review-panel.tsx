@@ -52,6 +52,14 @@ import {
   TAX_CATEGORY_LABELS,
 } from "./labels";
 import { DatePicker } from "@/components/ui/date-picker";
+import {
+  SEGMENT_TRACK,
+  SegmentGroup,
+  SegmentLabel,
+  SegmentPill,
+  segmentItemClass,
+} from "@/components/ui/segmented";
+import { cn } from "@/lib/utils";
 
 interface DocumentReviewPanelProps {
   pendingDocuments: DocumentRow[];
@@ -615,9 +623,9 @@ function DocumentReviewSplitView({
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-12">
-      {/* Left: PDF Viewer */}
-      <Card className="lg:col-span-7">
+    <div className="grid gap-4 lg:grid-cols-2">
+      {/* Left: PDF Viewer (bleibt beim Scrollen des Formulars sichtbar) */}
+      <Card className="lg:sticky lg:top-20 lg:self-start">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-3">
           <div className="min-w-0">
             <CardTitle className="truncate text-base">{doc.filename}</CardTitle>
@@ -660,13 +668,13 @@ function DocumentReviewSplitView({
           <iframe
             src={`/api/documents/${doc.id}/file`}
             title={doc.filename}
-            className="h-[640px] w-full rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]"
+            className="h-[640px] w-full rounded-lg lg:h-[calc(100vh-13rem)] lg:min-h-[480px] border border-[var(--border)] bg-[var(--surface-elevated)]"
           />
         </CardContent>
       </Card>
 
       {/* Right: AI Suggestion + Verification Form */}
-      <Card className="border-[var(--amber)]/35 lg:col-span-5">
+      <Card className="min-w-0 border-[var(--amber)]/35">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="text-base">Beleg prüfen &amp; freigeben</CardTitle>
@@ -678,7 +686,7 @@ function DocumentReviewSplitView({
           </p>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="@container">
           <form onSubmit={handleVerify} className="space-y-4">
             {errorMessage ? (
               <div className="rounded-lg border border-[var(--rose)]/40 bg-[var(--rose)]/10 px-3 py-2 text-xs text-[var(--rose)]">
@@ -686,7 +694,7 @@ function DocumentReviewSplitView({
               </div>
             ) : null}
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 @md:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="doc-type">Dokumenttyp</Label>
                 <Select
@@ -730,7 +738,7 @@ function DocumentReviewSplitView({
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 @md:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="doc-issuer">Aussteller / Bank</Label>
                 <Input
@@ -788,41 +796,44 @@ function DocumentReviewSplitView({
             </div>
 
             {/* Mode Switcher: Existing vs. New Contract */}
-            <div className="space-y-2 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]/40 p-2">
-              <div className="grid grid-cols-2 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setContractMode("existing");
-                    setErrorMessage(null);
-                    setNewContractErrors({});
-                  }}
-                  disabled={isSubmitting || isAnalyzing}
-                  className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                    contractMode === "existing"
-                      ? "bg-[var(--surface)] text-[var(--text-primary)] shadow-xs ring-1 ring-[var(--border)]"
-                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                  }`}
-                >
-                  Bestehendem Vertrag zuordnen
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setContractMode("new");
-                    setErrorMessage(null);
-                  }}
-                  disabled={isSubmitting || isAnalyzing}
-                  className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                    contractMode === "new"
-                      ? "bg-[var(--surface)] text-[var(--text-primary)] shadow-xs ring-1 ring-[var(--border)]"
-                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                  }`}
-                >
-                  Als neuen Vertrag anlegen
-                </button>
+            <SegmentGroup>
+              <div
+                role="group"
+                aria-label="Vertragszuordnung"
+                className={cn(SEGMENT_TRACK, "grid w-full grid-cols-2")}
+              >
+                {(
+                  [
+                    { mode: "existing", label: "Bestehendem Vertrag zuordnen" },
+                    { mode: "new", label: "Als neuen Vertrag anlegen" },
+                  ] as const
+                ).map((option) => {
+                  const active = contractMode === option.mode;
+                  return (
+                    <button
+                      key={option.mode}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => {
+                        setContractMode(option.mode);
+                        setErrorMessage(null);
+                        if (option.mode === "existing") {
+                          setNewContractErrors({});
+                        }
+                      }}
+                      disabled={isSubmitting || isAnalyzing}
+                      className={cn(
+                        segmentItemClass(active),
+                        "min-w-0 whitespace-normal py-1.5 text-center disabled:opacity-50",
+                      )}
+                    >
+                      {active ? <SegmentPill /> : null}
+                      <SegmentLabel>{option.label}</SegmentLabel>
+                    </button>
+                  );
+                })}
               </div>
-            </div>
+            </SegmentGroup>
 
             {contractMode === "existing" ? (
               <div className="space-y-1.5">
@@ -877,7 +888,7 @@ function DocumentReviewSplitView({
               </label>
 
               {isTaxRelevant ? (
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 @md:grid-cols-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="doc-tax-year">Steuerjahr</Label>
                     <Input
@@ -891,7 +902,7 @@ function DocumentReviewSplitView({
                     />
                   </div>
 
-                  <div className="space-y-1.5 sm:col-span-2">
+                  <div className="space-y-1.5 @md:col-span-2">
                     <Label htmlFor="doc-tax-category">Steuer-Kategorie</Label>
                     <Select
                       id="doc-tax-category"
@@ -909,7 +920,7 @@ function DocumentReviewSplitView({
                     </Select>
                   </div>
 
-                  <div className="space-y-1.5 sm:col-span-3">
+                  <div className="space-y-1.5 @md:col-span-3">
                     <Label htmlFor="doc-deductible">
                       Absetzbarer Betrag / Lohnanteil (€)
                     </Label>
@@ -938,7 +949,7 @@ function DocumentReviewSplitView({
                   </span>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 @md:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label htmlFor="doc-balance">
                       Erkannter / neuer Stand (€)

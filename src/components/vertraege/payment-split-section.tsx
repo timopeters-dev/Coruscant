@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
 import { ChartDataTable } from "@/components/charts/chart-data-table";
 import {
   formatWholeEuroDE,
@@ -18,6 +17,7 @@ import {
 } from "@/lib/domain/contract-series";
 import { dayNumberToIsoDate, isoDateToDayNumber } from "@/lib/domain/date";
 import { AMORTIZATION_MARKER_LABELS, formatMonthYearDE } from "./labels";
+import { Collapse, CollapseChevron } from "@/components/ui/collapse";
 
 interface PaymentSplitSectionProps {
   contractName: string;
@@ -178,14 +178,10 @@ export function PaymentSplitSection({
         className="flex w-full items-center justify-between text-left text-xs font-medium text-[var(--text-primary)] hover:text-[var(--accent)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
       >
         <span>Wie sich die Rate zusammensetzt</span>
-        {open ? (
-          <ChevronDown className="h-4 w-4" />
-        ) : (
-          <ChevronRight className="h-4 w-4" />
-        )}
+        <CollapseChevron open={open} className="h-4 w-4" />
       </button>
 
-      {open ? (
+      <Collapse open={open}>
         <div className="mt-3 space-y-3">
           {baseline.flags.lumpSum ? (
             <p className="text-xs text-[var(--text-secondary)]">
@@ -242,7 +238,7 @@ export function PaymentSplitSection({
             />
           ) : null}
         </div>
-      ) : null}
+      </Collapse>
     </div>
   );
 }

@@ -12,6 +12,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InfoTip } from "@/components/ui/info-tip";
+import {
+  SEGMENT_TRACK,
+  SegmentGroup,
+  SegmentLabel,
+  SegmentPill,
+  segmentItemClass,
+} from "@/components/ui/segmented";
 import {
   type AdvisorReportMode,
   parseAdvisorOneTimeAmount,
@@ -161,35 +169,37 @@ export function AdvisorReportToolbar({
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           {/* Modus-Umschalter */}
-          <div
-            role="group"
-            aria-label="Berichtsmodus"
-            className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-0.5"
-          >
-            <button
-              type="button"
-              onClick={() => handleModeChange("anonymized")}
-              aria-pressed={isAnonymized}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                isAnonymized
-                  ? "bg-[var(--surface)] text-[var(--text-primary)] shadow-xs"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              Anonymisiert
-            </button>
-            <button
-              type="button"
-              onClick={() => handleModeChange("full")}
-              aria-pressed={!isAnonymized}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                !isAnonymized
-                  ? "bg-[var(--surface)] text-[var(--text-primary)] shadow-xs"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              Vollständig
-            </button>
+          <div className="flex items-center gap-1.5">
+            <SegmentGroup>
+              <div
+                role="group"
+                aria-label="Berichtsmodus"
+                className={SEGMENT_TRACK}
+              >
+                {(
+                  [
+                    { mode: "anonymized", label: "Anonymisiert", active: isAnonymized },
+                    { mode: "full", label: "Vollständig", active: !isAnonymized },
+                  ] as const
+                ).map((option) => (
+                  <button
+                    key={option.mode}
+                    type="button"
+                    onClick={() => handleModeChange(option.mode)}
+                    aria-pressed={option.active}
+                    className={segmentItemClass(option.active, "md")}
+                  >
+                    {option.active ? <SegmentPill /> : null}
+                    <SegmentLabel>{option.label}</SegmentLabel>
+                  </button>
+                ))}
+              </div>
+            </SegmentGroup>
+            <InfoTip
+              id="report-mode-info"
+              label="Berichtsmodus"
+              text="Anonymisiert (für KI-Chats): nur Typen, Beträge und Quoten, Kürzel wie KREDIT-1 statt Namen. Vollständig (für Berater:innen): mit Namen von Verträgen, Anbietern und Objekten – nur an Personen weitergeben, denen du vertraust."
+            />
           </div>
 
           {/* Aktionen */}

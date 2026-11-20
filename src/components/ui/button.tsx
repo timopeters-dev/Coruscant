@@ -4,14 +4,14 @@ import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
   "relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium " +
-    "transition-[background-color,border-color,color,box-shadow,transform,filter] duration-150 ease-out active:scale-[0.97] motion-reduce:active:scale-100 " +
+    "transition-[background-color,border-color,color,box-shadow,transform] duration-150 ease-out active:scale-[0.97] motion-reduce:active:scale-100 " +
     "outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_32%,transparent)] " +
     "disabled:pointer-events-none disabled:opacity-50 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default:
-          "bg-[var(--accent)] bg-[linear-gradient(180deg,rgb(255_255_255/0.16),rgb(255_255_255/0))] text-[var(--accent-foreground)] shadow-[inset_0_1px_0_rgb(255_255_255/0.2),var(--shadow-accent)] hover:brightness-110",
+          "border border-[color-mix(in_srgb,var(--accent)_70%,black)] bg-[var(--accent)] text-[var(--accent-foreground)] shadow-[inset_0_1px_0_rgb(255_255_255/0.14),var(--shadow-xs)] hover:border-[color-mix(in_srgb,var(--accent)_60%,black)] hover:bg-[color-mix(in_srgb,var(--accent)_88%,black)] dark:border-[color-mix(in_srgb,var(--accent)_75%,white)] dark:hover:bg-[color-mix(in_srgb,var(--accent)_88%,white)]",
         secondary:
           "border border-[var(--border)] bg-[var(--surface-elevated)] text-[var(--text-primary)] hover:border-[var(--border-sub)] hover:bg-[color-mix(in_srgb,var(--surface-elevated)_70%,var(--border-sub))]",
         outline:

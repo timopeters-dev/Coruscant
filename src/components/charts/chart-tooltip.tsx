@@ -52,7 +52,7 @@ export function ChartTooltip({
       style={{
         left: `${left}px`,
         top: "8px",
-        transition: "left 160ms cubic-bezier(0.16, 1, 0.3, 1)",
+        transition: "left 70ms linear",
       }}
       className="animate-fade pointer-events-none absolute z-10 w-[210px] rounded-xl border border-[var(--border)] bg-[var(--surface-overlay)] px-3 py-2.5 text-xs tabular-nums shadow-[var(--shadow-md)] backdrop-blur-xl"
     >

@@ -7,6 +7,13 @@ import { formatWholeEuroDE } from "@/components/charts/chart-scale";
 import { StatusBadge } from "@/components/status-badge";
 import { cn } from "@/lib/utils";
 import { buildPlanningHref, type PlanningEntry } from "./planning-state";
+import {
+  SEGMENT_TRACK,
+  SegmentGroup,
+  SegmentLabel,
+  SegmentPill,
+  segmentItemClass,
+} from "@/components/ui/segmented";
 
 interface PlanningEntryPickerProps {
   activeEntry: PlanningEntry | null;
@@ -194,42 +201,42 @@ export function PlanningEntryPicker({
         aria-label="Was willst du wissen?"
         className="flex flex-wrap items-center justify-between gap-2"
       >
-        <div className="inline-flex flex-wrap items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1">
-          {segments.map((seg) => {
-            const isActive = seg.entry === activeEntry;
-            return (
-              <Link
-                key={seg.key}
-                href={seg.href}
-                prefetch={seg.entry !== undefined ? false : undefined}
-                aria-current={isActive ? "page" : undefined}
-                onClick={
-                  seg.entry !== undefined
-                    ? handleInternalClick(seg.entry)
-                    : undefined
-                }
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]",
-                  isActive
-                    ? "bg-[var(--accent)] text-white"
-                    : "text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)]",
-                )}
-              >
-                {seg.label}
-                {seg.external ? (
-                  <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
-                ) : null}
-              </Link>
-            );
-          })}
-          <button
-            type="button"
-            onClick={onOpenPropertyVsEtf}
-            className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
-          >
-            Immobilie vs. ETF
-          </button>
-        </div>
+        <SegmentGroup>
+          <div className={SEGMENT_TRACK}>
+            {segments.map((seg) => {
+              const isActive = seg.entry === activeEntry;
+              return (
+                <Link
+                  key={seg.key}
+                  href={seg.href}
+                  prefetch={seg.entry !== undefined ? false : undefined}
+                  aria-current={isActive ? "page" : undefined}
+                  onClick={
+                    seg.entry !== undefined
+                      ? handleInternalClick(seg.entry)
+                      : undefined
+                  }
+                  className={cn(segmentItemClass(isActive), "py-1.5")}
+                >
+                  {isActive ? <SegmentPill /> : null}
+                  <SegmentLabel>
+                    {seg.label}
+                    {seg.external ? (
+                      <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
+                    ) : null}
+                  </SegmentLabel>
+                </Link>
+              );
+            })}
+            <button
+              type="button"
+              onClick={onOpenPropertyVsEtf}
+              className={cn(segmentItemClass(false), "py-1.5")}
+            >
+              Immobilie vs. ETF
+            </button>
+          </div>
+        </SegmentGroup>
 
         <Link
           href={buildPlanningHref(null)}

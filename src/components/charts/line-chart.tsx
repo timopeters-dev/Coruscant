@@ -7,6 +7,8 @@ import {
   linearScale,
   nearestIndex,
   niceCentTicks,
+  seriesCoversX,
+  unionSortedXs,
   type ChartTick,
 } from "./chart-scale";
 import { CHART_DASH_ARRAY, CHART_ROLE_COLOR, type ChartRole } from "./chart-tokens";
@@ -149,9 +151,14 @@ export function LineChart({
   const xScale = linearScale([minX, maxX], [PAD_LEFT, PAD_LEFT + plotW]);
   const yScale = linearScale(yDomain, [PAD_TOP + plotH, PAD_TOP]);
 
-  const primaryXs = series.find((s) => s.points.length >= 2)?.points.map((p) => p.x) ?? [];
-
   const drawnSeries = series.filter((s) => s.points.length >= 2);
+
+  // Hover-/Tastatur-Raster: alle x-Werte aller gezeichneten Serien (sortiert,
+  // eindeutig). Nur die erste Serie zu nehmen ließ den Punkt am Ende einer kurzen
+  // Serie (z. B. Restschuld bis Zinsbindung) kleben, obwohl andere weiterlaufen.
+  const primaryXs = unionSortedXs(
+    drawnSeries.map((s) => s.points.map((p) => p.x)),
+  );
   const areaSeries = drawnSeries.filter((s) =>
     s.area !== undefined ? s.area : drawnSeries.length === 1,
   );
@@ -175,10 +182,10 @@ export function LineChart({
     activeX !== null
       ? series
           .map((s) => {
-            const idx = nearestIndex(
-              s.points.map((p) => p.x),
-              activeX,
-            );
+            const xs = s.points.map((p) => p.x);
+            // Serien, die an dieser Stelle (noch) nicht verlaufen, nicht anzeigen.
+            if (!seriesCoversX(xs, activeX)) return null;
+            const idx = nearestIndex(xs, activeX);
             const pt = idx >= 0 ? s.points[idx] : undefined;
             if (!pt) return null;
             activeValues[s.id] = pt.y;
@@ -208,8 +215,12 @@ export function LineChart({
 
   const handlePointer = (clientX: number, target: SVGElement) => {
     if (primaryXs.length === 0) return;
-    const rect = target.getBoundingClientRect();
-    const localX = clientX - rect.left;
+    // Relativ zum gesamten SVG messen (nicht zur eingerückten Erfassungsfläche),
+    // sonst wird PAD_LEFT doppelt abgezogen und der Punkt hängt links hinter der Maus.
+    const svg = target.ownerSVGElement ?? target;
+    const rect = svg.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const localX = ((clientX - rect.left) / rect.width) * width;
     const domainX =
       minX + ((localX - PAD_LEFT) / plotW) * (maxX - minX);
     const idx = nearestIndex(primaryXs, domainX);
@@ -470,7 +481,7 @@ export function LineChart({
               strokeWidth={1}
               style={{
                 transform: `translateX(${activeXPx}px)`,
-                transition: "transform 140ms cubic-bezier(0.16, 1, 0.3, 1)",
+                transition: "transform 70ms linear",
               }}
             />
             {tooltipItems.map((item) => (
@@ -484,7 +495,7 @@ export function LineChart({
                 strokeWidth={2}
                 style={{
                   transition:
-                    "cx 140ms cubic-bezier(0.16, 1, 0.3, 1), cy 140ms cubic-bezier(0.16, 1, 0.3, 1)",
+                    "cx 70ms linear, cy 70ms linear",
                 }}
               />
             ))}

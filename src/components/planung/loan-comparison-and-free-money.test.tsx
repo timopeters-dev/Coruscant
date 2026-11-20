@@ -154,7 +154,9 @@ describe("FreeMoneyPanel channel toggle & break-even headline", () => {
         loanOptions={options}
       />,
     );
-    expect(html).toMatch(/disabled=""[^>]*>als höhere Rate<\/button>/);
+    expect(html).toMatch(
+      /disabled=""[^>]*>(?:<span[^>]*>)?als höhere Rate(?:<\/span>)?<\/button>/,
+    );
     expect(html).toContain("Höhere Rate nicht verfügbar");
   });
 

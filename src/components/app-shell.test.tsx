@@ -19,6 +19,7 @@ vi.mock("next/link", () => ({
       {children}
     </a>
   ),
+  useLinkStatus: () => ({ pending: false }),
 }));
 
 import { AppShell } from "./app-shell";
