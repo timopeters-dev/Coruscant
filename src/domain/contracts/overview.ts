@@ -3,6 +3,9 @@ import { assertSafeInteger } from "@/domain/core/money";
 import { type ContractOverview, OVERVIEW_SPARKLINE_MAX_POINTS } from "./amortization-types";
 import { buildAmortizationSeries, effectiveAsOf, sampleSeries } from "./amortization";
 
+/**
+ * Builds compact overview metrics (sparkline + payoff/target progress) for contract rows.
+ */
 export function buildContractOverview(
   contract: DomainContract,
   asOfDate: string,
