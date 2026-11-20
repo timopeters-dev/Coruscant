@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import type { InvestmentContext } from "@/domain/recommendation/investment-context";
-import type { RecommendationState } from "@/domain/recommendation/recommendation";
+import type { RecommendationState } from "@/domain/recommendation/types";
 import type { DomainPot } from "@/domain/allocation/waterfall";
 import { cn } from "@/frontend/ui/cn";
 import { CoachEntryPanel } from "./coach-entry-panel";

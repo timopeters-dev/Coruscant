@@ -10,12 +10,7 @@ import {
   type InvestmentContext,
 } from "./investment-context";
 import { assertSafeInteger, formatBpsDE, formatEuroDE } from "@/domain/core/money";
-import type {
-  RecommendationItemKind,
-  RecommendationReason,
-  RecommendationResult,
-  RecommendationState,
-} from "./recommendation";
+import type { RecommendationItemKind, RecommendationReason, RecommendationResult, RecommendationState } from "./types";
 
 export interface LlmInvestmentContextView {
   schemaVersion: 2;

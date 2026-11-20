@@ -2,11 +2,8 @@
 
 import * as React from "react";
 import { buildAllocationPrefillHref } from "@/frontend/allokation/allocation-prefill";
-import {
-  computeRecommendationFingerprint,
-  recommendUse,
-  type RecommendationState,
-} from "@/domain/recommendation/recommendation";
+import { computeRecommendationFingerprint, recommendUse } from "@/domain/recommendation/recommendation";
+import type { RecommendationState } from "@/domain/recommendation/types";
 import { SliderField } from "./euro-slider-field";
 import { PlanningPanelLayout } from "./planning-panel-layout";
 import {

@@ -1,4 +1,4 @@
-import type { RecommendationResult } from "@/domain/recommendation/recommendation";
+import type { RecommendationResult } from "@/domain/recommendation/types";
 import { z } from "zod";
 
 export interface AllocationPrefillEntry {

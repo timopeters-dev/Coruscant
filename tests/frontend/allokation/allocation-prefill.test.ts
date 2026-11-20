@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  DEFAULT_RECOMMENDATION_ASSUMPTIONS,
-  type RecommendationResult,
-} from "@/domain/recommendation/recommendation";
+import { DEFAULT_RECOMMENDATION_ASSUMPTIONS, type RecommendationResult } from "@/domain/recommendation/types";
 import {
   buildAllocationPrefillHref,
   parseAllocationPrefill,
