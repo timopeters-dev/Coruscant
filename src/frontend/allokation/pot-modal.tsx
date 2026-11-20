@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { api } from "@/frontend/lib/api";
 import { Button } from "@/frontend/ui/button";
 import { Dialog } from "@/frontend/ui/dialog";
 import { Input } from "@/frontend/ui/input";
@@ -294,74 +295,59 @@ function PotModalInner({
     setSubmitting(true);
     setErrors({});
 
-    try {
-      const endpoint = isEditing
-        ? `/api/pots/${initialPot!.id}`
-        : "/api/pots";
-      const method = isEditing ? "PATCH" : "POST";
+    const endpoint = isEditing ? `/api/pots/${initialPot!.id}` : "/api/pots";
+    const nextTargetDate =
+      targetEuro.trim().length > 0 && targetDate.trim().length > 0
+        ? targetDate.trim()
+        : null;
+    const includeTargetDate =
+      !isEditing || nextTargetDate !== (initialPot?.targetDate ?? null);
 
-      const nextTargetDate =
-        targetEuro.trim().length > 0 && targetDate.trim().length > 0
-          ? targetDate.trim()
-          : null;
-      const includeTargetDate =
-        !isEditing || nextTargetDate !== (initialPot?.targetDate ?? null);
-
-      const response = await fetch(endpoint, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          ruleType,
-          // Linked pots take their stand from the sync (read-only).
-          ...(isLinked ? {} : { currentCents }),
-          externalLink: isLinked
-            ? {
-                kind: externalLinkValue.slice(0, externalLinkValue.indexOf(":")),
-                ref: externalLinkValue.slice(externalLinkValue.indexOf(":") + 1),
-              }
-            : null,
-          targetCents,
-          ...(includeTargetDate ? { targetDate: nextTargetDate } : {}),
-          fixedMonthlyCents,
-          remainderPercentage: parsedPct,
-          linkedPropertyId: linkedPropertyId || null,
-          linkedContractId: linkedContractId || null,
-          purpose: purpose || null,
-        }),
-      });
-
-      const payload = (await response.json()) as {
-        error?: string;
-        fieldErrors?: Record<string, string>;
-      };
-
-      if (!response.ok) {
-        if (payload.fieldErrors?.targetDate) {
-          setDeadlineOpen(true);
-        }
-        setErrors({
-          name: payload.fieldErrors?.name,
-          currentEuro: payload.fieldErrors?.currentCents,
-          targetEuro: payload.fieldErrors?.targetCents,
-          targetDate: payload.fieldErrors?.targetDate,
-          fixedMonthlyEuro: payload.fieldErrors?.fixedMonthlyCents,
-          remainderPercentage: payload.fieldErrors?.remainderPercentage,
-          linkedPropertyId: payload.fieldErrors?.linkedPropertyId,
-          linkedContractId: payload.fieldErrors?.linkedContractId,
-          externalLink: payload.fieldErrors?.externalLink,
-          general: payload.error ?? "Speichern fehlgeschlagen.",
-        });
+    const result = await api(endpoint, {
+      method: isEditing ? "PATCH" : "POST",
+      json: {
+        name: name.trim(),
+        ruleType,
+        // Linked pots take their stand from the sync (read-only).
+        ...(isLinked ? {} : { currentCents }),
+        externalLink: isLinked
+          ? {
+              kind: externalLinkValue.slice(0, externalLinkValue.indexOf(":")),
+              ref: externalLinkValue.slice(externalLinkValue.indexOf(":") + 1),
+            }
+          : null,
+        targetCents,
+        ...(includeTargetDate ? { targetDate: nextTargetDate } : {}),
+        fixedMonthlyCents,
+        remainderPercentage: parsedPct,
+        linkedPropertyId: linkedPropertyId || null,
+        linkedContractId: linkedContractId || null,
+        purpose: purpose || null,
+      },
+    });
+    setSubmitting(false);
+    if (!result.ok) {
+      if (result.status === null) {
+        setErrors({ general: "Netzwerkfehler beim Speichern." });
         return;
       }
-
-      onSaved();
-      onOpenChange(false);
-    } catch {
-      setErrors({ general: "Netzwerkfehler beim Speichern." });
-    } finally {
-      setSubmitting(false);
+      if (result.fieldErrors.targetDate) setDeadlineOpen(true);
+      setErrors({
+        name: result.fieldErrors.name,
+        currentEuro: result.fieldErrors.currentCents,
+        targetEuro: result.fieldErrors.targetCents,
+        targetDate: result.fieldErrors.targetDate,
+        fixedMonthlyEuro: result.fieldErrors.fixedMonthlyCents,
+        remainderPercentage: result.fieldErrors.remainderPercentage,
+        linkedPropertyId: result.fieldErrors.linkedPropertyId,
+        linkedContractId: result.fieldErrors.linkedContractId,
+        externalLink: result.fieldErrors.externalLink,
+        general: result.error ?? "Speichern fehlgeschlagen.",
+      });
+      return;
     }
+    onSaved();
+    onOpenChange(false);
   }
 
   return (

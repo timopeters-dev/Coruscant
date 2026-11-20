@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { api } from "@/frontend/lib/api";
 import { Button } from "@/frontend/ui/button";
 import { Dialog } from "@/frontend/ui/dialog";
 import { Input } from "@/frontend/ui/input";
@@ -108,45 +109,25 @@ function CashflowItemModalInner({
     setSubmitting(true);
     setErrors({});
 
-    try {
-      const endpoint = isEditing
-        ? `/api/cashflow-items/${initialItem!.id}`
-        : "/api/cashflow-items";
-      const method = isEditing ? "PATCH" : "POST";
-
-      const response = await fetch(endpoint, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          direction,
-          amountCents: parsedAmountCents,
-          frequency,
-          active,
-        }),
-      });
-
-      const payload = (await response.json()) as {
-        error?: string;
-        fieldErrors?: Record<string, string>;
-      };
-
-      if (!response.ok) {
-        setErrors({
-          name: payload.fieldErrors?.name,
-          amountEuro: payload.fieldErrors?.amountCents,
-          general: payload.error ?? "Speichern fehlgeschlagen.",
-        });
-        return;
-      }
-
-      onSaved();
-      onOpenChange(false);
-    } catch {
-      setErrors({ general: "Netzwerkfehler beim Speichern." });
-    } finally {
-      setSubmitting(false);
+    const result = await api(isEditing ? `/api/cashflow-items/${initialItem!.id}` : "/api/cashflow-items", {
+      method: isEditing ? "PATCH" : "POST",
+      json: { name: name.trim(), direction, amountCents: parsedAmountCents, frequency, active },
+    });
+    setSubmitting(false);
+    if (!result.ok) {
+      setErrors(
+        result.status === null
+          ? { general: "Netzwerkfehler beim Speichern." }
+          : {
+              name: result.fieldErrors.name,
+              amountEuro: result.fieldErrors.amountCents,
+              general: result.error ?? "Speichern fehlgeschlagen.",
+            },
+      );
+      return;
     }
+    onSaved();
+    onOpenChange(false);
   }
 
   return (
