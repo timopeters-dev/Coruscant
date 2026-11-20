@@ -31,7 +31,7 @@ import {
 } from "@/domain/planning/scenarios";
 import { cn } from "@/frontend/ui/cn";
 import { SliderField } from "./euro-slider-field";
-import { formatIsoDateDE, formatYearMonthDE } from "./format";
+import { formatDateDE, formatMonthDE } from "@/domain/core/date-format";
 import { LoanComparisonTable } from "./loan-comparison-table";
 import { toPrepaymentSeries } from "./planning-chart-data";
 import { buildFreeMoneyHeadlines } from "./planning-headlines";
@@ -697,7 +697,7 @@ export function FreeMoneyPanel({
           pt.monthIndex % 12 === 0 || idx === result.timeline.length - 1,
       )
       .map((pt) => ({
-        date: formatIsoDateDE(pt.date),
+        date: formatDateDE(pt.date),
         prepayment: formatCentsDE(pt.netWorthA),
         etf: formatCentsDE(pt.netWorthB),
       }));
@@ -713,7 +713,7 @@ export function FreeMoneyPanel({
           xTooltipLabel={(x) =>
             x === 0
               ? "heute"
-              : formatYearMonthDE(addMonthsToYearMonth(inputStartYm, x))
+              : formatMonthDE(addMonthsToYearMonth(inputStartYm, x))
           }
           markers={[
             {

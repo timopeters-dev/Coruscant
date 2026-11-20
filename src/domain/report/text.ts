@@ -1,9 +1,5 @@
-import type { AdvisorDataQualityHint } from "./report";
-import type {
-  AdvisorReportView,
-  AdvisorReportViewLoanOptions,
-  AdvisorReportViewRecommendation,
-} from "./anonymize";
+import type { AdvisorDataQualityHint } from "./types";
+import type { AdvisorReportView, AdvisorReportViewLoanOptions, AdvisorReportViewRecommendation } from "./view-types";
 import type { RateChangeScope } from "@/domain/contracts/loan-options";
 import { formatBpsDE, formatEuroDE, formatWholeEuroDE } from "@/domain/core/money";
 

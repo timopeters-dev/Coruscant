@@ -4,7 +4,7 @@ import { AlertTriangle } from "lucide-react";
 import { AdvisorReportToolbar } from "@/frontend/bericht/advisor-report-toolbar";
 import { loadAdvisorReport } from "@/backend/db/queries/advisor-report";
 import { parseAdvisorReportMode } from "@/domain/report/report";
-import { AdvisorReportPiiError } from "@/domain/report/anonymize";
+import { AdvisorReportPiiError } from "@/domain/report/pii-check";
 
 export const dynamic = "force-dynamic";
 

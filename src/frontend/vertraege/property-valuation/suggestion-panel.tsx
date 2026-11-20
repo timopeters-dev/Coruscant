@@ -8,7 +8,7 @@ import {
   type ValuationChoice,
 } from "@/domain/properties/valuation/adoption";
 import { computeValuationDeviationBps, isDeviationAboveThreshold } from "@/domain/properties/valuation/valuation";
-import { formatIsoDateDE } from "@/frontend/planung/format";
+import { formatDateDE } from "@/domain/core/date-format";
 import { Button } from "@/frontend/ui/button";
 import { StatusBadge } from "@/frontend/ui/status-badge";
 import { VALUATION_CONFIDENCE_LABELS } from "../labels";
@@ -43,7 +43,7 @@ export function ValuationSuggestionPanel({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <StatusBadge variant="ai_suggestion" />
             <span className="text-xs text-[var(--text-secondary)] tabular-nums">
-              Stand: {formatIsoDateDE(suggestion.asOfDate)}
+              Stand: {formatDateDE(suggestion.asOfDate)}
               {suggestion.confidence
                 ? ` · Konfidenz: ${VALUATION_CONFIDENCE_LABELS[suggestion.confidence]}${
                     suggestion.confidenceScore !== null
@@ -56,7 +56,7 @@ export function ValuationSuggestionPanel({
 
           <div>
             <p className="tabular-nums text-sm text-[var(--text-primary)]">
-              Auto-Schätzung vom {formatIsoDateDE(suggestion.valuedAtDate)}:{" "}
+              Auto-Schätzung vom {formatDateDE(suggestion.valuedAtDate)}:{" "}
               <span className="text-[var(--text-secondary)]">
                 {formatCentsDE(suggestion.adjustedLowerCents)}
               </span>
@@ -191,7 +191,7 @@ export function ValuationSuggestionPanel({
               <span className="text-[var(--text-primary)] tabular-nums">
                 Objektwert von {formatCentsDE(currentValueCents)} auf{" "}
                 {selectedCents !== null ? formatCentsDE(selectedCents) : "–"}{" "}
-                setzen, Stand {formatIsoDateDE(suggestion.asOfDate)}?
+                setzen, Stand {formatDateDE(suggestion.asOfDate)}?
               </span>
               <div className="flex items-center gap-2">
                 <Button

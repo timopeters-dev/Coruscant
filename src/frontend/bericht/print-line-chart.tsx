@@ -8,7 +8,7 @@ import {
   CHART_DASH_ARRAY,
   CHART_ROLE_COLOR,
 } from "@/frontend/charts/chart-tokens";
-import type { AdvisorReportViewHistoryRow } from "@/domain/report/anonymize";
+import type { AdvisorReportViewHistoryRow } from "@/domain/report/view-types";
 import { formatEuroDE } from "@/domain/core/money";
 
 interface PrintLineChartProps {

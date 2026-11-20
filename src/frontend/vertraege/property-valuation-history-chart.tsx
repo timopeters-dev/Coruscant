@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Trash2 } from "lucide-react";
-import { formatIsoDateDE } from "@/frontend/planung/format";
+import { formatDateDE } from "@/domain/core/date-format";
 import type { PropertyValuationHistoryRow } from "@/backend/db/schema";
 import { formatBpsDE, formatCentsDE } from "@/domain/core/money";
 import {
@@ -92,7 +92,7 @@ export function PropertyValuationHistoryChart({
       <div className="space-y-2 border-t border-[var(--border)] pt-3">
         <p className="text-xs text-[var(--text-secondary)] tabular-nums">
           Wertverlauf: 1 Eintrag am{" "}
-          {formatIsoDateDE(toDateKey(only.entry.valuedAt))} (
+          {formatDateDE(toDateKey(only.entry.valuedAt))} (
           {formatCentsDE(only.pointCents)})
         </p>
         <HistoryList entries={entries} onDeleteEntry={onDeleteEntry} />
@@ -158,7 +158,7 @@ export function PropertyValuationHistoryChart({
 
   const first = computed[0]!;
   const last = computed[computed.length - 1]!;
-  const ariaLabel = `Wertverlauf von ${formatIsoDateDE(toDateKey(first.entry.valuedAt))} (${formatCentsDE(first.pointCents)}) bis ${formatIsoDateDE(toDateKey(last.entry.valuedAt))} (${formatCentsDE(last.pointCents)}).`;
+  const ariaLabel = `Wertverlauf von ${formatDateDE(toDateKey(first.entry.valuedAt))} (${formatCentsDE(first.pointCents)}) bis ${formatDateDE(toDateKey(last.entry.valuedAt))} (${formatCentsDE(last.pointCents)}).`;
 
   return (
     <div className="space-y-3 border-t border-[var(--border)] pt-3">
@@ -253,7 +253,7 @@ export function PropertyValuationHistoryChart({
           fill="var(--text-secondary)"
           className="tabular-nums"
         >
-          {formatIsoDateDE(toDateKey(first.entry.valuedAt))}
+          {formatDateDE(toDateKey(first.entry.valuedAt))}
         </text>
         <text
           x={WIDTH - PAD.right}
@@ -263,7 +263,7 @@ export function PropertyValuationHistoryChart({
           fill="var(--text-secondary)"
           className="tabular-nums"
         >
-          {formatIsoDateDE(toDateKey(last.entry.valuedAt))}
+          {formatDateDE(toDateKey(last.entry.valuedAt))}
         </text>
       </svg>
 
@@ -347,7 +347,7 @@ function HistoryList({
           }
           const isConfirming = confirmingId === entry.id;
           const isDeleting = deletingId === entry.id;
-          const dateLabel = formatIsoDateDE(toDateKey(entry.valuedAt));
+          const dateLabel = formatDateDE(toDateKey(entry.valuedAt));
 
           return (
             <li key={entry.id} className="px-2.5 py-2 tabular-nums">

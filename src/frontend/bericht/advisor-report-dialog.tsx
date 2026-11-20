@@ -6,11 +6,8 @@ import { FileText, ShieldCheck } from "lucide-react";
 import { Dialog } from "@/frontend/ui/dialog";
 import { Input } from "@/frontend/ui/input";
 import { Label } from "@/frontend/ui/label";
-import {
-  type AdvisorReportMode,
-  type AdvisorReportOutlineItem,
-  parseAdvisorOneTimeAmount,
-} from "@/domain/report/report";
+import type { AdvisorReportMode, AdvisorReportOutlineItem } from "@/domain/report/types";
+import { parseAdvisorOneTimeAmount } from "@/domain/report/report";
 import { buttonVariants } from "@/frontend/ui/button";
 
 interface AdvisorReportDialogProps {

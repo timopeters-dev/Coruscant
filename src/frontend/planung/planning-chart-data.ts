@@ -6,7 +6,7 @@ import type {
   CashflowChangeResult,
   PrepaymentTimelinePoint,
 } from "@/domain/planning/scenarios";
-import { formatYearMonthDE } from "./format";
+import { formatMonthDE } from "@/domain/core/date-format";
 
 export function toPrepaymentSeries(
   timeline: readonly PrepaymentTimelinePoint[],
@@ -144,5 +144,5 @@ export function toSavingsSeries(
 
 export function xLabelForMonthIndex(startMonth: string, t: number): string {
   if (t <= 0) return "heute";
-  return formatYearMonthDE(addMonthsToYearMonth(startMonth, t - 1));
+  return formatMonthDE(addMonthsToYearMonth(startMonth, t - 1));
 }

@@ -1,12 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildAdvisorReport, type AdvisorReportInput } from "@/domain/report/report";
-import {
-  AdvisorReportPiiError,
-  assertAnonymizedViewClean,
-  buildAdvisorReportView,
-  checkAdvisorQuestion,
-  collectSensitiveStrings,
-} from "@/domain/report/anonymize";
+import { buildAdvisorReport } from "@/domain/report/report";
+import type { AdvisorReportInput } from "@/domain/report/types";
+import { AdvisorReportPiiError, assertAnonymizedViewClean, checkAdvisorQuestion, collectSensitiveStrings } from "@/domain/report/pii-check";
+import { buildAdvisorReportView } from "@/domain/report/anonymize";
 import { renderAdvisorReportText } from "@/domain/report/text";
 import { calculateHouseholdBalance } from "@/domain/cockpit/balance";
 import { calculateConsolidatedCashflow } from "@/domain/allocation/cashflow";

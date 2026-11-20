@@ -1,6 +1,6 @@
 import { loadAdvisorSensitiveStrings } from "@/backend/db/queries/advisor-report";
 import { json } from "@/backend/http";
-import { checkAdvisorQuestion } from "@/domain/report/anonymize";
+import { checkAdvisorQuestion } from "@/domain/report/pii-check";
 import { advisorQuestionCheckSchema } from "@/validation/advisor-report";
 
 const NO_STORE = { "Cache-Control": "no-store" } as const;

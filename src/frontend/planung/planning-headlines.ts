@@ -2,7 +2,7 @@ import { formatWholeEuroDE } from "@/frontend/charts/chart-scale";
 import { addMonthsToYearMonth } from "@/domain/core/date";
 import { formatBpsDE } from "@/domain/core/money";
 import type { BreakEvenResult } from "@/domain/planning/scenarios";
-import { formatYearMonthDE } from "./format";
+import { formatMonthDE } from "@/domain/core/date-format";
 import type { FreeMoneyView, SalaryView } from "./planning-state";
 
 export interface PlanningHeadline {
@@ -79,7 +79,7 @@ export function buildFreeMoneyHeadlines(
   }
 
   const { result, horizonEndDate, input } = view;
-  const endMonthLabel = formatYearMonthDE(horizonEndDate.slice(0, 7));
+  const endMonthLabel = formatMonthDE(horizonEndDate.slice(0, 7));
   const prefix =
     result.horizonMonths === 0
       ? `Bis ${endMonthLabel}`
@@ -163,7 +163,7 @@ export function buildSalaryHeadlines(
       const maxScenMonths = Math.max(
         ...unfilled.map((p) => p.scenarioMonthsToFill!),
       );
-      const scenFillDate = formatYearMonthDE(
+      const scenFillDate = formatMonthDE(
         addMonthsToYearMonth(startMonth, Math.max(0, maxScenMonths - 1)),
       );
       const delta = input.change.deltaMonthlyCents;
@@ -171,7 +171,7 @@ export function buildSalaryHeadlines(
         input.change.effectiveFromMonth < startMonth
           ? startMonth
           : input.change.effectiveFromMonth;
-      const fromStr = formatYearMonthDE(effectiveFrom);
+      const fromStr = formatMonthDE(effectiveFrom);
 
       if (delta === 0) {
         primary = `Ohne Änderung sind alle Ziel-Töpfe ${scenFillDate} voll.`;

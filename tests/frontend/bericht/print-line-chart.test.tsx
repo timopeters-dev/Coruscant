@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { AdvisorReportViewHistoryRow } from "@/domain/report/anonymize";
+import type { AdvisorReportViewHistoryRow } from "@/domain/report/view-types";
 import { PrintLineChart } from "@/frontend/bericht/print-line-chart";
 
 function makeRows(count: number): AdvisorReportViewHistoryRow[] {

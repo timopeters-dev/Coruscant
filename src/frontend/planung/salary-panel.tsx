@@ -12,7 +12,7 @@ import { simulateCashflowChangeSeries } from "@/domain/allocation/cashflow-chang
 import { parseYearMonth } from "@/domain/core/date";
 import type { DomainPot } from "@/domain/allocation/waterfall";
 import { SliderField } from "./euro-slider-field";
-import { formatYearMonthDE } from "./format";
+import { formatMonthDE } from "@/domain/core/date-format";
 import {
   pickTimelineHorizonMonths,
   toFillTimelineRows,
@@ -219,14 +219,14 @@ export function SalaryPanel({
       baseline: p.alreadyFilled ? (
         <span className="text-[var(--emerald)]">bereits gefüllt</span>
       ) : p.baselineFillMonth ? (
-        formatYearMonthDE(p.baselineFillMonth)
+        formatMonthDE(p.baselineFillMonth)
       ) : (
         "nicht im Zeitraum"
       ),
       scenario: p.alreadyFilled ? (
         <span className="text-[var(--emerald)]">bereits gefüllt</span>
       ) : p.scenarioFillMonth ? (
-        formatYearMonthDE(p.scenarioFillMonth)
+        formatMonthDE(p.scenarioFillMonth)
       ) : (
         "nicht im Zeitraum"
       ),
