@@ -39,6 +39,15 @@ function layerRule(layer, { forbid = [], typesOnly = [], db = false, extraPaths 
   };
 }
 
+const FRONTEND_LAYER = {
+  forbid: ["@/app/*"],
+  typesOnly: ["@/backend/*"],
+  extraPaths: [
+    { name: "node:fs", message: msg("frontend/", "node:fs") },
+    { name: "next/server", message: msg("frontend/", "next/server") },
+  ],
+};
+
 const NO_IO_GLOBALS = ["fetch", "localStorage", "sessionStorage", "indexedDB"].map((name) => ({
   name,
   message: "Kein Netzwerk-/Speicherzugriff in dieser Schicht.",
@@ -67,14 +76,7 @@ export default defineConfig([
   },
   {
     files: ["src/frontend/**/*.{ts,tsx}"],
-    rules: layerRule("frontend/", {
-      forbid: ["@/app/*"],
-      typesOnly: ["@/backend/*"],
-      extraPaths: [
-        { name: "node:fs", message: msg("frontend/", "node:fs") },
-        { name: "next/server", message: msg("frontend/", "next/server") },
-      ],
-    }),
+    rules: layerRule("frontend/", FRONTEND_LAYER),
   },
   {
     files: ["src/backend/**/*.ts"],
@@ -120,6 +122,13 @@ export default defineConfig([
     ],
     ignores: ["src/frontend/bericht/use-advisor-question-check.ts"],
     rules: {
+      ...layerRule("frontend/", {
+        ...FRONTEND_LAYER,
+        extraPaths: [
+          ...FRONTEND_LAYER.extraPaths,
+          { name: "@/frontend/lib/api", message: "Rein lokale Oberfläche: keine API-Aufrufe." },
+        ],
+      }),
       "no-restricted-globals": ["error", ...NO_IO_GLOBALS],
       "no-restricted-syntax": ["error", ...NO_HARDCODED_MODEL, ...LOCAL_ONLY],
     },

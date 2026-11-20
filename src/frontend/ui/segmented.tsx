@@ -52,3 +52,50 @@ export function SegmentLabel({ children }: { children: React.ReactNode }) {
     </span>
   );
 }
+
+export interface SegmentOption<T extends string> {
+  value: T;
+  label: React.ReactNode;
+}
+
+/** Fertiger Umschalter aus Buttons (`aria-pressed`) für eine Auswahl aus wenigen Werten. */
+export function SegmentedControl<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+  disabled,
+  className,
+  size,
+}: {
+  label: string;
+  options: readonly SegmentOption<T>[];
+  value: T;
+  onChange: (value: T) => void;
+  disabled?: boolean;
+  className?: string;
+  size?: "sm" | "md";
+}) {
+  return (
+    <SegmentGroup>
+      <div role="group" aria-label={label} className={cn(SEGMENT_TRACK, className)}>
+        {options.map((option) => {
+          const active = option.value === value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              disabled={disabled}
+              aria-pressed={active}
+              onClick={() => onChange(option.value)}
+              className={segmentItemClass(active, size)}
+            >
+              {active ? <SegmentPill /> : null}
+              <SegmentLabel>{option.label}</SegmentLabel>
+            </button>
+          );
+        })}
+      </div>
+    </SegmentGroup>
+  );
+}
