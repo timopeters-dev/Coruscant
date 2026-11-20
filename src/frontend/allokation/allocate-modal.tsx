@@ -3,6 +3,7 @@
 import { formatMonthDE } from "@/domain/core/date-format";
 import * as React from "react";
 import { AlertTriangle, RotateCcw } from "lucide-react";
+import { api } from "@/frontend/lib/api";
 import { Button } from "@/frontend/ui/button";
 import { Dialog } from "@/frontend/ui/dialog";
 import { Input } from "@/frontend/ui/input";
@@ -283,39 +284,21 @@ function AllocateModalInner({
     setSubmitting(true);
     setSubmitError(null);
 
-    try {
-      const response = await fetch("/api/pots/allocate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          inputAmountCents: parsedInputCents,
-          mode,
-          sourceLabel: sourceLabel.trim(),
-          allocations: parsedEntries.entries.map((e) => ({
-            potId: e.potId,
-            amountCents: e.allocatedCents,
-          })),
-        }),
-      });
-
-      const payload = (await response.json()) as {
-        error?: string;
-        transferPlanPotIds?: string[];
-      };
-      if (!response.ok) {
-        setSubmitError(payload.error ?? "Verbuchung fehlgeschlagen.");
-        return;
-      }
-
-      onAllocated({
-        transferPlanCount: payload.transferPlanPotIds?.length ?? 0,
-      });
-      onOpenChange(false);
-    } catch {
-      setSubmitError("Netzwerkfehler bei der Verbuchung.");
-    } finally {
-      setSubmitting(false);
+    const result = await api<{ transferPlanPotIds: string[] }>("/api/pots/allocate", {
+      json: {
+        inputAmountCents: parsedInputCents,
+        mode,
+        sourceLabel: sourceLabel.trim(),
+        allocations: parsedEntries.entries.map((e) => ({ potId: e.potId, amountCents: e.allocatedCents })),
+      },
+    });
+    setSubmitting(false);
+    if (!result.ok) {
+      setSubmitError(result.status === null ? "Netzwerkfehler bei der Verbuchung." : (result.error ?? "Verbuchung fehlgeschlagen."));
+      return;
     }
+    onAllocated({ transferPlanCount: result.data.transferPlanPotIds.length });
+    onOpenChange(false);
   }
 
   return (
