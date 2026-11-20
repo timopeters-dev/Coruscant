@@ -126,7 +126,7 @@ export function TimelineRangeChart({
               onMouseLeave={() => setHoveredId((prev) => (prev === row.id ? null : prev))}
               onFocus={() => setHoveredId(row.id)}
               onBlur={() => setHoveredId((prev) => (prev === row.id ? null : prev))}
-              className="relative flex min-h-[32px] items-center rounded px-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              className="relative flex min-h-[32px] items-center rounded px-1 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
             >
               <span
                 title={row.label}
@@ -239,7 +239,7 @@ export function TimelineRangeChart({
               {showTooltip ? (
                 <div
                   role="status"
-                  className="pointer-events-none absolute right-2 -top-8 z-10 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-[11px] tabular-nums shadow-sm"
+                  className="pointer-events-none absolute right-2 -top-8 z-10 animate-fade rounded-lg border border-[var(--border)] bg-[var(--surface-overlay)] px-2.5 py-1 text-[11px] tabular-nums backdrop-blur-xl shadow-sm"
                 >
                   {rowAria}
                 </div>

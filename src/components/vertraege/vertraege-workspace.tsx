@@ -663,6 +663,7 @@ export function VertraegeWorkspace({
                       return (
                         <Card
                           key={contract.id}
+                          interactive
                           role="button"
                           tabIndex={0}
                           onClick={() => setSelectedContractId(contract.id)}
@@ -672,7 +673,7 @@ export function VertraegeWorkspace({
                               setSelectedContractId(contract.id);
                             }
                           }}
-                          className={`cursor-pointer p-5 transition-colors hover:bg-[var(--surface-elevated)]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
+                          className={`cursor-pointer p-5 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] ${
                             isProjected
                               ? "border-dashed border-[var(--border-sub)]"
                               : "border-[var(--border)]"
@@ -852,6 +853,7 @@ export function VertraegeWorkspace({
                       return (
                         <Card
                           key={contract.id}
+                          interactive
                           role="button"
                           tabIndex={0}
                           onClick={() => setSelectedContractId(contract.id)}
@@ -861,7 +863,7 @@ export function VertraegeWorkspace({
                               setSelectedContractId(contract.id);
                             }
                           }}
-                          className={`cursor-pointer p-5 transition-colors hover:bg-[var(--surface-elevated)]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
+                          className={`cursor-pointer p-5 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] ${
                             isProjected
                               ? "border-dashed border-[var(--border-sub)]"
                               : "border-[var(--border)]"
@@ -1023,6 +1025,7 @@ export function VertraegeWorkspace({
                       return (
                         <Card
                           key={property.id}
+                          interactive
                           role="button"
                           tabIndex={0}
                           onClick={() => setSelectedPropertyId(property.id)}
@@ -1033,7 +1036,7 @@ export function VertraegeWorkspace({
                               setSelectedPropertyId(property.id);
                             }
                           }}
-                          className="cursor-pointer p-5 transition-colors hover:border-[var(--border-sub)] hover:bg-[var(--surface-elevated)]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                          className="cursor-pointer p-5 transition-colors hover:border-[var(--border-sub)] hover:bg-[var(--surface-elevated)]/30 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
                         >
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="flex min-w-0 items-start gap-3">
@@ -1250,6 +1253,7 @@ export function VertraegeWorkspace({
                       {closedContracts.map((contract) => (
                         <Card
                           key={contract.id}
+                          interactive
                           role="button"
                           tabIndex={0}
                           onClick={() => setSelectedContractId(contract.id)}

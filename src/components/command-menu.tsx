@@ -73,11 +73,10 @@ export function CommandMenu({
         onClick={() => setOpen(true)}
         aria-label="Befehlspalette öffnen"
         aria-keyshortcuts="Meta+K Control+K"
-        className="group inline-flex h-8 items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 px-2 text-xs text-[var(--text-secondary)] shadow-[var(--shadow-xs)] transition-colors outline-hidden hover:border-[var(--border-sub)] hover:text-[var(--text-primary)] focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_32%,transparent)] sm:pr-1.5 lg:w-44 print:hidden"
+        className="group inline-flex h-8 items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 px-2 text-xs text-[var(--text-secondary)] shadow-[var(--shadow-xs)] transition-colors outline-hidden hover:border-[var(--border-sub)] hover:text-[var(--text-primary)] focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_32%,transparent)] sm:pr-1.5 print:hidden"
       >
         <Search className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        <span className="hidden lg:inline">Springen zu …</span>
-        <kbd className="ml-auto hidden rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-1.5 py-px font-sans text-[10px] font-medium text-[var(--text-secondary)] sm:inline">
+        <kbd className="hidden rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-1.5 py-px font-sans text-[10px] font-medium text-[var(--text-secondary)] sm:inline">
           {isMac ? "⌘K" : "Strg K"}
         </kbd>
       </button>

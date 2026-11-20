@@ -75,7 +75,7 @@ function Track({
   zeroBps: number | null;
 }) {
   return (
-    <div className="relative h-5 w-full rounded-sm bg-[var(--surface-elevated)]/50">
+    <div className="reveal-x relative h-5 w-full rounded-md bg-[var(--surface-elevated)]/50">
       {zeroBps !== null ? (
         <span
           aria-hidden="true"
@@ -351,7 +351,7 @@ export function SurplusFlowChart({
                 </div>
               ) : (
                 <div className="space-y-1.5">
-                  <div className="flex h-5 w-full overflow-hidden rounded-sm">
+                  <div className="reveal-x flex h-5 w-full gap-[2px] overflow-hidden rounded-md">
                     {flow.pots.map((p) => (
                       <span
                         key={p.key}

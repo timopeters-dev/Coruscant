@@ -1079,7 +1079,7 @@ export function PropertyValuationCard({
                               }
                               setConfirmingRecompute(null);
                             }}
-                            className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45 ${
+                            className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] disabled:cursor-not-allowed disabled:opacity-45 ${
                               isSelected
                                 ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-foreground)]"
                                 : "border-[var(--border)] bg-[var(--surface-elevated)]/60 text-[var(--text-primary)] hover:border-[var(--accent)]"

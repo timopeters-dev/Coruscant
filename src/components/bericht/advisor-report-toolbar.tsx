@@ -282,7 +282,7 @@ export function AdvisorReportToolbar({
               setCopiedMessage(null);
             }}
             placeholder="z. B. Kontext (Alter, Zeithorizont, Pläne) oder konkrete Frage an Berater:in bzw. KI…"
-            className="w-full rounded-lg border border-[var(--border-sub)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            className="w-full rounded-lg border border-[var(--border-sub)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/70 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
           />
 
           {/* Live-Status der Freitext-Prüfung */}

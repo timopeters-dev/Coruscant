@@ -1109,7 +1109,7 @@ function PropertyModalInner({
               onChange={(e) => setFeatures(e.target.value)}
               placeholder="z. B. Kamin, Sauna, Photovoltaik, Doppelgarage"
               disabled={isSubmitting}
-              className="flex w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/70 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/70 transition-colors outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] disabled:cursor-not-allowed disabled:opacity-50"
             />
             {errors.features ? (
               <p className="text-xs text-[var(--rose)]">{errors.features}</p>
