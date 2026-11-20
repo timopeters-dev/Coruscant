@@ -7,8 +7,6 @@ import {
   ArrowDown,
   ArrowUp,
   Building2,
-  ChevronDown,
-  ChevronUp,
   Landmark,
   Pencil,
   Plus,
@@ -59,6 +57,15 @@ import { LegacyPlanItems } from "./legacy-plan-items";
 import { PotModal } from "./pot-modal";
 import { PotProgressBar } from "./pot-progress-bar";
 import { SurplusFlowChart } from "./surplus-flow-chart";
+import { Collapse, CollapseChevron } from "@/components/ui/collapse";
+import { InfoTip } from "@/components/ui/info-tip";
+import {
+  SEGMENT_TRACK,
+  SegmentGroup,
+  SegmentLabel,
+  SegmentPill,
+  segmentItemClass,
+} from "@/components/ui/segmented";
 
 interface HouseholdWorkspaceData {
   household: HouseholdSummary | null;
@@ -580,32 +587,39 @@ export function AllokationWorkspace({
                 )}
               </div>
 
-              <div
-                role="group"
-                aria-label="Basis für variable Alltagskosten"
-                className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-0.5"
-              >
-                {(
-                  [
-                    { id: "budget", label: "Plan-Budget" },
-                    { id: "avg_3m", label: "Ø 3 Monate" },
-                    { id: "avg_6m", label: "Ø 6 Monate" },
-                  ] as const
-                ).map((option) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => handleVariableBasisChange(option.id)}
-                    className={cn(
-                      "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                      variableBasis === option.id
-                        ? "bg-[var(--surface)] text-[var(--text-primary)] shadow-xs"
-                        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
-                    )}
+              <div className="flex items-center gap-1.5">
+                <SegmentGroup>
+                  <div
+                    role="group"
+                    aria-label="Basis für variable Alltagskosten"
+                    className={SEGMENT_TRACK}
                   >
-                    {option.label}
-                  </button>
-                ))}
+                    {(
+                      [
+                        { id: "budget", label: "Plan-Budget" },
+                        { id: "avg_3m", label: "Ø 3 Monate" },
+                        { id: "avg_6m", label: "Ø 6 Monate" },
+                      ] as const
+                    ).map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        aria-pressed={variableBasis === option.id}
+                        onClick={() => handleVariableBasisChange(option.id)}
+                        className={segmentItemClass(variableBasis === option.id)}
+                      >
+                        {variableBasis === option.id ? <SegmentPill /> : null}
+                        <SegmentLabel>{option.label}</SegmentLabel>
+                      </button>
+                    ))}
+                  </div>
+                </SegmentGroup>
+                <InfoTip
+                  id="variable-basis-info"
+                  label="Basis für variable Alltagskosten"
+                  align="end"
+                  text="Womit die variablen Alltagskosten (Lebensmittel, Freizeit …) angesetzt werden: mit deinem geplanten Budget oder mit dem tatsächlichen Durchschnitt der letzten 3 bzw. 6 Monate. Der Durchschnitt glättet Ausreißer, das Budget zeigt den Soll-Zustand."
+                />
               </div>
             </div>
             {householdData.isDummy ? (
@@ -735,6 +749,7 @@ export function AllokationWorkspace({
               <button
                 type="button"
                 onClick={() => setBreakdownOpen((prev) => !prev)}
+                aria-expanded={breakdownOpen}
                 className="flex w-full items-center justify-between px-4 py-3 text-left text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               >
                 <span>
@@ -744,14 +759,10 @@ export function AllokationWorkspace({
                   </span>
                   )
                 </span>
-                {breakdownOpen ? (
-                  <ChevronUp className="h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <ChevronDown className="h-4 w-4" aria-hidden="true" />
-                )}
+                <CollapseChevron open={breakdownOpen} />
               </button>
 
-              {breakdownOpen ? (
+              <Collapse open={breakdownOpen}>
                 <div className="overflow-x-auto border-t border-[var(--border)]">
                   <table className="w-full text-xs">
                     <thead>
@@ -835,7 +846,7 @@ export function AllokationWorkspace({
                     </tbody>
                   </table>
                 </div>
-              ) : null}
+              </Collapse>
             </div>
           ) : null}
         </section>
@@ -849,6 +860,11 @@ export function AllokationWorkspace({
               Verträge &amp; Objekte im Überschuss
             </h2>
             <StatusBadge variant="modeled" />
+            <InfoTip
+              id="surplus-contracts-info"
+              label="Verträge & Objekte im Überschuss"
+              text="Hier kannst du Vertragsraten und Objekt-Cashflows aus Coruscant zusätzlich in den Haushalts-Überschuss einrechnen. Das ist modelliert: Was bereits über das Gemeinschaftskonto erfasst ist, sollte nicht ein zweites Mal gezählt werden."
+            />
           </div>
           <span className="text-xs text-[var(--text-secondary)]">
             <span className="tabular-nums">{derivedContractItems.length}</span>{" "}
@@ -864,6 +880,11 @@ export function AllokationWorkspace({
                 Verknüpfte Coruscant-Vertragsraten
               </h3>
               <Badge variant="default">Live-Sync</Badge>
+              <InfoTip
+                id="contract-rates-info"
+                label="Verknüpfte Coruscant-Vertragsraten"
+                text="Monatliche Raten deiner aktiven Haushalts-Verträge, direkt aus der Vertragsliste gelesen (schreibgeschützt). Änderungen nimmst du unter Verträge vor; hier erscheinen sie automatisch."
+              />
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-[var(--text-primary)]">
@@ -875,6 +896,12 @@ export function AllokationWorkspace({
                 />
                 Zusätzlich vom Haushalts-Überschuss abziehen
               </label>
+              <InfoTip
+                id="contract-rates-toggle-info"
+                label="Zusätzlich vom Haushalts-Überschuss abziehen"
+                align="end"
+                text="Nur aktivieren, wenn diese Raten nicht schon als Fixkosten über das Gemeinschaftskonto laufen – sonst würden sie doppelt abgezogen und der Überschuss wirkt kleiner, als er ist."
+              />
               <Link
                 href="/vertraege"
                 className="text-xs font-medium text-[var(--accent)] hover:underline"
@@ -935,6 +962,11 @@ export function AllokationWorkspace({
                   Mieten &amp; Objektkosten (Modelliert)
                 </h3>
                 <Badge variant="outline">Objekt</Badge>
+                <InfoTip
+                  id="property-items-info"
+                  label="Mieten & Objektkosten"
+                  text="Aus deinen vermieteten Objekten abgeleitet: Kaltmiete als Zufluss, nicht umlagefähige Kosten und aktive verknüpfte Kreditraten als Abfluss. Modelliert – die Werte stammen aus den Objektdaten, nicht aus Kontobewegungen."
+                />
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-[var(--text-primary)]">
@@ -946,6 +978,12 @@ export function AllokationWorkspace({
                   />
                   In Haushalts-Überschuss einrechnen
                 </label>
+                <InfoTip
+                  id="property-items-toggle-info"
+                  label="In Haushalts-Überschuss einrechnen"
+                  align="end"
+                  text="Rechnet die Objekt-Cashflows in den monatlichen Überschuss ein. Deaktivieren, wenn Miete oder Rate bereits über das Gemeinschaftskonto erfasst sind."
+                />
                 <Link
                   href="/vertraege?tab=portfolio"
                   className="text-xs font-medium text-[var(--accent)] hover:underline"

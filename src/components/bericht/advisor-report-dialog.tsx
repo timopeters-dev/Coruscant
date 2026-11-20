@@ -11,6 +11,7 @@ import {
   type AdvisorReportOutlineItem,
   parseAdvisorOneTimeAmount,
 } from "@/lib/domain/advisor-report";
+import { buttonVariants } from "@/components/ui/button";
 
 interface AdvisorReportDialogProps {
   open: boolean;
@@ -205,14 +206,14 @@ export function AdvisorReportDialog({
             <button
               type="button"
               onClick={() => onOpenChange(false)}
-              className="rounded-lg border border-[var(--border-sub)] px-3.5 py-2 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)]"
+              className={buttonVariants({ variant: "ghost", size: "sm" })}
             >
               Abbrechen
             </button>
             <Link
               href={href}
               onClick={() => onOpenChange(false)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 py-2 text-xs font-medium text-[var(--accent-foreground)] transition-opacity hover:opacity-90 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
+              className={buttonVariants({ size: "sm" })}
             >
               <FileText className="h-3.5 w-3.5" />
               Bericht öffnen

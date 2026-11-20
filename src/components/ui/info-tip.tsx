@@ -40,6 +40,8 @@ interface InfoTipProps {
   text: string;
   /** ID des Panels (für `aria-controls`). */
   id: string;
+  /** Verankerung des Panels: `start` (linksbündig, Standard) oder `end` (rechtsbündig, für Symbole am rechten Rand). */
+  align?: "start" | "end";
 }
 
 /**
@@ -47,7 +49,7 @@ interface InfoTipProps {
  * Fokus; schließt bei Escape, Klick außerhalb und Blur. Kein Portal: das Panel
  * ist linksbündig am Symbol verankert, damit es im Dialog nicht übersteht.
  */
-export function InfoTip({ label, text, id }: InfoTipProps) {
+export function InfoTip({ label, text, id, align = "start" }: InfoTipProps) {
   const [mode, setMode] = React.useState<InfoTipMode>("closed");
   const open = mode !== "closed";
   const send = (event: InfoTipEvent) =>
@@ -99,7 +101,7 @@ export function InfoTip({ label, text, id }: InfoTipProps) {
         id={id}
         role="note"
         hidden={!open}
-        className="animate-pop absolute left-0 top-full z-20 mt-1.5 w-max max-w-xs rounded-lg border border-[var(--border)] bg-[var(--surface-overlay)] px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl"
+        className={`animate-pop absolute ${align === "end" ? "right-0" : "left-0"} top-full z-20 mt-1.5 w-max max-w-xs rounded-lg border border-[var(--border)] bg-[var(--surface-overlay)] px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl`}
       >
         {text}
       </span>

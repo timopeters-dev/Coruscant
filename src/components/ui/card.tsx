@@ -7,7 +7,7 @@ export const CARD_SURFACE =
 
 /** Zusatz für klickbare Karten: dezentes Anheben beim Hover. */
 export const CARD_INTERACTIVE =
-  "transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-[var(--border-sub)] hover:shadow-[var(--shadow-md),inset_0_1px_0_0_var(--hairline-highlight)] motion-reduce:hover:translate-y-0";
+  "cursor-pointer transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-[var(--border-sub)] hover:shadow-[var(--shadow-md),inset_0_1px_0_0_var(--hairline-highlight)] motion-reduce:hover:translate-y-0";
 
 interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   interactive?: boolean;

@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronRight } from "lucide-react";
 import { ChartDataTable } from "@/components/charts/chart-data-table";
 import { ChartLegend } from "@/components/charts/chart-legend";
 import {
@@ -51,6 +50,15 @@ import {
 } from "./planning-state";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Select } from "@/components/ui/select";
+import { Collapse, CollapseChevron } from "@/components/ui/collapse";
+import { InfoTip } from "@/components/ui/info-tip";
+import {
+  SEGMENT_TRACK,
+  SegmentGroup,
+  SegmentLabel,
+  SegmentPill,
+  segmentItemClass,
+} from "@/components/ui/segmented";
 
 interface FreeMoneyPanelProps {
   state: FreeMoneyState;
@@ -402,52 +410,62 @@ export function FreeMoneyPanel({
 
         {/* Monthly channel toggle */}
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-[var(--text-secondary)]">
-            Monatlichen Betrag verwenden
-          </span>
-          <div
-            role="group"
-            aria-label="Kanal für monatlichen Betrag"
-            className="grid grid-cols-2 gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1"
-          >
-            <button
-              type="button"
-              aria-pressed={state.monthlyChannel === "special_repayment"}
-              onClick={() =>
-                dispatch({
-                  type: "setMonthlyChannel",
-                  channel: "special_repayment",
-                })
-              }
-              className={cn(
-                "rounded-md px-2 py-1.5 text-xs font-medium transition-colors outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]",
-                state.monthlyChannel === "special_repayment"
-                  ? "bg-[var(--accent)] text-white"
-                  : "text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)]",
-              )}
-            >
-              als Sondertilgung ansparen
-            </button>
-            <button
-              type="button"
-              aria-pressed={state.monthlyChannel === "rate_increase"}
-              disabled={!rateChannelAllowed}
-              onClick={() =>
-                dispatch({
-                  type: "setMonthlyChannel",
-                  channel: "rate_increase",
-                })
-              }
-              className={cn(
-                "rounded-md px-2 py-1.5 text-xs font-medium transition-colors outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] disabled:cursor-not-allowed disabled:opacity-45",
-                state.monthlyChannel === "rate_increase" && rateChannelAllowed
-                  ? "bg-[var(--accent)] text-white"
-                  : "text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)]",
-              )}
-            >
-              als höhere Rate
-            </button>
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-medium text-[var(--text-secondary)]">
+              Monatlichen Betrag verwenden
+            </span>
+            <InfoTip
+              id="planung-channel-info"
+              label="Monatlichen Betrag verwenden"
+              text="Als Sondertilgung ansparen: Der Betrag wird monatlich zurückgelegt und im Rahmen deines Sondertilgungsrechts zusätzlich getilgt. Als höhere Rate: Die laufende Kreditrate steigt um den Betrag – nur möglich, wenn der Vertrag einen Ratenwechsel erlaubt."
+            />
           </div>
+          <SegmentGroup>
+            <div
+              role="group"
+              aria-label="Kanal für monatlichen Betrag"
+              className={cn(SEGMENT_TRACK, "grid w-full grid-cols-2")}
+            >
+              {(
+                [
+                  {
+                    channel: "special_repayment",
+                    label: "als Sondertilgung ansparen",
+                    active: state.monthlyChannel === "special_repayment",
+                    disabled: false,
+                  },
+                  {
+                    channel: "rate_increase",
+                    label: "als höhere Rate",
+                    active:
+                      state.monthlyChannel === "rate_increase" &&
+                      rateChannelAllowed,
+                    disabled: !rateChannelAllowed,
+                  },
+                ] as const
+              ).map((option) => (
+                <button
+                  key={option.channel}
+                  type="button"
+                  aria-pressed={state.monthlyChannel === option.channel}
+                  disabled={option.disabled}
+                  onClick={() =>
+                    dispatch({
+                      type: "setMonthlyChannel",
+                      channel: option.channel,
+                    })
+                  }
+                  className={cn(
+                    segmentItemClass(option.active),
+                    "py-1.5 disabled:opacity-45",
+                  )}
+                >
+                  {option.active ? <SegmentPill /> : null}
+                  <SegmentLabel>{option.label}</SegmentLabel>
+                </button>
+              ))}
+            </div>
+          </SegmentGroup>
           {rateDisabledReason ? (
             <p className="text-[11px] text-[var(--text-secondary)]">
               Höhere Rate nicht verfügbar: {rateDisabledReason}
@@ -849,13 +867,9 @@ export function FreeMoneyPanel({
               className="flex w-full items-center justify-between text-left text-xs font-medium text-[var(--text-primary)] hover:text-[var(--accent)]"
             >
               <span>Erweitert: Wirkung nach Startmonat der Ratenerhöhung</span>
-              {timingOpen ? (
-                <ChevronDown className="h-4 w-4" />
-              ) : (
-                <ChevronRight className="h-4 w-4" />
-              )}
+              <CollapseChevron open={timingOpen} className="h-4 w-4" />
             </button>
-            {timingOpen ? (
+            <Collapse open={timingOpen}>
               <div className="mt-3 space-y-2">
                 {timingSeries.costPerYearDelayCents != null &&
                 timingSeries.costPerYearDelayCents > 0 ? (
@@ -878,7 +892,7 @@ export function FreeMoneyPanel({
                   ariaLabel={`Zinsersparnis nach Startmonat für ${loan.name}`}
                 />
               </div>
-            ) : null}
+            </Collapse>
           </div>
         ) : null}
       </div>

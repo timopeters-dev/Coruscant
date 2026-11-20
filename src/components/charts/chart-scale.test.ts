@@ -5,6 +5,8 @@ import {
   linearScale,
   nearestIndex,
   niceCentTicks,
+  seriesCoversX,
+  unionSortedXs,
   pickDateTicks,
   pickYearTicks,
 } from "./chart-scale";
@@ -218,5 +220,33 @@ describe("pickDateTicks", () => {
       );
       expect(toMulti - ticksMulti[i]!.x).toBeGreaterThanOrEqual(minGap);
     }
+  });
+});
+
+describe("unionSortedXs", () => {
+  it("vereint x-Werte mehrerer Serien sortiert und ohne Duplikate", () => {
+    // Kurze Ist-Serie bis x=30, Fortschreibung ab x=30 bis x=60.
+    expect(unionSortedXs([[0, 10, 20, 30], [30, 45, 60]])).toEqual([
+      0, 10, 20, 30, 45, 60,
+    ]);
+  });
+
+  it("liefert ein leeres Raster ohne Serien bzw. ohne Punkte", () => {
+    expect(unionSortedXs([])).toEqual([]);
+    expect(unionSortedXs([[], []])).toEqual([]);
+  });
+});
+
+describe("seriesCoversX", () => {
+  it("prüft die x-Spanne inklusive der Randpunkte", () => {
+    expect(seriesCoversX([10, 20, 30], 10)).toBe(true);
+    expect(seriesCoversX([10, 20, 30], 30)).toBe(true);
+    expect(seriesCoversX([10, 20, 30], 25)).toBe(true);
+    expect(seriesCoversX([10, 20, 30], 31)).toBe(false);
+    expect(seriesCoversX([10, 20, 30], 9)).toBe(false);
+  });
+
+  it("gibt für leere Serien false zurück", () => {
+    expect(seriesCoversX([], 0)).toBe(false);
   });
 });

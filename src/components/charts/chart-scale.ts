@@ -246,6 +246,22 @@ export function nearestIndex(xs: readonly number[], x: number): number {
   return x - xs[lo]! <= xs[hi]! - x ? lo : hi;
 }
 
+/**
+ * Sortierte, eindeutige x-Werte mehrerer Serien – das gemeinsame Raster für
+ * Hover und Tastatur, damit kürzere Serien das Fadenkreuz nicht festhalten.
+ */
+export function unionSortedXs(
+  seriesXs: readonly (readonly number[])[],
+): number[] {
+  return Array.from(new Set(seriesXs.flat())).sort((a, b) => a - b);
+}
+
+/** Liegt `x` innerhalb der x-Spanne einer (aufsteigend sortierten) Serie? */
+export function seriesCoversX(xs: readonly number[], x: number): boolean {
+  if (xs.length === 0) return false;
+  return x >= xs[0]! && x <= xs[xs.length - 1]!;
+}
+
 export type DateTickVariant = "history" | "projection";
 
 export interface PickDateTicksOptions {
