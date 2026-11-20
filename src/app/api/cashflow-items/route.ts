@@ -3,24 +3,24 @@ import {
   createManualCashflowItem,
   getAllocationSettings,
   listManualCashflowItems,
-} from "@/db/queries/allocation";
+} from "@/backend/db/queries/allocation";
 import {
   getLatestExternalSnapshot,
   parseSnapshotHousehold,
-} from "@/db/queries/cockpit";
-import { listContracts, listProperties } from "@/db/queries/contracts";
+} from "@/backend/db/queries/cockpit";
+import { listContracts, listProperties } from "@/backend/db/queries/contracts";
 import {
   internalErrorResponse,
   parseJsonBody,
   validationErrorResponse,
-} from "@/lib/api/http";
+} from "@/backend/http";
 import {
   calculateConsolidatedCashflow,
   deriveContractCashflowItems,
   derivePropertyCashflowItems,
-} from "@/lib/domain/cashflow";
-import { resolveHouseholdDataForWorkspace } from "@/lib/integrations/household-dummy";
-import { cashflowCreateSchema } from "@/lib/validation/allocation";
+} from "@/domain/allocation/cashflow";
+import { resolveHouseholdDataForWorkspace } from "@/backend/integrations/household-dummy";
+import { cashflowCreateSchema } from "@/validation/allocation";
 
 export const dynamic = "force-dynamic";
 

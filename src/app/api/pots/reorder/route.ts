@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { InvalidPotOrderError, reorderPots } from "@/db/queries/allocation";
+import { InvalidPotOrderError, reorderPots } from "@/backend/db/queries/allocation";
 import {
   badRequestResponse,
   internalErrorResponse,
   parseJsonBody,
   validationErrorResponse,
-} from "@/lib/api/http";
-import { potReorderSchema } from "@/lib/validation/allocation";
+} from "@/backend/http";
+import { potReorderSchema } from "@/validation/allocation";
 
 export const dynamic = "force-dynamic";
 

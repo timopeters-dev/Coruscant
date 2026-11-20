@@ -1,45 +1,45 @@
 import { NextResponse } from "next/server";
-import { loadInvestmentContextInput } from "@/db/queries/coach";
-import { loadPlanningBase } from "@/db/queries/planning-base";
-import { loadRecommendationState } from "@/db/queries/recommendation";
+import { loadInvestmentContextInput } from "@/backend/db/queries/coach";
+import { loadPlanningBase } from "@/backend/db/queries/planning-base";
+import { loadRecommendationState } from "@/backend/db/queries/recommendation";
 import {
   internalErrorResponse,
   parseJsonBody,
   validationErrorResponse,
-} from "@/lib/api/http";
+} from "@/backend/http";
 import {
   calculateRebalancingPlan,
   sanitizeAssessmentRefs,
-} from "@/lib/domain/coach-rebalancing";
-import { getTodayIsoDate } from "@/lib/domain/date";
+} from "@/domain/recommendation/coach-rebalancing";
+import { getTodayIsoDate } from "@/domain/core/date";
 import {
   buildInvestmentContext,
   collectContextRefs,
   isInvestmentContextUsable,
   type InvestmentContext,
-} from "@/lib/domain/investment-context";
+} from "@/domain/recommendation/investment-context";
 import {
   computeRecommendationFingerprint,
   recommendMonthlySavings,
   recommendUse,
-} from "@/lib/domain/recommendation";
+} from "@/domain/recommendation/recommendation";
 import {
   buildLlmInvestmentContextView,
   buildRecommendationLlmView,
   collectRawCentValues,
   serializeLlmContext,
-} from "@/lib/domain/recommendation-llm";
-import { createDefaultInvestmentCoach } from "@/lib/integrations/gemini-investment-coach";
+} from "@/domain/recommendation/llm";
+import { createDefaultInvestmentCoach } from "@/backend/integrations/gemini-investment-coach";
 import type {
   CoachErrorCode,
   InvestmentCoach,
-} from "@/lib/integrations/investment-coach";
-import { isDevMode } from "@/lib/server/dev-mode";
+} from "@/backend/integrations/investment-coach";
+import { isDevMode } from "@/backend/dev-mode";
 import {
   coachAssessmentRequestSchema,
   coachChatRequestSchema,
-} from "@/lib/validation/coach";
-import { explainRequestSchema } from "@/lib/validation/recommendation";
+} from "@/validation/coach";
+import { explainRequestSchema } from "@/validation/recommendation";
 
 export type CoachFactory = () => InvestmentCoach;
 

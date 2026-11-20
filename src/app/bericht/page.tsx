@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
-import { AdvisorReportToolbar } from "@/components/bericht/advisor-report-toolbar";
-import { loadAdvisorReport } from "@/db/queries/advisor-report";
-import { parseAdvisorReportMode } from "@/lib/domain/advisor-report";
-import { AdvisorReportPiiError } from "@/lib/domain/advisor-report-anonymize";
+import { AdvisorReportToolbar } from "@/frontend/bericht/advisor-report-toolbar";
+import { loadAdvisorReport } from "@/backend/db/queries/advisor-report";
+import { parseAdvisorReportMode } from "@/domain/report/report";
+import { AdvisorReportPiiError } from "@/domain/report/anonymize";
 
 export const dynamic = "force-dynamic";
 

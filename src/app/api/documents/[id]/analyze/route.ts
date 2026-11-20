@@ -4,10 +4,10 @@ import {
   DocumentAlreadyVerifiedError,
   DocumentNotFoundError,
   getDocumentById,
-} from "@/db/queries/documents";
-import { internalErrorResponse, notFoundResponse } from "@/lib/api/http";
-import { createDefaultDocumentExtractor } from "@/lib/integrations/gemini-document-extractor";
-import { PathTraversalError, readPdfFile } from "@/lib/storage/pdf-storage";
+} from "@/backend/db/queries/documents";
+import { internalErrorResponse, notFoundResponse } from "@/backend/http";
+import { createDefaultDocumentExtractor } from "@/backend/integrations/gemini-document-extractor";
+import { PathTraversalError, readPdfFile } from "@/backend/storage/pdf-storage";
 
 export const dynamic = "force-dynamic";
 

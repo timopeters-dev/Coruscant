@@ -5,13 +5,13 @@ import {
   DuplicateDocumentError,
   listDocuments,
   getDocumentBySha256,
-} from "@/db/queries/documents";
+} from "@/backend/db/queries/documents";
 import {
   badRequestResponse,
   internalErrorResponse,
-} from "@/lib/api/http";
-import { getTodayIsoDate } from "@/lib/domain/date";
-import { createDefaultDocumentExtractor } from "@/lib/integrations/gemini-document-extractor";
+} from "@/backend/http";
+import { getTodayIsoDate } from "@/domain/core/date";
+import { createDefaultDocumentExtractor } from "@/backend/integrations/gemini-document-extractor";
 import {
   computeSha256Hex,
   deletePdfFileIfExists,
@@ -20,8 +20,8 @@ import {
   sanitizeOriginalFilename,
   savePdfFile,
   validatePdfBuffer,
-} from "@/lib/storage/pdf-storage";
-import { documentStatusSchema } from "@/lib/validation/documents";
+} from "@/backend/storage/pdf-storage";
+import { documentStatusSchema } from "@/validation/documents";
 
 export const dynamic = "force-dynamic";
 

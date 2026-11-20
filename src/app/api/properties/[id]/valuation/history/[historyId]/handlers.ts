@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import {
   deleteValuationHistoryEntry,
   ValuationHistoryNotFoundError,
-} from "@/db/queries/property-valuations";
-import { internalErrorResponse, notFoundResponse } from "@/lib/api/http";
+} from "@/backend/db/queries/property-valuations";
+import { internalErrorResponse, notFoundResponse } from "@/backend/http";
 
 export interface RouteContext {
   params: Promise<{ id: string; historyId: string }>;

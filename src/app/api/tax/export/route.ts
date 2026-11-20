@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { getTaxYearOverview } from "@/db/queries/tax";
+import { getTaxYearOverview } from "@/backend/db/queries/tax";
 import {
   badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
-} from "@/lib/api/http";
-import { buildTaxSummaryCsv, buildTaxSummaryJson } from "@/lib/domain/tax-export";
-import { buildTaxArchive, TaxExportTooLargeError } from "@/lib/export/tax-archive";
-import { parseTaxYearParam, taxExportFormatSchema } from "@/lib/validation/tax";
+} from "@/backend/http";
+import { buildTaxSummaryCsv, buildTaxSummaryJson } from "@/domain/tax/export";
+import { buildTaxArchive, TaxExportTooLargeError } from "@/backend/storage/tax-archive";
+import { parseTaxYearParam, taxExportFormatSchema } from "@/validation/tax";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

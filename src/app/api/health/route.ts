@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSqlite } from "@/db";
+import { getSqlite } from "@/backend/db/connection";
 
 export const dynamic = "force-dynamic";
 

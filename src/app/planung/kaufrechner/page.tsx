@@ -1,7 +1,7 @@
-import { loadPlanningBase } from "@/db/queries/planning-base";
-import { getTodayIsoDate } from "@/lib/domain/date";
-import type { EquityPotOption } from "@/components/planung/purchase-calculator-state";
-import { PurchaseCalculatorWorkspace } from "@/components/planung/purchase-calculator-workspace";
+import { loadPlanningBase } from "@/backend/db/queries/planning-base";
+import { getTodayIsoDate } from "@/domain/core/date";
+import type { EquityPotOption } from "@/frontend/planung/purchase-calculator-state";
+import { PurchaseCalculatorWorkspace } from "@/frontend/planung/purchase-calculator-workspace";
 
 export const dynamic = "force-dynamic";
 

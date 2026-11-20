@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import {
   getPropertyById,
   updatePropertyImagePath,
-} from "@/db/queries/contracts";
+} from "@/backend/db/queries/contracts";
 import {
   badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
-} from "@/lib/api/http";
+} from "@/backend/http";
 import {
   deletePropertyImageIfExists,
   InvalidPropertyImageError,
@@ -16,7 +16,7 @@ import {
   PropertyImageTooLargeError,
   readPropertyImageFile,
   savePropertyImageFile,
-} from "@/lib/storage/property-image-storage";
+} from "@/backend/storage/property-image-storage";
 
 export const dynamic = "force-dynamic";
 

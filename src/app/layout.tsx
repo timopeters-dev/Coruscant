@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { Barlow, Barlow_Semi_Condensed } from "next/font/google";
 import "./globals.css";
-import { ThemeProvider } from "@/components/theme-provider";
-import { AppShell } from "@/components/app-shell";
-import { getFinanzCockpitBridgeConfig } from "@/lib/integrations/finanz-cockpit-client";
-import { isDevMode } from "@/lib/server/dev-mode";
+import { ThemeProvider } from "@/frontend/shell/theme-provider";
+import { AppShell } from "@/frontend/shell/app-shell";
+import { getFinanzCockpitBridgeConfig } from "@/backend/integrations/finanz-cockpit-client";
+import { isDevMode } from "@/backend/dev-mode";
 
 export const dynamic = "force-dynamic";
 

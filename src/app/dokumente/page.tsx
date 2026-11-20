@@ -1,7 +1,7 @@
-import { DokumenteWorkspace } from "@/components/dokumente/dokumente-workspace";
-import { listContracts, listProperties } from "@/db/queries/contracts";
-import { listDocuments } from "@/db/queries/documents";
-import { getTodayIsoDate } from "@/lib/domain/date";
+import { DokumenteWorkspace } from "@/frontend/dokumente/dokumente-workspace";
+import { listContracts, listProperties } from "@/backend/db/queries/contracts";
+import { listDocuments } from "@/backend/db/queries/documents";
+import { getTodayIsoDate } from "@/domain/core/date";
 
 export const dynamic = "force-dynamic";
 

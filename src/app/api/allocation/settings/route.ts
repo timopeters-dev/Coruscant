@@ -3,13 +3,13 @@ import { z } from "zod";
 import {
   getAllocationSettings,
   saveAllocationSettings,
-} from "@/db/queries/allocation";
+} from "@/backend/db/queries/allocation";
 import {
   internalErrorResponse,
   parseJsonBody,
   validationErrorResponse,
-} from "@/lib/api/http";
-import { allocationSettingsSchema } from "@/lib/validation/external";
+} from "@/backend/http";
+import { allocationSettingsSchema } from "@/validation/external";
 
 export const dynamic = "force-dynamic";
 

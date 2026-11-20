@@ -5,15 +5,15 @@ import {
   DocumentLinkedEntityNotFoundError,
   DocumentNotFoundError,
   DocumentValidationError,
-} from "@/db/queries/documents";
+} from "@/backend/db/queries/documents";
 import {
   badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
   parseJsonBody,
   validationErrorResponse,
-} from "@/lib/api/http";
-import { documentCreateContractSchema } from "@/lib/validation/documents";
+} from "@/backend/http";
+import { documentCreateContractSchema } from "@/validation/documents";
 
 export const dynamic = "force-dynamic";
 

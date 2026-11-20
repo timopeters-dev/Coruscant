@@ -3,14 +3,14 @@ import {
   createContract,
   LinkedPropertyNotFoundError,
   listContracts,
-} from "@/db/queries/contracts";
+} from "@/backend/db/queries/contracts";
 import {
   badRequestResponse,
   internalErrorResponse,
   parseJsonBody,
   validationErrorResponse,
-} from "@/lib/api/http";
-import { contractCreateSchema } from "@/lib/validation/contracts";
+} from "@/backend/http";
+import { contractCreateSchema } from "@/validation/contracts";
 
 export const dynamic = "force-dynamic";
 

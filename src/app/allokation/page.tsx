@@ -1,26 +1,26 @@
-import { AllokationWorkspace } from "@/components/allokation/allokation-workspace";
-import { parseAllocationPrefill } from "@/components/allokation/allocation-prefill";
+import { AllokationWorkspace } from "@/frontend/allokation/allokation-workspace";
+import { parseAllocationPrefill } from "@/frontend/allokation/allocation-prefill";
 import {
   getAllocationSettings,
   getPendingTransferCentsByPotId,
   listManualCashflowItems,
   listPots,
   listRecentPotAllocations,
-} from "@/db/queries/allocation";
+} from "@/backend/db/queries/allocation";
 import {
   getLatestExternalSnapshot,
   parseSnapshotAccounts,
   parseSnapshotHousehold,
   parseSnapshotPositions,
-} from "@/db/queries/cockpit";
-import { listContracts, listProperties } from "@/db/queries/contracts";
+} from "@/backend/db/queries/cockpit";
+import { listContracts, listProperties } from "@/backend/db/queries/contracts";
 import {
   deriveContractCashflowItems,
   derivePropertyCashflowItems,
-} from "@/lib/domain/cashflow";
-import { buildPotLinkOptions, computePotSyncPlan } from "@/lib/domain/pot-sync";
-import { getFinanzCockpitBridgeConfig } from "@/lib/integrations/finanz-cockpit-client";
-import { resolveHouseholdDataForWorkspace } from "@/lib/integrations/household-dummy";
+} from "@/domain/allocation/cashflow";
+import { buildPotLinkOptions, computePotSyncPlan } from "@/domain/allocation/pot-sync";
+import { getFinanzCockpitBridgeConfig } from "@/backend/integrations/finanz-cockpit-client";
+import { resolveHouseholdDataForWorkspace } from "@/backend/integrations/household-dummy";
 
 export const dynamic = "force-dynamic";
 

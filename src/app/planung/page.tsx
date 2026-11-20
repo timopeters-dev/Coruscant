@@ -1,27 +1,27 @@
 import * as React from "react";
 import { redirect } from "next/navigation";
-import { buildRefLabelMap, loadInvestmentContextInput } from "@/db/queries/coach";
-import { loadPlanningBase } from "@/db/queries/planning-base";
-import { loadRecommendationState } from "@/db/queries/recommendation";
-import { contractRecordToDomain } from "@/lib/domain/contracts";
+import { buildRefLabelMap, loadInvestmentContextInput } from "@/backend/db/queries/coach";
+import { loadPlanningBase } from "@/backend/db/queries/planning-base";
+import { loadRecommendationState } from "@/backend/db/queries/recommendation";
+import { contractRecordToDomain } from "@/domain/contracts/contract";
 import {
   addMonthsToYearMonth,
   getTodayIsoDate,
   toYearMonth,
-} from "@/lib/domain/date";
-import { buildInvestmentContext } from "@/lib/domain/investment-context";
-import { recommendUse } from "@/lib/domain/recommendation";
-import { buildPrepaymentDefaults } from "@/lib/domain/scenarios";
-import type { DomainPot } from "@/lib/domain/waterfall";
-import { isDevMode } from "@/lib/server/dev-mode";
-import { PlanungWorkspace } from "@/components/planung/planung-workspace";
-import { parsePropertyVsEtfQuery } from "@/components/planung/property-vs-etf-query";
+} from "@/domain/core/date";
+import { buildInvestmentContext } from "@/domain/recommendation/investment-context";
+import { recommendUse } from "@/domain/recommendation/recommendation";
+import { buildPrepaymentDefaults } from "@/domain/planning/scenarios";
+import type { DomainPot } from "@/domain/allocation/waterfall";
+import { isDevMode } from "@/backend/dev-mode";
+import { PlanungWorkspace } from "@/frontend/planung/planung-workspace";
+import { parsePropertyVsEtfQuery } from "@/frontend/planung/property-vs-etf-query";
 import {
   parsePlanningEntry,
   parsePlanningLoanId,
   parsePlanningView,
   type LoanOption,
-} from "@/components/planung/planning-state";
+} from "@/frontend/planung/planning-state";
 
 export const dynamic = "force-dynamic";
 

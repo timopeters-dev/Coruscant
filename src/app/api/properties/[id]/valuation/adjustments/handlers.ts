@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
-import { serializePropertyForApi } from "@/db/queries/contracts";
+import { serializePropertyForApi } from "@/backend/db/queries/contracts";
 import {
   PropertyNotFoundError,
   saveValuationAdjustments,
   ValuationValueConflictError,
-} from "@/db/queries/property-valuations";
+} from "@/backend/db/queries/property-valuations";
 import {
   badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
   validationErrorResponse,
-} from "@/lib/api/http";
-import { valuationAdjustmentsPutBodySchema } from "@/lib/validation/valuation-adjustments";
+} from "@/backend/http";
+import { valuationAdjustmentsPutBodySchema } from "@/validation/valuation-adjustments";
 
 export interface RouteContext {
   params: Promise<{ id: string }>;

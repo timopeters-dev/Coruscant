@@ -9,18 +9,18 @@ import {
   listPots,
   listRecentPotAllocations,
   RemainderPercentageExceededError,
-} from "@/db/queries/allocation";
+} from "@/backend/db/queries/allocation";
 import {
   badRequestResponse,
   internalErrorResponse,
   parseJsonBody,
   validationErrorResponse,
-} from "@/lib/api/http";
-import { getTodayIsoDate } from "@/lib/domain/date";
+} from "@/backend/http";
+import { getTodayIsoDate } from "@/domain/core/date";
 import {
   potCreateSchema,
   validatePotTargetDateWindow,
-} from "@/lib/validation/allocation";
+} from "@/validation/allocation";
 
 export const dynamic = "force-dynamic";
 
