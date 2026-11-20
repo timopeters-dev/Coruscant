@@ -51,6 +51,7 @@ import {
   DOCUMENT_TYPE_OPTIONS,
   TAX_CATEGORY_LABELS,
 } from "./labels";
+import { DatePicker } from "@/components/ui/date-picker";
 
 interface DocumentReviewPanelProps {
   pendingDocuments: DocumentRow[];
@@ -113,7 +114,7 @@ export function DocumentReviewPanel({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-[var(--text-primary)]">
             Prüf-Warteschlange
@@ -705,12 +706,10 @@ function DocumentReviewSplitView({
 
               <div className="space-y-1.5">
                 <Label htmlFor="doc-date">Belegdatum</Label>
-                <Input
+                <DatePicker
                   id="doc-date"
-                  type="date"
                   value={documentDate}
-                  onChange={(e) => {
-                    const nextDate = e.target.value;
+                  onChange={(nextDate) => {
                     setDocumentDate(nextDate);
                     if (!hasEditedCalibrationDate) {
                       const nextCalDate = nextDate || todayIsoDate;
@@ -964,13 +963,10 @@ function DocumentReviewSplitView({
 
                   <div className="space-y-1.5">
                     <Label htmlFor="doc-cal-date">Eich-Stichtag</Label>
-                    <Input
+                    <DatePicker
                       id="doc-cal-date"
-                      type="date"
-                      className="tabular-nums"
                       value={calibrationDate}
-                      onChange={(e) => {
-                        const nextCalDate = e.target.value;
+                      onChange={(nextCalDate) => {
                         setHasEditedCalibrationDate(true);
                         setCalibrationDate(nextCalDate);
                         setAllowOlderCalibrationDate(false);

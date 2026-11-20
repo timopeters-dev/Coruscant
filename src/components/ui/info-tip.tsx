@@ -91,7 +91,7 @@ export function InfoTip({ label, text, id }: InfoTipProps) {
             send("focusOut");
           }
         }}
-        className="inline-flex h-5 w-5 items-center justify-center rounded-md text-[var(--text-secondary)] hover:text-[var(--accent)]"
+        className="inline-flex h-5 w-5 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors duration-150 outline-hidden hover:text-[var(--accent)] focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] aria-expanded:text-[var(--accent)]"
       >
         <Info className="h-3.5 w-3.5" aria-hidden="true" />
       </button>
@@ -99,7 +99,7 @@ export function InfoTip({ label, text, id }: InfoTipProps) {
         id={id}
         role="note"
         hidden={!open}
-        className="absolute left-0 top-full z-20 mt-1 w-max max-w-xs rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs font-normal leading-relaxed text-[var(--text-primary)] shadow-sm"
+        className="animate-pop absolute left-0 top-full z-20 mt-1.5 w-max max-w-xs rounded-lg border border-[var(--border)] bg-[var(--surface-overlay)] px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl"
       >
         {text}
       </span>

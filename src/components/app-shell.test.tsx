@@ -2,7 +2,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 let currentPath = "/";
-vi.mock("next/navigation", () => ({ usePathname: () => currentPath }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => currentPath,
+  useRouter: () => ({ push: vi.fn() }),
+}));
 vi.mock("next-themes", () => ({
   useTheme: () => ({ theme: "system", setTheme: vi.fn() }),
 }));

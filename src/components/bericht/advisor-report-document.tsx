@@ -143,7 +143,7 @@ export function AdvisorReportDocument({
   return (
     <article className="advisor-report mx-auto max-w-4xl space-y-6 text-[var(--text-primary)]">
       {/* Kopf */}
-      <header className="print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
+      <header className="print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
@@ -171,7 +171,7 @@ export function AdvisorReportDocument({
       </header>
 
       {/* Datenqualität */}
-      <section className="print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <section className="print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5">
         <h2 className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">
           Datenqualität & Aktualität
         </h2>
@@ -194,7 +194,7 @@ export function AdvisorReportDocument({
       </section>
 
       {/* 1. Kurzprofil */}
-      <section className="print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <section className="print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5">
         <h2 className="text-base font-semibold tracking-tight">
           1. Kurzprofil
         </h2>
@@ -415,7 +415,7 @@ export function AdvisorReportDocument({
       </section>
 
       {/* 4. Verträge & Kredite */}
-      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5">
         <h2 className="text-base font-semibold tracking-tight">
           4. Verträge & Kredite
         </h2>
@@ -525,7 +525,7 @@ export function AdvisorReportDocument({
       </section>
 
       {/* 5. Immobilien */}
-      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5">
         <h2 className="text-base font-semibold tracking-tight">
           5. Immobilien
         </h2>
@@ -632,7 +632,7 @@ export function AdvisorReportDocument({
       </section>
 
       {/* 6. Töpfe & Ziele */}
-      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5">
         <h2 className="text-base font-semibold tracking-tight">
           6. Töpfe & Ziele
         </h2>
@@ -771,7 +771,7 @@ export function AdvisorReportDocument({
       </section>
 
       {/* 8. Empfehlungen */}
-      <section className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <section className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold tracking-tight">
             8. Empfehlungen
@@ -794,7 +794,7 @@ export function AdvisorReportDocument({
       {questionSlot ?? null}
 
       {/* 10. Anhang: Annahmen & Methodik */}
-      <section className="print-break-before print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <section className="print-break-before print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5">
         <h2 className="text-base font-semibold tracking-tight">
           Anhang: Annahmen & Methodik
         </h2>

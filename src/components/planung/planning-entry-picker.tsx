@@ -51,7 +51,7 @@ export function PlanningEntryPicker({
     return (
       <section aria-labelledby={headingId} className="flex flex-col gap-6">
         <header className="flex flex-col gap-1">
-          <h1 id={headingId} className="text-xl font-semibold tracking-tight">
+          <h1 id={headingId} className="page-title">
             Was willst du wissen?
           </h1>
           <p className="text-sm text-[var(--text-secondary)]">
@@ -64,7 +64,7 @@ export function PlanningEntryPicker({
             href={buildPlanningHref("geld")}
             prefetch={false}
             onClick={handleInternalClick("geld")}
-            className="flex flex-col justify-between gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 transition-colors hover:bg-[var(--surface-elevated)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            className="flex flex-col justify-between gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5 transition-colors hover:bg-[var(--surface-elevated)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           >
             <div className="flex flex-col gap-2">
               <Coins
@@ -89,7 +89,7 @@ export function PlanningEntryPicker({
             href={buildPlanningHref("gehalt")}
             prefetch={false}
             onClick={handleInternalClick("gehalt")}
-            className="flex flex-col justify-between gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 transition-colors hover:bg-[var(--surface-elevated)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            className="flex flex-col justify-between gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5 transition-colors hover:bg-[var(--surface-elevated)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           >
             <div className="flex flex-col gap-2">
               <TrendingUp
@@ -112,7 +112,7 @@ export function PlanningEntryPicker({
 
           <Link
             href="/planung/kaufrechner"
-            className="flex flex-col justify-between gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 transition-colors hover:bg-[var(--surface-elevated)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            className="flex flex-col justify-between gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5 transition-colors hover:bg-[var(--surface-elevated)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           >
             <div className="flex flex-col gap-2">
               <Home
@@ -134,7 +134,7 @@ export function PlanningEntryPicker({
           <button
             type="button"
             onClick={onOpenPropertyVsEtf}
-            className="flex flex-col justify-between gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 text-left transition-colors hover:bg-[var(--surface-elevated)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            className="flex flex-col justify-between gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5 text-left transition-colors hover:bg-[var(--surface-elevated)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
           >
             <div className="flex flex-col gap-2">
               <Scale

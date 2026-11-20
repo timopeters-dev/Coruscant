@@ -204,7 +204,7 @@ export function TaxYearOverview({ data, todayIsoDate }: TaxYearOverviewProps) {
         <DokumenteViewSwitch active="steuer" taxYear={year} />
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">
+            <h1 className="page-title">
               Steuer-Belegmappe <span className="tabular-nums">{year}</span>
             </h1>
             <p className="text-sm text-[var(--text-secondary)]">
@@ -282,7 +282,7 @@ export function TaxYearOverview({ data, todayIsoDate }: TaxYearOverviewProps) {
             ))}
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)]">
+          <div className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)]">
             <table className="w-full text-left text-sm">
               <thead className="bg-[var(--surface-elevated)] text-xs text-[var(--text-secondary)]">
                 <tr>

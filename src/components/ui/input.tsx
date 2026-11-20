@@ -1,5 +1,6 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { FIELD_BASE, FIELD_ERROR, FIELD_OK } from "./field-styles";
 
 export interface InputProps
   extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -14,13 +15,9 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         type={type}
         aria-invalid={hasError || undefined}
         className={cn(
-          "flex h-9 w-full rounded-lg border bg-[var(--surface)] px-3 py-1.5 text-sm text-[var(--text-primary)] transition-colors",
-          "placeholder:text-[var(--text-secondary)]/60",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--bg)]",
-          "disabled:cursor-not-allowed disabled:opacity-50",
-          hasError
-            ? "border-[var(--rose)] focus-visible:ring-[var(--rose)]"
-            : "border-[var(--border)] hover:border-[var(--border-sub)]",
+          FIELD_BASE,
+          "py-1.5",
+          hasError ? FIELD_ERROR : FIELD_OK,
           className,
         )}
         {...props}

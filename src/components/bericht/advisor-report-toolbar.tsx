@@ -133,7 +133,7 @@ export function AdvisorReportToolbar({
   const trimmedQuestion = question.trim();
   const printQuestionSlot =
     isAnonymized && check.status !== "ok" ? (
-      <section className="hidden print:block print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <section className="hidden print:block print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5">
         <h2 className="text-base font-semibold tracking-tight">
           9. Wobei brauche ich Rat?
         </h2>
@@ -142,7 +142,7 @@ export function AdvisorReportToolbar({
         </p>
       </section>
     ) : trimmedQuestion.length > 0 ? (
-      <section className="hidden print:block print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <section className="hidden print:block print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5">
         <h2 className="text-base font-semibold tracking-tight">
           9. Wobei brauche ich Rat?
         </h2>
@@ -157,7 +157,7 @@ export function AdvisorReportToolbar({
       {/* Werkzeugleiste (nur Bildschirm) */}
       <section
         aria-label="Berichtswerkzeuge"
-        className="print:hidden mx-auto max-w-4xl space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5"
+        className="print:hidden mx-auto max-w-4xl space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-4 sm:p-5"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           {/* Modus-Umschalter */}

@@ -31,6 +31,7 @@ import {
 } from "@/lib/domain/loan-options";
 import { formatBpsDE, formatCentsDE } from "@/lib/domain/money";
 import { formatDurationMonthsDE, formatMonthYearDE } from "./labels";
+import { MonthPicker } from "@/components/ui/date-picker";
 
 export interface LoanAdjustmentSimulatorProps {
   contract: DomainContract;
@@ -391,14 +392,12 @@ export function LoanAdjustmentSimulator({
                 >
                   Monat
                 </label>
-                <input
+                <MonthPicker
                   id={`sr-month-${contract.id}`}
-                  type="month"
                   min={minMonth}
                   disabled={specialDisabled}
                   value={safeSpecialMonth}
-                  onChange={(e) => setSpecialMonth(e.target.value)}
-                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-sm tabular-nums text-[var(--text-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
+                  onChange={setSpecialMonth}
                 />
                 <label className="flex items-center gap-2 pt-1 text-xs text-[var(--text-primary)]">
                   <input
@@ -509,15 +508,13 @@ export function LoanAdjustmentSimulator({
                   >
                     Startmonat
                   </label>
-                  <input
+                  <MonthPicker
                     id={`rate-month-${contract.id}`}
-                    type="month"
                     min={defaultNextMonth}
                     max={latestChangeMonth}
                     disabled={rateDisabled}
                     value={safeRateStartMonth}
-                    onChange={(e) => setRateStartMonth(e.target.value)}
-                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-sm tabular-nums text-[var(--text-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
+                    onChange={setRateStartMonth}
                   />
                   {corridor.remainingChanges !== null ? (
                     <p className="tabular-nums text-[11px] text-[var(--text-secondary)]">

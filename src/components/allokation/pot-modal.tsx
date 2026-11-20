@@ -18,6 +18,7 @@ import {
 import type { PotLinkOption } from "@/lib/domain/pot-sync";
 import type { PotRuleType } from "@/lib/domain/waterfall";
 import type { PotPurpose } from "@/lib/validation/allocation";
+import { DatePicker } from "@/components/ui/date-picker";
 
 interface PotModalProps {
   open: boolean;
@@ -595,16 +596,14 @@ function PotModalInner({
               ) : (
                 <>
                   <Label htmlFor="pot-target-date">Zieldatum</Label>
-                  <Input
+                  <DatePicker
                     id="pot-target-date"
-                    type="date"
                     value={targetDate}
-                    onChange={(e) => {
-                      setTargetDate(e.target.value);
+                    onChange={(next) => {
+                      setTargetDate(next);
                       setTargetDateTouched(true);
                       setPrefilledFromContractName(null);
                     }}
-                    className="tabular-nums"
                     hasError={Boolean(errors.targetDate)}
                   />
                   {prefilledFromContractName ? (

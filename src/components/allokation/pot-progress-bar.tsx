@@ -24,7 +24,7 @@ export function PotProgressBar({ bar, deadlineStatus }: PotProgressBarProps) {
 
   return (
     <div
-      className="flex h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-elevated)]"
+      className="flex h-1.5 w-full meter overflow-hidden rounded-full bg-[var(--surface-elevated)]"
       title={previewText}
     >
       <div

@@ -408,7 +408,7 @@ export function AllokationWorkspace({
       {/* Kopfbereich */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">
+          <h1 className="page-title">
             Cashflow &amp; Wasserfall
           </h1>
           <p className="text-sm text-[var(--text-secondary)]">
@@ -731,7 +731,7 @@ export function AllokationWorkspace({
           </div>
 
           {householdData.household.categoriesBreakdown.length > 0 ? (
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)]">
               <button
                 type="button"
                 onClick={() => setBreakdownOpen((prev) => !prev)}

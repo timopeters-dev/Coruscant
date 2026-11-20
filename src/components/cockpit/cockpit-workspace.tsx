@@ -15,7 +15,10 @@ import {
   ArrowRight,
   CalendarClock,
   FileText,
+  Landmark,
   RefreshCw,
+  Sparkle,
+  Wallet,
 } from "lucide-react";
 import { AdvisorReportDialog } from "@/components/bericht/advisor-report-dialog";
 import { BalanceBar } from "@/components/cockpit/balance-bar";
@@ -24,6 +27,7 @@ import { cockpitHistoryRangeStore } from "@/components/cockpit/history-range-sto
 import { NetWorthHistoryCard } from "@/components/cockpit/net-worth-history-card";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
+import { KpiCard } from "@/components/ui/kpi-card";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -344,7 +348,7 @@ export function CockpitWorkspace({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">
+          <h1 className="page-title">
             Haushalts-Cockpit
           </h1>
           <p className="text-sm text-[var(--text-secondary)]">
@@ -421,24 +425,16 @@ export function CockpitWorkspace({
         </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card
-          className={
-            hasModeledAssets
-              ? "border-dashed border-[var(--border-sub)]"
-              : undefined
-          }
+      <div className="stagger grid gap-4 md:grid-cols-3">
+        <KpiCard
+          label="Aktiva"
+          icon={Wallet}
+          tone="positive"
+          value={balance.totalAssetsCents}
+          format={formatCentsDE}
+          modeled={hasModeledAssets}
+          badge={hasModeledAssets ? <StatusBadge variant="modeled" /> : null}
         >
-          <CardHeader>
-            <div className="flex items-center justify-between gap-2">
-              <CardDescription>Aktiva</CardDescription>
-              {hasModeledAssets ? <StatusBadge variant="modeled" /> : null}
-            </div>
-            <CardTitle className="tabular-nums text-2xl text-[var(--text-primary)]">
-              {formatCentsDE(balance.totalAssetsCents)}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
             <p className="tabular-nums text-xs text-[var(--text-secondary)]">
               Frei: {formatCentsDE(balance.freeAssetsCents)} · Gebunden:{" "}
               {formatCentsDE(balance.boundAssetsCents)}
@@ -480,44 +476,30 @@ export function CockpitWorkspace({
                 />
               </div>
             ) : null}
-          </CardContent>
-        </Card>
+        </KpiCard>
 
-        <Card
-          className={
-            hasModeledLiabilities
-              ? "border-dashed border-[var(--border-sub)]"
-              : undefined
-          }
-        >
-          <CardHeader>
-            <div className="flex items-center justify-between gap-2">
-              <CardDescription>Passiva</CardDescription>
-              {hasModeledLiabilities ? <StatusBadge variant="modeled" /> : null}
-            </div>
-            <CardTitle className={`tabular-nums text-2xl ${liabilitiesClass}`}>
-              {formatCentsDE(balance.liabilitiesCents)}
-            </CardTitle>
-          </CardHeader>
-        </Card>
+        <KpiCard
+          label="Passiva"
+          icon={Landmark}
+          tone="negative"
+          value={balance.liabilitiesCents}
+          format={formatCentsDE}
+          valueClassName={liabilitiesClass}
+          modeled={hasModeledLiabilities}
+          badge={hasModeledLiabilities ? <StatusBadge variant="modeled" /> : null}
+        />
 
-        <Card
-          className={
-            hasModeledNetWorth
-              ? "border-dashed border-[var(--border-sub)]"
-              : undefined
-          }
-        >
-          <CardHeader>
-            <div className="flex items-center justify-between gap-2">
-              <CardDescription>Nettovermögen</CardDescription>
-              {hasModeledNetWorth ? <StatusBadge variant="modeled" /> : null}
-            </div>
-            <CardTitle className={`tabular-nums text-2xl ${netWorthClass}`}>
-              {formatCentsDE(balance.netWorthCents)}
-            </CardTitle>
-          </CardHeader>
-        </Card>
+        <KpiCard
+          label="Nettovermögen"
+          icon={Sparkle}
+          tone={balance.netWorthCents >= 0 ? "accent" : "negative"}
+          hero
+          value={balance.netWorthCents}
+          format={formatCentsDE}
+          valueClassName={netWorthClass}
+          modeled={hasModeledNetWorth}
+          badge={hasModeledNetWorth ? <StatusBadge variant="modeled" /> : null}
+        />
       </div>
 
       <NetWorthHistoryCard
@@ -583,7 +565,7 @@ export function CockpitWorkspace({
                 {milestones.items.map((item) => (
                   <li
                     key={`${item.contractId}-${item.kind}-${item.date}`}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-sub)] bg-[var(--surface-elevated)]/40 px-3.5 py-2.5"
+                    className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]/45 shadow-[inset_0_1px_0_0_var(--hairline-highlight)] px-3.5 py-2.5"
                   >
                     <div className="min-w-0 space-y-0.5">
                       <div className="flex flex-wrap items-center gap-2">
@@ -686,7 +668,7 @@ export function CockpitWorkspace({
                 {topPots.map((pot, index) => (
                   <li
                     key={pot.id}
-                    className="space-y-2 rounded-lg border border-[var(--border-sub)] bg-[var(--surface-elevated)]/40 px-3.5 py-2.5"
+                    className="space-y-2 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]/45 shadow-[inset_0_1px_0_0_var(--hairline-highlight)] px-3.5 py-2.5"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-2">
@@ -708,7 +690,7 @@ export function CockpitWorkspace({
                     </div>
 
                     {pot.cappedProgressBps !== null ? (
-                      <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--surface-elevated)]">
+                      <div className="h-2 w-full meter overflow-hidden rounded-full bg-[var(--surface-elevated)]">
                         <div
                           className={`h-full rounded-full transition-all ${
                             pot.isTargetReached

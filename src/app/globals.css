@@ -2,6 +2,12 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ------------------------------------------------------------------------- */
+/* Design-Tokens – „Quiet Galactic Precision“                                 */
+/* Basis- und Semantikfarben gemäß docs/DESIGN-SYSTEM.md; ergänzt um Tiefe    */
+/* (Schatten), Fokus-Glow, Glas-Flächen und Motion.                           */
+/* ------------------------------------------------------------------------- */
+
 :root {
   --bg: #f8fafc;
   --surface: #ffffff;
@@ -10,12 +16,38 @@
   --border-sub: #cbd5e1;
   --text-primary: #0f172a;
   --text-secondary: #475569;
+  --text-muted: #94a3b8;
   --accent: #4f46e5;
+  --accent-strong: #4338ca;
   --accent-foreground: #ffffff;
   --amber: #d97706;
   --emerald: #059669;
   --rose: #e11d48;
   --sky: #0284c7;
+
+  --accent-soft: color-mix(in srgb, var(--accent) 9%, transparent);
+  --surface-glass: rgb(255 255 255 / 0.72);
+  --surface-overlay: rgb(255 255 255 / 0.9);
+  --backdrop: rgb(15 23 42 / 0.28);
+  --hairline-highlight: rgb(255 255 255 / 0.9);
+
+  --shadow-xs: 0 1px 2px rgb(15 23 42 / 0.04);
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.04), 0 2px 6px -2px rgb(15 23 42 / 0.05);
+  --shadow-md: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -8px rgb(15 23 42 / 0.12);
+  --shadow-lg: 0 2px 4px rgb(15 23 42 / 0.04), 0 24px 56px -16px rgb(15 23 42 / 0.22);
+  --shadow-accent: 0 1px 2px rgb(67 56 202 / 0.25), 0 6px 16px -6px rgb(79 70 229 / 0.45);
+  --ring-glow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  --ring-glow-danger: 0 0 0 3px color-mix(in srgb, var(--rose) 22%, transparent);
+
+  --glow-a: rgb(99 102 241 / 0.10);
+  --glow-b: rgb(56 189 248 / 0.06);
+  --grid-dot: rgb(15 23 42 / 0.05);
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 140ms;
+  --dur: 220ms;
+  --dur-slow: 420ms;
 }
 
 .dark {
@@ -26,12 +58,30 @@
   --border-sub: #334155;
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
+  --text-muted: #64748b;
   --accent: #6366f1;
+  --accent-strong: #818cf8;
   --accent-foreground: #ffffff;
   --amber: #f59e0b;
   --emerald: #34d399;
   --rose: #fb7185;
   --sky: #38bdf8;
+
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --surface-glass: rgb(11 17 32 / 0.66);
+  --surface-overlay: rgb(17 24 39 / 0.92);
+  --backdrop: rgb(2 6 23 / 0.62);
+  --hairline-highlight: rgb(255 255 255 / 0.045);
+
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.35), 0 4px 12px -4px rgb(0 0 0 / 0.35);
+  --shadow-md: 0 1px 2px rgb(0 0 0 / 0.35), 0 12px 28px -10px rgb(0 0 0 / 0.55);
+  --shadow-lg: 0 2px 6px rgb(0 0 0 / 0.4), 0 28px 64px -18px rgb(0 0 0 / 0.7);
+  --shadow-accent: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 22px -8px rgb(99 102 241 / 0.6);
+
+  --glow-a: rgb(99 102 241 / 0.16);
+  --glow-b: rgb(56 189 248 / 0.07);
+  --grid-dot: rgb(148 163 184 / 0.07);
 }
 
 @media print {
@@ -80,17 +130,37 @@
     --border-sub: #cbd5e1;
     --text-primary: #0f172a;
     --text-secondary: #475569;
+    --text-muted: #94a3b8;
     --accent: #4f46e5;
+    --accent-strong: #4338ca;
     --accent-foreground: #ffffff;
     --amber: #d97706;
     --emerald: #059669;
     --rose: #e11d48;
     --sky: #0284c7;
+    --surface-glass: #ffffff;
+    --shadow-xs: none;
+    --shadow-sm: none;
+    --shadow-md: none;
+    --shadow-lg: none;
+    --shadow-accent: none;
+    --hairline-highlight: transparent;
   }
 
   body {
-    background-color: #ffffff !important;
+    background: #ffffff !important;
     color: #0f172a !important;
+  }
+
+  .ambient-backdrop {
+    display: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
   }
 }
 
@@ -100,6 +170,10 @@
     color: var(--text-primary);
     font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
       BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-feature-settings: "cv11", "ss03";
+    -webkit-tap-highlight-color: transparent;
+    scrollbar-color: var(--border-sub) transparent;
+    scrollbar-gutter: stable;
   }
 
   body {
@@ -107,8 +181,500 @@
     color: var(--text-primary);
     min-height: 100vh;
   }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 24%, transparent);
+  }
+
+  * {
+    scrollbar-width: thin;
+  }
+
+  /* --- Native Form-Controls, systemweit im Look der App ------------------ */
+
+  input[type="checkbox"],
+  input[type="radio"] {
+    --control: var(--accent);
+    appearance: none;
+    flex-shrink: 0;
+    display: inline-grid;
+    place-content: center;
+    width: 1rem;
+    height: 1rem;
+    margin: 0;
+    border: 1px solid var(--border-sub);
+    border-radius: 0.3rem;
+    background-color: var(--surface);
+    box-shadow: var(--shadow-xs);
+    cursor: pointer;
+    transition:
+      background-color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out),
+      box-shadow var(--dur-fast) var(--ease-out);
+  }
+
+  input[type="checkbox"][class*="h-3.5"] {
+    width: 0.875rem;
+    height: 0.875rem;
+  }
+
+  input[type="radio"] {
+    border-radius: 9999px;
+  }
+
+  input[type="checkbox"][class*="--amber"],
+  input[type="radio"][class*="--amber"] {
+    --control: var(--amber);
+  }
+
+  input[type="checkbox"]::before {
+    content: "";
+    width: 0.65em;
+    height: 0.65em;
+    background-color: var(--accent-foreground);
+    clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+    transform: scale(0);
+    transition: transform var(--dur) var(--ease-out);
+  }
+
+  input[type="radio"]::before {
+    content: "";
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 9999px;
+    background-color: var(--accent-foreground);
+    transform: scale(0);
+    transition: transform var(--dur) var(--ease-out);
+  }
+
+  input[type="checkbox"]:hover:not(:disabled),
+  input[type="radio"]:hover:not(:disabled) {
+    border-color: var(--control);
+  }
+
+  input[type="checkbox"]:checked,
+  input[type="radio"]:checked {
+    border-color: var(--control);
+    background-color: var(--control);
+  }
+
+  input[type="checkbox"]:checked::before,
+  input[type="radio"]:checked::before {
+    transform: scale(1);
+  }
+
+  input[type="checkbox"]:focus-visible,
+  input[type="radio"]:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--control) 25%, transparent);
+  }
+
+  input[type="checkbox"]:disabled,
+  input[type="radio"]:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  input[type="range"] {
+    --fill: 50%;
+    appearance: none;
+    height: 1.25rem;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  input[type="range"]::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 9999px;
+    background: linear-gradient(
+      to right,
+      var(--accent) 0 var(--fill),
+      var(--surface-elevated) var(--fill) 100%
+    );
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-sub) 45%, transparent);
+  }
+
+  input[type="range"]::-moz-range-track {
+    height: 6px;
+    border-radius: 9999px;
+    background: var(--surface-elevated);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-sub) 45%, transparent);
+  }
+
+  input[type="range"]::-moz-range-progress {
+    height: 6px;
+    border-radius: 9999px;
+    background: var(--accent);
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    margin-top: -6px;
+    border-radius: 9999px;
+    background: #ffffff;
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border-sub));
+    box-shadow: 0 1px 3px rgb(15 23 42 / 0.25), 0 0 0 0 transparent;
+    transition:
+      transform var(--dur-fast) var(--ease-out),
+      box-shadow var(--dur) var(--ease-out);
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 9999px;
+    background: #ffffff;
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border-sub));
+    box-shadow: 0 1px 3px rgb(15 23 42 / 0.25);
+    transition: transform var(--dur-fast) var(--ease-out);
+  }
+
+  input[type="range"]:hover::-webkit-slider-thumb {
+    transform: scale(1.08);
+  }
+
+  input[type="range"]:active::-webkit-slider-thumb {
+    transform: scale(1.15);
+  }
+
+  input[type="range"]:focus-visible {
+    outline: none;
+  }
+
+  input[type="range"]:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 1px 3px rgb(15 23 42 / 0.25), var(--ring-glow);
+  }
+
+  input[type="range"]:focus-visible::-moz-range-thumb {
+    box-shadow: 0 1px 3px rgb(15 23 42 / 0.25), var(--ring-glow);
+  }
+
+  input[type="range"]:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  /* Native Datumsfelder (Fallback, falls noch irgendwo verwendet) */
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="month"]::-webkit-calendar-picker-indicator {
+    opacity: 0.55;
+    cursor: pointer;
+  }
+
+  .dark input[type="date"],
+  .dark input[type="month"] {
+    color-scheme: dark;
+  }
+
+  /* Tabellen: ruhiger Hover, präzise Zahlen */
+  tbody tr {
+    transition: background-color var(--dur-fast) var(--ease-out);
+  }
 }
+
+/* ------------------------------------------------------------------------- */
+/* Utilities                                                                  */
+/* ------------------------------------------------------------------------- */
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* Erhöhte Fläche: Karte mit weichem Schatten und feiner Oberkanten-Lichtkante */
+@utility surface-raised {
+  background-color: var(--surface);
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--text-primary) 1.2%, transparent),
+    transparent 40%
+  );
+  box-shadow: var(--shadow-sm), inset 0 1px 0 0 var(--hairline-highlight);
+}
+
+/* Eingelassene Fläche: Listenzeilen und Sub-Container innerhalb von Karten */
+@utility surface-inset {
+  background-color: color-mix(in srgb, var(--surface-elevated) 45%, transparent);
+  box-shadow: inset 0 1px 0 0 var(--hairline-highlight);
+}
+
+/* Glas: Header, Navigation, Overlays */
+@utility surface-glass {
+  background-color: var(--surface-glass);
+  backdrop-filter: saturate(1.6) blur(16px);
+  -webkit-backdrop-filter: saturate(1.6) blur(16px);
+}
+
+@utility focus-glow {
+  outline: none;
+  box-shadow: var(--ring-glow);
+}
+
+@utility text-gradient {
+  background-image: linear-gradient(
+    180deg,
+    var(--text-primary) 30%,
+    color-mix(in srgb, var(--text-primary) 62%, var(--text-secondary))
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Feiner Eyebrow-Label über Kennzahlen und Abschnitten */
+@utility eyebrow {
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* ------------------------------------------------------------------------- */
+/* Ambient-Hintergrund – statisch, kein Flackern                              */
+/* ------------------------------------------------------------------------- */
+
+.ambient-backdrop {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.ambient-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: -20% -10% auto;
+  height: 720px;
+  background:
+    radial-gradient(48% 60% at 22% 18%, var(--glow-a), transparent 70%),
+    radial-gradient(42% 52% at 82% 6%, var(--glow-b), transparent 72%);
+  filter: blur(8px);
+}
+
+.ambient-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: linear-gradient(180deg, black, transparent 520px);
+  -webkit-mask-image: linear-gradient(180deg, black, transparent 520px);
+}
+
+/* ------------------------------------------------------------------------- */
+/* Motion                                                                     */
+/* ------------------------------------------------------------------------- */
+
+@keyframes enter-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes enter-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes enter-pop {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -4px, 0) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes draw-line {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes grow-y {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+.page-enter {
+  animation: enter-rise var(--dur-slow) var(--ease-out) both;
+}
+
+/* Gestaffeltes Einblenden direkter Kinder (Karten-Raster, Listen) */
+.stagger > * {
+  animation: enter-rise 520ms var(--ease-out) both;
+}
+.stagger > *:nth-child(1) { animation-delay: 30ms; }
+.stagger > *:nth-child(2) { animation-delay: 80ms; }
+.stagger > *:nth-child(3) { animation-delay: 130ms; }
+.stagger > *:nth-child(4) { animation-delay: 180ms; }
+.stagger > *:nth-child(5) { animation-delay: 230ms; }
+.stagger > *:nth-child(6) { animation-delay: 280ms; }
+.stagger > *:nth-child(n + 7) { animation-delay: 320ms; }
+
+.animate-pop {
+  animation: enter-pop var(--dur) var(--ease-out) both;
+}
+
+.animate-fade {
+  animation: enter-fade var(--dur) var(--ease-out) both;
+}
+
+/* Linien zeichnen sich beim ersten Rendern ein (pathLength="1") */
+.chart-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: draw-line 1100ms var(--ease-out) both;
+}
+
+.chart-fade {
+  animation: enter-fade 900ms var(--ease-out) 250ms both;
+}
+
+.grow-x {
+  transform-origin: left center;
+  animation: grow-x 900ms var(--ease-out) both;
+}
+
+.grow-y {
+  transform-box: fill-box;
+  transform-origin: bottom center;
+  animation: grow-y 700ms var(--ease-out) both;
+}
+
+.skeleton {
+  border-radius: 0.5rem;
+  background: linear-gradient(
+    90deg,
+    var(--surface-elevated) 0%,
+    color-mix(in srgb, var(--surface-elevated) 40%, var(--surface)) 50%,
+    var(--surface-elevated) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+/* DayPicker im App-Look */
+.coruscant-calendar {
+  --rdp-accent-color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Seitentitel: ruhige Display-Typografie mit feinem Tiefenverlauf */
+.page-title {
+  font-size: 1.625rem;
+  line-height: 1.15;
+  font-weight: 650;
+  letter-spacing: -0.028em;
+  background-image: linear-gradient(
+    180deg,
+    var(--text-primary) 35%,
+    color-mix(in srgb, var(--text-primary) 70%, var(--text-secondary))
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@media (min-width: 640px) {
+  .page-title {
+    font-size: 1.875rem;
+  }
+}
+
+@media print {
+  .page-title {
+    background: none;
+    color: #0f172a;
+    font-size: 1.5rem;
+  }
+}
+
+/* Tabellen: dezenter Zeilen-Hover, Kopfzeile ruhig */
+@media (hover: hover) {
+  tbody tr:hover > td {
+    background-color: color-mix(in srgb, var(--surface-elevated) 50%, transparent);
+  }
+}
+
+thead th {
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+/* Fortschritts-/Anteilsbalken: Einblenden von links, weiche Wertänderung */
+@keyframes meter-reveal {
+  from {
+    clip-path: inset(0 100% 0 0 round 9999px);
+  }
+  to {
+    clip-path: inset(0 0 0 0 round 9999px);
+  }
+}
+
+.meter {
+  box-shadow: inset 0 1px 2px rgb(15 23 42 / 0.07);
+  animation: meter-reveal 1000ms var(--ease-out) 120ms both;
+}
+
+.meter > * {
+  transition:
+    width 650ms var(--ease-out),
+    background-color 200ms var(--ease-out);
 }
