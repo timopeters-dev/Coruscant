@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/frontend/ui/button";
 import { Dialog } from "@/frontend/ui/dialog";
 import { Input } from "@/frontend/ui/input";
+import { TextField } from "@/frontend/ui/field";
 import { Label } from "@/frontend/ui/label";
 import { Select } from "@/frontend/ui/select";
 import type { PotRow } from "@/backend/db/queries/pots";
@@ -377,19 +378,14 @@ function PotModalInner({
           </div>
         ) : null}
 
-        <div className="space-y-1.5">
-          <Label htmlFor="pot-name">Topf-Name *</Label>
-          <Input
-            id="pot-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="z. B. Instandhaltungsrücklage Musterstraße 1"
-            hasError={Boolean(errors.name)}
-          />
-          {errors.name ? (
-            <p className="text-xs text-[var(--rose)]">{errors.name}</p>
-          ) : null}
-        </div>
+        <TextField
+          id="pot-name"
+          label="Topf-Name *"
+          value={name}
+          onValueChange={setName}
+          error={errors.name}
+          placeholder="z. B. Instandhaltungsrücklage Musterstraße 1"
+        />
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
@@ -433,50 +429,32 @@ function PotModalInner({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="pot-target">
-              Zielwert (€){" "}
-              {ruleType === "fill_to_target" ? "*" : "(optionaler Deckel)"}
-            </Label>
-            <Input
-              id="pot-target"
-              inputMode="decimal"
-              value={targetEuro}
-              onChange={(e) => {
-                const next = e.target.value;
-                setTargetEuro(next);
-                if (next.trim().length === 0) {
-                  setTargetDate("");
-                  setPrefilledFromContractName(null);
-                }
-              }}
-              placeholder="z. B. 10.000,00"
-              className="tabular-nums"
-              hasError={Boolean(errors.targetEuro)}
-            />
-            {errors.targetEuro ? (
-              <p className="text-xs text-[var(--rose)]">{errors.targetEuro}</p>
-            ) : null}
-          </div>
+          <TextField
+            id="pot-target"
+            label={<>Zielwert (€) {ruleType === "fill_to_target" ? "*" : "(optionaler Deckel)"}</>}
+            value={targetEuro}
+            onValueChange={(next) => {
+              setTargetEuro(next);
+              if (next.trim().length === 0) {
+                setTargetDate("");
+                setPrefilledFromContractName(null);
+              }
+            }}
+            error={errors.targetEuro}
+            numeric="decimal"
+            placeholder="z. B. 10.000,00"
+          />
 
           {ruleType === "fixed_monthly" ? (
-            <div className="space-y-1.5">
-              <Label htmlFor="pot-fixed">Fester Monatsbetrag (€) *</Label>
-              <Input
-                id="pot-fixed"
-                inputMode="decimal"
-                value={fixedMonthlyEuro}
-                onChange={(e) => setFixedMonthlyEuro(e.target.value)}
-                placeholder="z. B. 250,00"
-                className="tabular-nums"
-                hasError={Boolean(errors.fixedMonthlyEuro)}
-              />
-              {errors.fixedMonthlyEuro ? (
-                <p className="text-xs text-[var(--rose)]">
-                  {errors.fixedMonthlyEuro}
-                </p>
-              ) : null}
-            </div>
+            <TextField
+              id="pot-fixed"
+              label="Fester Monatsbetrag (€) *"
+              value={fixedMonthlyEuro}
+              onValueChange={setFixedMonthlyEuro}
+              error={errors.fixedMonthlyEuro}
+              numeric="decimal"
+              placeholder="z. B. 250,00"
+            />
           ) : null}
 
           {ruleType === "percentage_of_remainder" ? (

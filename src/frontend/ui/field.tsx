@@ -31,7 +31,7 @@ export function Field({ id, label, error, hint, className, children }: FieldProp
 export interface TextFieldProps extends Omit<FieldProps, "children">, Omit<InputProps, "id" | "value" | "onChange" | "className"> {
   value: string;
   onValueChange: (value: string) => void;
-  /** Zahlen-Eingabe: Ziffernblock und Tabellenziffern. */
+  /** Zahlen-Eingabe mit Ziffernblock. */
   numeric?: "decimal" | "numeric";
 }
 
@@ -44,7 +44,7 @@ export function TextField({ id, label, error, hint, className, value, onValueCha
         onChange={(e) => onValueChange(e.target.value)}
         hasError={Boolean(error)}
         inputMode={numeric}
-        className={numeric ? "tabular-nums" : undefined}
+        className="tabular-nums"
         {...inputProps}
       />
     </Field>

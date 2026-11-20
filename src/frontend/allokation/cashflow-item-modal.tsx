@@ -4,6 +4,7 @@ import * as React from "react";
 import { Button } from "@/frontend/ui/button";
 import { Dialog } from "@/frontend/ui/dialog";
 import { Input } from "@/frontend/ui/input";
+import { TextField } from "@/frontend/ui/field";
 import { Label } from "@/frontend/ui/label";
 import { Select } from "@/frontend/ui/select";
 import { InfoTip } from "@/frontend/ui/info-tip";
@@ -166,19 +167,14 @@ function CashflowItemModalInner({
           </div>
         ) : null}
 
-        <div className="space-y-1.5">
-          <Label htmlFor="cf-name">Bezeichnung *</Label>
-          <Input
-            id="cf-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="z. B. Haushalts-Nettoeinkommen"
-            hasError={Boolean(errors.name)}
-          />
-          {errors.name ? (
-            <p className="text-xs text-[var(--rose)]">{errors.name}</p>
-          ) : null}
-        </div>
+        <TextField
+          id="cf-name"
+          label="Bezeichnung *"
+          value={name}
+          onValueChange={setName}
+          error={errors.name}
+          placeholder="z. B. Haushalts-Nettoeinkommen"
+        />
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
