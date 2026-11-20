@@ -4,6 +4,7 @@ import * as React from "react";
 import { Button } from "@/frontend/ui/button";
 import { Dialog } from "@/frontend/ui/dialog";
 import { Input } from "@/frontend/ui/input";
+import { TextField } from "@/frontend/ui/field";
 import { Label } from "@/frontend/ui/label";
 import { Select } from "@/frontend/ui/select";
 import { StatusBadge } from "@/frontend/ui/status-badge";
@@ -542,24 +543,19 @@ function PropertyModalInner({
             Basis &amp; Bewertung
           </p>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="property-name">Bezeichnung *</Label>
-            <Input
-              id="property-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={
+          <TextField
+            id="property-name"
+            label="Bezeichnung *"
+            value={name}
+            onValueChange={setName}
+            error={errors.name}
+            placeholder={
                 activeDraft
                   ? "z. B. Wohnung Musterstraße 1"
                   : "z. B. Immobilie #0 (Musterstraße 1)"
               }
-              hasError={Boolean(errors.name)}
-              disabled={isSubmitting}
-            />
-            {errors.name ? (
-              <p className="text-xs text-[var(--rose)]">{errors.name}</p>
-            ) : null}
-          </div>
+            disabled={isSubmitting}
+          />
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -619,26 +615,16 @@ function PropertyModalInner({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="property-purchase-price">
-                Kaufpreis in € (optional)
-              </Label>
-              <Input
-                id="property-purchase-price"
-                inputMode="decimal"
-                value={purchasePriceEuro}
-                onChange={(e) => setPurchasePriceEuro(e.target.value)}
-                placeholder="z. B. 450000,00"
-                hasError={Boolean(errors.purchasePriceEuro)}
-                disabled={isSubmitting}
-                className="tabular-nums"
-              />
-              {errors.purchasePriceEuro ? (
-                <p className="text-xs text-[var(--rose)]">
-                  {errors.purchasePriceEuro}
-                </p>
-              ) : null}
-            </div>
+            <TextField
+              id="property-purchase-price"
+              label="Kaufpreis in € (optional)"
+              value={purchasePriceEuro}
+              onValueChange={setPurchasePriceEuro}
+              error={errors.purchasePriceEuro}
+              numeric="decimal"
+              placeholder="z. B. 450000,00"
+              disabled={isSubmitting}
+            />
 
             <div className="space-y-1.5">
               <Label htmlFor="property-estimated-value">
@@ -712,26 +698,16 @@ function PropertyModalInner({
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="property-cold-rent">
-                  Kaltmiete / Monat in €
-                </Label>
-                <Input
-                  id="property-cold-rent"
-                  inputMode="decimal"
-                  value={monthlyColdRentEuro}
-                  onChange={(e) => setMonthlyColdRentEuro(e.target.value)}
-                  placeholder="z. B. 800,00"
-                  hasError={Boolean(errors.monthlyColdRentEuro)}
-                  disabled={isSubmitting}
-                  className="tabular-nums"
-                />
-                {errors.monthlyColdRentEuro ? (
-                  <p className="text-xs text-[var(--rose)]">
-                    {errors.monthlyColdRentEuro}
-                  </p>
-                ) : null}
-              </div>
+              <TextField
+                id="property-cold-rent"
+                label="Kaltmiete / Monat in €"
+                value={monthlyColdRentEuro}
+                onValueChange={setMonthlyColdRentEuro}
+                error={errors.monthlyColdRentEuro}
+                numeric="decimal"
+                placeholder="z. B. 800,00"
+                disabled={isSubmitting}
+              />
 
               <div className="space-y-1.5">
                 <Label htmlFor="property-non-recoverable">
@@ -820,73 +796,47 @@ function PropertyModalInner({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="property-street">Straße</Label>
-              <Input
-                id="property-street"
-                value={street}
-                onChange={(e) => setStreet(e.target.value)}
-                placeholder="z. B. Musterstraße"
-                hasError={Boolean(errors.street)}
-                disabled={isSubmitting}
-              />
-              {errors.street ? (
-                <p className="text-xs text-[var(--rose)]">{errors.street}</p>
-              ) : null}
-            </div>
+            <TextField
+              id="property-street"
+              label="Straße"
+              value={street}
+              onValueChange={setStreet}
+              error={errors.street}
+              placeholder="z. B. Musterstraße"
+              disabled={isSubmitting}
+            />
 
-            <div className="space-y-1.5">
-              <Label htmlFor="property-house-number">Hausnummer</Label>
-              <Input
-                id="property-house-number"
-                value={houseNumber}
-                onChange={(e) => setHouseNumber(e.target.value)}
-                placeholder="z. B. 12a"
-                hasError={Boolean(errors.houseNumber)}
-                disabled={isSubmitting}
-                className="tabular-nums"
-              />
-              {errors.houseNumber ? (
-                <p className="text-xs text-[var(--rose)]">
-                  {errors.houseNumber}
-                </p>
-              ) : null}
-            </div>
+            <TextField
+              id="property-house-number"
+              label="Hausnummer"
+              value={houseNumber}
+              onValueChange={setHouseNumber}
+              error={errors.houseNumber}
+              placeholder="z. B. 12a"
+              disabled={isSubmitting}
+            />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="property-postal-code">PLZ</Label>
-              <Input
-                id="property-postal-code"
-                value={postalCode}
-                onChange={(e) => setPostalCode(e.target.value)}
-                placeholder="z. B. 12345"
-                hasError={Boolean(errors.postalCode)}
-                disabled={isSubmitting}
-                className="tabular-nums"
-              />
-              {errors.postalCode ? (
-                <p className="text-xs text-[var(--rose)]">
-                  {errors.postalCode}
-                </p>
-              ) : null}
-            </div>
+            <TextField
+              id="property-postal-code"
+              label="PLZ"
+              value={postalCode}
+              onValueChange={setPostalCode}
+              error={errors.postalCode}
+              placeholder="z. B. 12345"
+              disabled={isSubmitting}
+            />
 
-            <div className="space-y-1.5">
-              <Label htmlFor="property-city">Ort</Label>
-              <Input
-                id="property-city"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                placeholder="z. B. Musterstadt"
-                hasError={Boolean(errors.city)}
-                disabled={isSubmitting}
-              />
-              {errors.city ? (
-                <p className="text-xs text-[var(--rose)]">{errors.city}</p>
-              ) : null}
-            </div>
+            <TextField
+              id="property-city"
+              label="Ort"
+              value={city}
+              onValueChange={setCity}
+              error={errors.city}
+              placeholder="z. B. Musterstadt"
+              disabled={isSubmitting}
+            />
           </div>
         </div>
 
@@ -897,83 +847,51 @@ function PropertyModalInner({
           </p>
 
           <div className="grid gap-4 sm:grid-cols-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="property-living-area">Wohnfläche (m²)</Label>
-              <Input
-                id="property-living-area"
-                inputMode="numeric"
-                value={livingAreaSqm}
-                onChange={(e) => setLivingAreaSqm(e.target.value)}
-                placeholder="z. B. 145"
-                hasError={Boolean(errors.livingAreaSqm)}
-                disabled={isSubmitting}
-                className="tabular-nums"
-              />
-              {errors.livingAreaSqm ? (
-                <p className="text-xs text-[var(--rose)]">
-                  {errors.livingAreaSqm}
-                </p>
-              ) : null}
-            </div>
+            <TextField
+              id="property-living-area"
+              label="Wohnfläche (m²)"
+              value={livingAreaSqm}
+              onValueChange={setLivingAreaSqm}
+              error={errors.livingAreaSqm}
+              numeric="numeric"
+              placeholder="z. B. 145"
+              disabled={isSubmitting}
+            />
 
-            <div className="space-y-1.5">
-              <Label htmlFor="property-usable-area">Nutzfläche (m²)</Label>
-              <Input
-                id="property-usable-area"
-                inputMode="numeric"
-                value={usableAreaSqm}
-                onChange={(e) => setUsableAreaSqm(e.target.value)}
-                placeholder="z. B. 40"
-                hasError={Boolean(errors.usableAreaSqm)}
-                disabled={isSubmitting}
-                className="tabular-nums"
-              />
-              {errors.usableAreaSqm ? (
-                <p className="text-xs text-[var(--rose)]">
-                  {errors.usableAreaSqm}
-                </p>
-              ) : null}
-            </div>
+            <TextField
+              id="property-usable-area"
+              label="Nutzfläche (m²)"
+              value={usableAreaSqm}
+              onValueChange={setUsableAreaSqm}
+              error={errors.usableAreaSqm}
+              numeric="numeric"
+              placeholder="z. B. 40"
+              disabled={isSubmitting}
+            />
 
-            <div className="space-y-1.5">
-              <Label htmlFor="property-plot-area">Grundstück (m²)</Label>
-              <Input
-                id="property-plot-area"
-                inputMode="numeric"
-                value={plotAreaSqm}
-                onChange={(e) => setPlotAreaSqm(e.target.value)}
-                placeholder="z. B. 520"
-                hasError={Boolean(errors.plotAreaSqm)}
-                disabled={isSubmitting}
-                className="tabular-nums"
-              />
-              {errors.plotAreaSqm ? (
-                <p className="text-xs text-[var(--rose)]">
-                  {errors.plotAreaSqm}
-                </p>
-              ) : null}
-            </div>
+            <TextField
+              id="property-plot-area"
+              label="Grundstück (m²)"
+              value={plotAreaSqm}
+              onValueChange={setPlotAreaSqm}
+              error={errors.plotAreaSqm}
+              numeric="numeric"
+              placeholder="z. B. 520"
+              disabled={isSubmitting}
+            />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="property-construction-year">Baujahr</Label>
-              <Input
-                id="property-construction-year"
-                inputMode="numeric"
-                value={constructionYear}
-                onChange={(e) => setConstructionYear(e.target.value)}
-                placeholder="z. B. 1998"
-                hasError={Boolean(errors.constructionYear)}
-                disabled={isSubmitting}
-                className="tabular-nums"
-              />
-              {errors.constructionYear ? (
-                <p className="text-xs text-[var(--rose)]">
-                  {errors.constructionYear}
-                </p>
-              ) : null}
-            </div>
+            <TextField
+              id="property-construction-year"
+              label="Baujahr"
+              value={constructionYear}
+              onValueChange={setConstructionYear}
+              error={errors.constructionYear}
+              numeric="numeric"
+              placeholder="z. B. 1998"
+              disabled={isSubmitting}
+            />
 
             <div className="space-y-1.5">
               <Label htmlFor="property-energy-class">

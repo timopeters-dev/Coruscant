@@ -96,6 +96,22 @@ export function ValuationAdjustmentsEditor({
   const [swapNotice, setSwapNotice] = React.useState<string | null>(null);
   const isBusy = disabled || isSavingAdjustments;
 
+  /** Entwurf ändern; Hinweise und offene Rückfragen gelten dann nicht mehr. */
+  function editDraft(update: (rows: AdjustmentDraftRow[]) => AdjustmentDraftRow[]) {
+    setDraftRows(update);
+    setSwapNotice(null);
+    setConfirmingRecompute(null);
+  }
+  const editRow = (idx: number, patch: Partial<AdjustmentDraftRow>) =>
+    editDraft((rows) => rows.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+  function toggleOpen() {
+    if (!adjustmentsOpen) {
+      setDraftRows(toDraftRows(savedAdjustments));
+      setConfirmingRecompute(null);
+    }
+    setAdjustmentsOpen(!adjustmentsOpen);
+  }
+
   const draftValidation = React.useMemo(() => {
     const rowErrors: Record<number, { label?: string; bps?: string }> = {};
     const parsedItems: ValuationAdjustment[] = [];
@@ -265,14 +281,7 @@ export function ValuationAdjustmentsEditor({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <button
             type="button"
-            onClick={() => {
-              const nextOpen = !adjustmentsOpen;
-              if (nextOpen) {
-                setDraftRows(toDraftRows(savedAdjustments));
-                setConfirmingRecompute(null);
-              }
-              setAdjustmentsOpen(nextOpen);
-            }}
+            onClick={toggleOpen}
             className="flex items-center gap-2 text-left font-medium text-[var(--text-primary)] hover:text-[var(--accent)]"
           >
             <span>Eigene Korrektur</span>
@@ -284,14 +293,7 @@ export function ValuationAdjustmentsEditor({
           </button>
           <button
             type="button"
-            onClick={() => {
-              const nextOpen = !adjustmentsOpen;
-              if (nextOpen) {
-                setDraftRows(toDraftRows(savedAdjustments));
-                setConfirmingRecompute(null);
-              }
-              setAdjustmentsOpen(nextOpen);
-            }}
+            onClick={toggleOpen}
             className="text-[var(--text-secondary)] underline underline-offset-2 hover:text-[var(--text-primary)]"
           >
             {adjustmentsOpen ? "Schließen" : "Bearbeiten"}
@@ -436,16 +438,7 @@ export function ValuationAdjustmentsEditor({
                         <input
                           type="text"
                           value={row.label}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setDraftRows((prev) =>
-                              prev.map((r, i) =>
-                                i === idx ? { ...r, label: val } : r,
-                              ),
-                            );
-                            setSwapNotice(null);
-                            setConfirmingRecompute(null);
-                          }}
+                          onChange={(e) => editRow(idx, { label: e.target.value })}
                           placeholder="z. B. Fertighaus"
                           maxLength={60}
                           disabled={isBusy}
@@ -456,16 +449,7 @@ export function ValuationAdjustmentsEditor({
                         <input
                           type="text"
                           value={row.percentText}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setDraftRows((prev) =>
-                              prev.map((r, i) =>
-                                i === idx ? { ...r, percentText: val } : r,
-                              ),
-                            );
-                            setSwapNotice(null);
-                            setConfirmingRecompute(null);
-                          }}
+                          onChange={(e) => editRow(idx, { percentText: e.target.value })}
                           placeholder="-10,00"
                           disabled={isBusy}
                           className="w-24 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-right text-xs text-[var(--text-primary)] tabular-nums focus:border-[var(--accent)] focus:outline-none"
@@ -476,23 +460,7 @@ export function ValuationAdjustmentsEditor({
                         <button
                           type="button"
                           disabled={isBusy}
-                          onClick={() => {
-                            setDraftRows((prev) =>
-                              prev.map((r, i) =>
-                                i === idx
-                                  ? {
-                                      ...r,
-                                      percentText: bpsToPercentInputString(
-                                        catalogItem.suggestedBps,
-                                        { allowNegative: true },
-                                      ),
-                                    }
-                                  : r,
-                              ),
-                            );
-                            setSwapNotice(null);
-                            setConfirmingRecompute(null);
-                          }}
+                          onClick={() => editRow(idx, { percentText: bpsToPercentInputString(catalogItem.suggestedBps, { allowNegative: true }) })}
                           className="text-2xs text-[var(--accent)] underline underline-offset-2 hover:opacity-80"
                         >
                           Richtwert
@@ -503,13 +471,7 @@ export function ValuationAdjustmentsEditor({
                         variant="outline"
                         size="sm"
                         disabled={isBusy}
-                        onClick={() => {
-                          setDraftRows((prev) =>
-                            prev.filter((_, i) => i !== idx),
-                          );
-                          setSwapNotice(null);
-                          setConfirmingRecompute(null);
-                        }}
+                        onClick={() => editDraft((rows) => rows.filter((_, i) => i !== idx))}
                       >
                         Entfernen
                       </Button>

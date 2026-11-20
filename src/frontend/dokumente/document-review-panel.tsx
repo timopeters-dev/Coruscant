@@ -14,7 +14,7 @@ import { StatusBadge } from "@/frontend/ui/status-badge";
 import { Badge } from "@/frontend/ui/badge";
 import { Button } from "@/frontend/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/frontend/ui/card";
-import { Input } from "@/frontend/ui/input";
+import { TextField } from "@/frontend/ui/field";
 import { Label } from "@/frontend/ui/label";
 import { Select } from "@/frontend/ui/select";
 import {
@@ -749,26 +749,21 @@ function DocumentReviewSplitView({
             </div>
 
             <div className="grid gap-3 @md:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="doc-issuer">Aussteller / Bank</Label>
-                <Input
-                  id="doc-issuer"
-                  placeholder="z. B. Musterbank"
-                  value={issuer}
-                  onChange={(e) => setIssuer(e.target.value)}
-                />
-              </div>
+              <TextField
+                id="doc-issuer"
+                label="Aussteller / Bank"
+                value={issuer}
+                onValueChange={setIssuer}
+                placeholder="z. B. Musterbank"
+              />
 
-              <div className="space-y-1.5">
-                <Label htmlFor="doc-total">Gesamtbetrag (€)</Label>
-                <Input
-                  id="doc-total"
-                  placeholder="z. B. 1.250,00"
-                  className="tabular-nums"
-                  value={totalAmountInput}
-                  onChange={(e) => setTotalAmountInput(e.target.value)}
-                />
-              </div>
+              <TextField
+                id="doc-total"
+                label="Gesamtbetrag (€)"
+                value={totalAmountInput}
+                onValueChange={setTotalAmountInput}
+                placeholder="z. B. 1.250,00"
+              />
             </div>
 
             <div className="space-y-2">
@@ -899,18 +894,15 @@ function DocumentReviewSplitView({
 
               {isTaxRelevant ? (
                 <div className="grid gap-3 @md:grid-cols-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="doc-tax-year">Steuerjahr</Label>
-                    <Input
-                      id="doc-tax-year"
-                      type="number"
-                      min={1900}
-                      max={2100}
-                      className="tabular-nums"
-                      value={taxYearInput}
-                      onChange={(e) => setTaxYearInput(e.target.value)}
-                    />
-                  </div>
+                  <TextField
+                    id="doc-tax-year"
+                    label="Steuerjahr"
+                    value={taxYearInput}
+                    onValueChange={setTaxYearInput}
+                    type="number"
+                    min={1900}
+                    max={2100}
+                  />
 
                   <div className="space-y-1.5 @md:col-span-2">
                     <Label htmlFor="doc-tax-category">Steuer-Kategorie</Label>
@@ -930,18 +922,14 @@ function DocumentReviewSplitView({
                     </Select>
                   </div>
 
-                  <div className="space-y-1.5 @md:col-span-3">
-                    <Label htmlFor="doc-deductible">
-                      Absetzbarer Betrag / Lohnanteil (€)
-                    </Label>
-                    <Input
-                      id="doc-deductible"
-                      placeholder="z. B. 840,00"
-                      className="tabular-nums"
-                      value={deductibleAmountInput}
-                      onChange={(e) => setDeductibleAmountInput(e.target.value)}
-                    />
-                  </div>
+                  <TextField
+                    id="doc-deductible"
+                    label="Absetzbarer Betrag / Lohnanteil (€)"
+                    value={deductibleAmountInput}
+                    onValueChange={setDeductibleAmountInput}
+                    className="@md:col-span-3"
+                    placeholder="z. B. 840,00"
+                  />
                 </div>
               ) : null}
             </div>
@@ -960,34 +948,28 @@ function DocumentReviewSplitView({
                 </div>
 
                 <div className="grid gap-3 @md:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="doc-balance">
-                      Erkannter / neuer Stand (€)
-                    </Label>
-                    <Input
-                      id="doc-balance"
-                      placeholder={
+                  <TextField
+                    id="doc-balance"
+                    label="Erkannter / neuer Stand (€)"
+                    value={detectedBalanceInput}
+                    onValueChange={(nextVal) => {
+                      setDetectedBalanceInput(nextVal);
+                      const parsed = nextVal.trim()
+                        ? parseEuroInputToCents(nextVal)
+                        : null;
+                      if (
+                        parsed === null ||
+                        (parsed < 0 && !allowNegativeBalance)
+                      ) {
+                        setCalibrateContract(false);
+                      }
+                    }}
+                    placeholder={
                         allowNegativeBalance
                           ? "z. B. -1.200,00"
                           : "z. B. 295.000,00"
                       }
-                      className="tabular-nums"
-                      value={detectedBalanceInput}
-                      onChange={(e) => {
-                        const nextVal = e.target.value;
-                        setDetectedBalanceInput(nextVal);
-                        const parsed = nextVal.trim()
-                          ? parseEuroInputToCents(nextVal)
-                          : null;
-                        if (
-                          parsed === null ||
-                          (parsed < 0 && !allowNegativeBalance)
-                        ) {
-                          setCalibrateContract(false);
-                        }
-                      }}
-                    />
-                  </div>
+                  />
 
                   <div className="space-y-1.5">
                     <Label htmlFor="doc-cal-date">Eich-Stichtag</Label>
