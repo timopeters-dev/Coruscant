@@ -89,7 +89,7 @@ export function InvestmentCoachCard({
               </span>
             </div>
             <div
-              className="flex h-2.5 w-full overflow-hidden rounded-full bg-[var(--surface-elevated)]"
+              className="flex h-2.5 w-full meter overflow-hidden rounded-full bg-[var(--surface-elevated)]"
               role="img"
               aria-label="Aufteilung nach Asset-Klassen"
             >

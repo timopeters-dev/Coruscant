@@ -1,19 +1,27 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-export const Card = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn(
-      "rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)]",
-      className,
-    )}
-    {...props}
-  />
-));
+/** Grundfläche jeder Karte: feiner Rahmen, weicher Schatten, Lichtkante oben. */
+export const CARD_SURFACE =
+  "rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)]";
+
+/** Zusatz für klickbare Karten: dezentes Anheben beim Hover. */
+export const CARD_INTERACTIVE =
+  "transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-[var(--border-sub)] hover:shadow-[var(--shadow-md),inset_0_1px_0_0_var(--hairline-highlight)] motion-reduce:hover:translate-y-0";
+
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  interactive?: boolean;
+}
+
+export const Card = React.forwardRef<HTMLDivElement, CardProps>(
+  ({ className, interactive = false, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={cn(CARD_SURFACE, interactive && CARD_INTERACTIVE, className)}
+      {...props}
+    />
+  ),
+);
 Card.displayName = "Card";
 
 export const CardHeader = React.forwardRef<

@@ -32,6 +32,7 @@ import {
   resolveItemLabel,
   type RecommendationLabels,
 } from "./recommendation-text";
+import { Select } from "@/components/ui/select";
 
 interface RecommendationAssumptionsFieldsProps {
   assumptions: RecommendationAssumptions;
@@ -143,7 +144,7 @@ export function RecommendationAssumptionsFields({
         >
           Kirchensteuer
         </label>
-        <select
+        <Select
           id={`${idPrefix}-church-tax`}
           value={assumptions.churchTaxBps}
           onChange={(e) =>
@@ -153,14 +154,13 @@ export function RecommendationAssumptionsFields({
               value: Number(e.target.value),
             })
           }
-          className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm tabular-nums"
         >
           {ALLOWED_CHURCH_TAX_BPS.map((bps) => (
             <option key={bps} value={bps}>
               {bps === 0 ? "Keine (0 %)" : `${bps / 100} %`}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {loans.length > 0 ? (

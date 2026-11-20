@@ -1,5 +1,8 @@
 import {
+  Building2,
+  Calculator,
   FileSpreadsheet,
+  Receipt,
   FlaskConical,
   GitFork,
   Inbox,
@@ -15,6 +18,31 @@ export const NAV_ITEMS = [
   { href: "/allokation", label: "Allokation", Icon: GitFork },
   { href: "/planung", label: "Planung", Icon: FlaskConical },
   { href: "/dokumente", label: "Dokumente", Icon: Inbox },
+] as const;
+
+/** Zusätzliche Sprungziele der Befehlspalette (Unterseiten). */
+export const COMMAND_EXTRA_PAGES = [
+  {
+    href: "/vertraege?tab=portfolio",
+    label: "Portfolio",
+    hint: "Vermietete Objekte",
+    keywords: "Vermietung Miete Immobilien",
+    Icon: Building2,
+  },
+  {
+    href: "/planung/kaufrechner",
+    label: "Kaufrechner",
+    hint: "Immobilienkauf simulieren",
+    keywords: "Immobilie Kauf Finanzierung",
+    Icon: Calculator,
+  },
+  {
+    href: "/dokumente/steuer",
+    label: "Steuer-Übersicht",
+    hint: "Jahres-Belegmappe",
+    keywords: "Steuer Belege 35a",
+    Icon: Receipt,
+  },
 ] as const;
 
 export function isNavItemActive(

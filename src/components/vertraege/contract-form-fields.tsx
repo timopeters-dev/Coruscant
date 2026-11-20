@@ -30,6 +30,7 @@ import {
   parseEuroInputToCents,
   parsePercentInputToBps,
 } from "@/lib/domain/money";
+import { DatePicker } from "@/components/ui/date-picker";
 
 export interface ContractFormValues {
   name: string;
@@ -1064,14 +1065,12 @@ export function ContractFormFields({
 
         <div className="space-y-1.5">
           <Label htmlFor={`${idPrefix}-date`}>Geeicht per *</Label>
-          <Input
+          <DatePicker
             id={`${idPrefix}-date`}
-            type="date"
             value={values.balanceAsOfDate}
-            onChange={(e) => updateField("balanceAsOfDate", e.target.value)}
+            onChange={(next) => updateField("balanceAsOfDate", next)}
             hasError={Boolean(errors.balanceAsOfDate)}
             disabled={disabled}
-            className="tabular-nums"
           />
           {errors.balanceAsOfDate ? (
             <p className="text-xs text-[var(--rose)]">
@@ -1149,16 +1148,12 @@ export function ContractFormFields({
               <Label htmlFor={`${idPrefix}-fixed-until`}>
                 Zinsbindung bis (optional)
               </Label>
-              <Input
+              <DatePicker
                 id={`${idPrefix}-fixed-until`}
-                type="date"
                 value={values.fixedInterestUntil}
-                onChange={(e) =>
-                  updateField("fixedInterestUntil", e.target.value)
-                }
+                onChange={(next) => updateField("fixedInterestUntil", next)}
                 hasError={Boolean(errors.fixedInterestUntil)}
                 disabled={disabled}
-                className="tabular-nums"
               />
               {errors.fixedInterestUntil ? (
                 <p className="text-xs text-[var(--rose)]">
@@ -1746,14 +1741,12 @@ export function ContractFormFields({
           <Label htmlFor={`${idPrefix}-milestone-date`}>
             Meilenstein-Datum (optional)
           </Label>
-          <Input
+          <DatePicker
             id={`${idPrefix}-milestone-date`}
-            type="date"
             value={values.milestoneDate}
-            onChange={(e) => updateField("milestoneDate", e.target.value)}
+            onChange={(next) => updateField("milestoneDate", next)}
             hasError={Boolean(errors.milestoneDate)}
             disabled={disabled}
-            className="tabular-nums"
           />
           {errors.milestoneDate ? (
             <p className="text-xs text-[var(--rose)]">

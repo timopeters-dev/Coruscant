@@ -28,6 +28,7 @@ import {
   PROPERTY_ENERGY_CLASS_OPTIONS,
   RENOVATION_KIND_LABELS,
 } from "./labels";
+import { DatePicker } from "@/components/ui/date-picker";
 
 interface PropertyModalProps {
   open: boolean;
@@ -602,14 +603,12 @@ function PropertyModalInner({
               <Label htmlFor="property-purchase-date">
                 Kaufdatum (optional)
               </Label>
-              <Input
+              <DatePicker
                 id="property-purchase-date"
-                type="date"
                 value={purchaseDate}
-                onChange={(e) => setPurchaseDate(e.target.value)}
+                onChange={setPurchaseDate}
                 hasError={Boolean(errors.purchaseDate)}
                 disabled={isSubmitting}
-                className="tabular-nums"
               />
               {errors.purchaseDate ? (
                 <p className="text-xs text-[var(--rose)]">

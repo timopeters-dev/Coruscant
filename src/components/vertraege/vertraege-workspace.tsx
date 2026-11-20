@@ -47,6 +47,14 @@ import {
   PropertyDetailDrawer,
 } from "./property-detail-drawer";
 import { PropertyModal } from "./property-modal";
+import { cn } from "@/lib/utils";
+import {
+  SEGMENT_TRACK,
+  SegmentGroup,
+  SegmentLabel,
+  SegmentPill,
+  segmentItemClass,
+} from "@/components/ui/segmented";
 
 interface VertraegeWorkspaceProps {
   asOfDate: string;
@@ -266,7 +274,7 @@ export function VertraegeWorkspace({
     <div className="space-y-8">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">
+          <h1 className="page-title">
             Verträge &amp; Immobilien
           </h1>
           <p className="text-sm text-[var(--text-secondary)]">
@@ -279,38 +287,34 @@ export function VertraegeWorkspace({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <SegmentGroup>
           <div
             role="tablist"
             aria-label="Ansicht"
-            className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-0.5 text-xs"
+            className={SEGMENT_TRACK}
           >
             <button
               type="button"
               role="tab"
               aria-selected={activeTab === "uebersicht"}
               onClick={() => handleTabChange("uebersicht")}
-              className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
-                activeTab === "uebersicht"
-                  ? "bg-[var(--surface)] text-[var(--text-primary)] shadow-sm"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              }`}
+              className={cn(segmentItemClass(activeTab === "uebersicht"), "px-3 py-1.5")}
             >
-              Übersicht
+              {activeTab === "uebersicht" ? <SegmentPill /> : null}
+              <SegmentLabel>Übersicht</SegmentLabel>
             </button>
             <button
               type="button"
               role="tab"
               aria-selected={activeTab === "portfolio"}
               onClick={() => handleTabChange("portfolio")}
-              className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
-                activeTab === "portfolio"
-                  ? "bg-[var(--surface)] text-[var(--text-primary)] shadow-sm"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              }`}
+              className={cn(segmentItemClass(activeTab === "portfolio"), "px-3 py-1.5")}
             >
-              Portfolio
+              {activeTab === "portfolio" ? <SegmentPill /> : null}
+              <SegmentLabel>Portfolio</SegmentLabel>
             </button>
           </div>
+          </SegmentGroup>
           <Button variant="outline" onClick={openNewPropertyModal}>
             <Plus className="h-4 w-4" />
             Immobilie
@@ -944,7 +948,7 @@ export function VertraegeWorkspace({
                               </div>
                               {progressPct !== null ? (
                                 <div className="w-28 space-y-1">
-                                  <div className="relative h-2 w-full overflow-hidden rounded-full bg-[var(--surface-elevated)]">
+                                  <div className="relative h-2 w-full meter overflow-hidden rounded-full bg-[var(--surface-elevated)]">
                                     <div
                                       className="h-full rounded-full bg-[var(--sky)]"
                                       style={{ width: `${progressPct}%` }}
@@ -1141,7 +1145,7 @@ export function VertraegeWorkspace({
 
                           {ltvPct !== null ? (
                             <div className="mt-3 flex items-center gap-3">
-                              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--surface-elevated)]">
+                              <div className="h-1.5 flex-1 meter overflow-hidden rounded-full bg-[var(--surface-elevated)]">
                                 <div
                                   className="h-full rounded-full bg-[var(--rose)]"
                                   style={{ width: `${ltvPct}%` }}

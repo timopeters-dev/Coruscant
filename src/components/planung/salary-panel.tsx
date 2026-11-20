@@ -29,6 +29,7 @@ import {
   type SalaryAction,
   type SalaryState,
 } from "./planning-state";
+import { MonthPicker } from "@/components/ui/date-picker";
 
 interface SalaryPanelProps {
   state: SalaryState;
@@ -146,19 +147,18 @@ export function SalaryPanel({
           >
             Gilt ab Monat
           </label>
-          <input
+          <MonthPicker
             id="planung-from"
-            type="month"
             value={state.fromMonth}
             min={startMonth}
-            onChange={(e) =>
+            onChange={(next) =>
               dispatch({
                 type: "setFromMonth",
-                value: e.target.value,
+                value: next,
                 startMonth,
               })
             }
-            className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm tabular-nums"
+            className="w-44"
           />
         </div>
       </>

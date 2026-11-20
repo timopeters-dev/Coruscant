@@ -113,7 +113,7 @@ export function BalanceBar({
       <CardContent className="space-y-4">
         {breakdown.hasData ? (
           <div
-            className="flex h-3.5 w-full overflow-hidden rounded-full bg-[var(--surface-elevated)]"
+            className="meter flex h-3.5 w-full gap-[2px] overflow-hidden rounded-full bg-[var(--surface-elevated)]"
             role="img"
             aria-label="Vermögensstruktur Frei, Gebunden und Schulden"
           >
@@ -149,7 +149,7 @@ export function BalanceBar({
             return (
               <div
                 key={seg.key}
-                className="rounded-lg border border-[var(--border-sub)] bg-[var(--surface-elevated)]/50 px-3 py-2.5"
+                className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]/45 shadow-[inset_0_1px_0_0_var(--hairline-highlight)] px-3 py-2.5"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--text-primary)]">

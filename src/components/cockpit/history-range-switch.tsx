@@ -1,6 +1,13 @@
 "use client";
 
 import type { HistoryRangeId } from "@/lib/domain/balance-history";
+import {
+  SEGMENT_TRACK,
+  SegmentGroup,
+  SegmentLabel,
+  SegmentPill,
+  segmentItemClass,
+} from "@/components/ui/segmented";
 
 interface HistoryRangeSwitchProps {
   value: HistoryRangeId;
@@ -22,29 +29,24 @@ export function HistoryRangeSwitch({
   onChange,
 }: HistoryRangeSwitchProps) {
   return (
-    <div
-      role="group"
-      aria-label="Zeitraum"
-      className="inline-flex flex-wrap items-center rounded-lg border border-[var(--border-sub)] bg-[var(--surface-elevated)] p-0.5"
-    >
-      {HISTORY_RANGE_OPTIONS.map((option) => {
-        const active = option.id === value;
-        return (
-          <button
-            key={option.id}
-            type="button"
-            aria-pressed={active}
-            onClick={() => onChange(option.id)}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-              active
-                ? "bg-[var(--surface)] text-[var(--text-primary)] shadow-xs"
-                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-            }`}
-          >
-            {option.label}
-          </button>
-        );
-      })}
-    </div>
+    <SegmentGroup>
+      <div role="group" aria-label="Zeitraum" className={SEGMENT_TRACK}>
+        {HISTORY_RANGE_OPTIONS.map((option) => {
+          const active = option.id === value;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onChange(option.id)}
+              className={segmentItemClass(active)}
+            >
+              {active ? <SegmentPill /> : null}
+              <SegmentLabel>{option.label}</SegmentLabel>
+            </button>
+          );
+        })}
+      </div>
+    </SegmentGroup>
   );
 }

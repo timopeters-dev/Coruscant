@@ -697,7 +697,7 @@ function PropertyDetailDrawerInner({
         ) : null}
 
         {maintenancePot ? (
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3.5 text-sm">
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-3.5 text-sm">
             <div>
               <p className="text-xs text-[var(--text-secondary)]">
                 Instandhaltungs-Topf
@@ -783,7 +783,7 @@ function PropertyDetailDrawerInner({
                 return (
                   <div
                     key={contract.id}
-                    className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 transition-colors hover:bg-[var(--surface-elevated)]"
+                    className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-2 transition-colors hover:bg-[var(--surface-elevated)]"
                   >
                     <button
                       type="button"

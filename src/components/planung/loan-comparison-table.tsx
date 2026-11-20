@@ -123,7 +123,7 @@ export function LoanComparisonTable({
     return (
       <div
         data-testid="loan-comparison-single"
-        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3"
+        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] px-4 py-3"
       >
         <div className="min-w-0">
           <p className="text-sm font-semibold text-[var(--text-primary)]">
@@ -199,7 +199,7 @@ export function LoanComparisonTable({
       </div>
 
       {/* Desktop table */}
-      <div className="hidden overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] md:block">
+      <div className="hidden overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] md:block">
         <table
           aria-label="Vergleich aktiver Darlehen"
           className="w-full border-collapse text-left text-xs"

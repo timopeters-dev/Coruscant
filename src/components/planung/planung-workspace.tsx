@@ -41,6 +41,13 @@ import { RecommendationPanel } from "./recommendation-panel";
 import type { RecommendationLabels } from "./recommendation-text";
 import { SalaryPanel } from "./salary-panel";
 import { SavingsPanel } from "./savings-panel";
+import {
+  SEGMENT_TRACK,
+  SegmentGroup,
+  SegmentLabel,
+  SegmentPill,
+  segmentItemClass,
+} from "@/components/ui/segmented";
 
 interface PlanungWorkspaceProps {
   initialEntry?: PlanningEntry | null;
@@ -289,10 +296,11 @@ export function PlanungWorkspace({
 
       {activeEntry === "geld" ? (
         <div className="flex flex-col gap-5">
+          <SegmentGroup>
           <div
             role="tablist"
             aria-label="Ansichten für freies Geld"
-            className="inline-flex flex-wrap items-center gap-1 self-start rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1"
+            className={cn(SEGMENT_TRACK, "self-start")}
           >
             {GELD_TABS.map((tab, idx) => {
               const selected = activeView === tab.id;
@@ -308,18 +316,15 @@ export function PlanungWorkspace({
                   tabIndex={selected ? 0 : -1}
                   onClick={() => handleSelectView(tab.id)}
                   onKeyDown={(e) => handleTabKeyDown(idx, e)}
-                  className={cn(
-                    "rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]",
-                    selected
-                      ? "bg-[var(--accent)] text-white"
-                      : "text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)]",
-                  )}
+                  className={cn(segmentItemClass(selected), "px-3 py-1.5")}
                 >
-                  {tab.label}
+                  {selected ? <SegmentPill /> : null}
+                  <SegmentLabel>{tab.label}</SegmentLabel>
                 </button>
               );
             })}
           </div>
+          </SegmentGroup>
 
           {activeView === "empfehlung" ? (
             <RecommendationPanel

@@ -33,6 +33,7 @@ import {
   type EquityPotOption,
 } from "./purchase-calculator-state";
 import { buildPropertyVsEtfHrefFromPurchase } from "./property-vs-etf-query";
+import { Select } from "@/components/ui/select";
 
 interface PurchaseCalculatorWorkspaceProps {
   asOfDate: string;
@@ -185,7 +186,7 @@ export function PurchaseCalculatorWorkspace({
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-col gap-1">
-            <h1 className="text-xl font-semibold tracking-tight">
+            <h1 className="page-title">
               Immobilien-Kaufrechner
             </h1>
             <p className="text-sm text-[var(--text-secondary)]">
@@ -227,11 +228,10 @@ export function PurchaseCalculatorWorkspace({
                 >
                   Eigenkapital-Topf (optional)
                 </label>
-                <select
+                <Select
                   id="kp-pot"
                   value={selectedPotId}
                   onChange={(e) => handlePotChange(e.target.value)}
-                  className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm"
                 >
                   <option value="">Kein Topf</option>
                   {pots.map((pot) => (
@@ -239,7 +239,7 @@ export function PurchaseCalculatorWorkspace({
                       {pot.name} ({formatCentsDE(pot.currentCents)})
                     </option>
                   ))}
-                </select>
+                </Select>
                 {equityAdoptedFromPot ? (
                   <p className="text-xs text-[var(--text-secondary)]">
                     aus Topf „{equityAdoptedFromPot}“ übernommen

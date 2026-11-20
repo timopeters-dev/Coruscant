@@ -49,6 +49,8 @@ import {
   type FreeMoneyState,
   type LoanOption,
 } from "./planning-state";
+import { DatePicker } from "@/components/ui/date-picker";
+import { Select } from "@/components/ui/select";
 
 interface FreeMoneyPanelProps {
   state: FreeMoneyState;
@@ -546,20 +548,19 @@ export function FreeMoneyPanel({
           >
             Kirchensteuer
           </label>
-          <select
+          <Select
             id="planung-kist"
             value={state.churchTaxBps}
             onChange={(e) =>
               dispatch({ type: "setChurchTax", bps: Number(e.target.value) })
             }
-            className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm"
           >
             {ALLOWED_CHURCH_TAX_BPS.map((bps) => (
               <option key={bps} value={bps}>
                 {bps === 0 ? "keine" : `${bps / 100} %`}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <SliderField
           id="planung-used"
@@ -588,16 +589,16 @@ export function FreeMoneyPanel({
               <StatusBadge variant="modeled" label="geschätzt" />
             ) : null}
           </label>
-          <input
+          <DatePicker
             id="planung-horizon"
-            type="date"
             value={horizonEndDate}
-            onChange={(e) => {
-              if (e.target.value) {
-                dispatch({ type: "setHorizon", date: e.target.value });
+            clearable={false}
+            onChange={(next) => {
+              if (next) {
+                dispatch({ type: "setHorizon", date: next });
               }
             }}
-            className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm tabular-nums"
+            className="w-40"
           />
         </div>
       </>

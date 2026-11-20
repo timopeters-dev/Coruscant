@@ -1,5 +1,14 @@
+"use client";
+
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import {
+  SEGMENT_TRACK,
+  SegmentGroup,
+  SegmentLabel,
+  SegmentPill,
+  segmentItemClass,
+} from "@/components/ui/segmented";
 
 interface DokumenteViewSwitchProps {
   active: "inbox" | "steuer";
@@ -17,25 +26,23 @@ export function DokumenteViewSwitch({ active, taxYear }: DokumenteViewSwitchProp
   ];
 
   return (
-    <nav
-      aria-label="Dokumente-Ansicht"
-      className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--surface)] p-0.5 print:hidden"
-    >
-      {items.map((item) => (
-        <Link
-          key={item.key}
-          href={item.href}
-          aria-current={active === item.key ? "page" : undefined}
-          className={cn(
-            "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-            active === item.key
-              ? "bg-[var(--accent)] text-[var(--accent-foreground)]"
-              : "text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)]",
-          )}
-        >
-          {item.label}
-        </Link>
-      ))}
-    </nav>
+    <SegmentGroup>
+      <nav aria-label="Dokumente-Ansicht" className={cn(SEGMENT_TRACK, "print:hidden")}>
+        {items.map((item) => {
+          const isActive = active === item.key;
+          return (
+            <Link
+              key={item.key}
+              href={item.href}
+              aria-current={isActive ? "page" : undefined}
+              className={segmentItemClass(isActive, "md")}
+            >
+              {isActive ? <SegmentPill /> : null}
+              <SegmentLabel>{item.label}</SegmentLabel>
+            </Link>
+          );
+        })}
+      </nav>
+    </SegmentGroup>
   );
 }

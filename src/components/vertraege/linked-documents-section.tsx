@@ -55,7 +55,7 @@ export function LinkedDocumentsSection({
                 href={`/api/documents/${doc.id}/file`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 text-left transition-colors hover:bg-[var(--surface-elevated)]"
+                className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-3 text-left transition-colors hover:bg-[var(--surface-elevated)]"
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-[var(--text-primary)]">
