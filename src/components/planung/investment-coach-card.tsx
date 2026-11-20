@@ -55,7 +55,7 @@ export function InvestmentCoachCard({
           <div className="rounded-lg border border-dashed border-[var(--border-sub)] px-3 py-2 text-sm text-[var(--text-secondary)]">
             <p className="font-medium">Kein Haushalts-Depot vorhanden</p>
             <p>
-              Sobald im Haushaltsbuch ein Haushalts-Depot abgeglichen ist,
+              Sobald in Bespin ein Haushalts-Depot abgeglichen ist,
               erscheint hier die Einordnung. Ohne Depot kannst du direkt{" "}
               <Link
                 href="/planung?frage=geld"
@@ -85,7 +85,7 @@ export function InvestmentCoachCard({
                     {context.dataQuality.snapshotAgeDays === 1 ? "Tag" : "Tagen"}
                   </span>
                 ) : null}
-                <StatusBadge variant="calibrated" detail="Haushaltsbuch" />
+                <StatusBadge variant="calibrated" detail="Bespin" />
               </span>
             </div>
             <div

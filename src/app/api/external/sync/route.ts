@@ -91,7 +91,7 @@ export async function POST(request?: Request): Promise<Response> {
             status: "skipped",
             reason: "fresh",
             snapshot: latestSnapshot,
-            message: "Stand aus dem Haushaltsbuch ist noch aktuell.",
+            message: "Stand aus Bespin ist noch aktuell.",
           },
           { status: 200 },
         );
@@ -136,7 +136,7 @@ export async function POST(request?: Request): Promise<Response> {
           snapshot,
           potSync,
           historyRecorded,
-          message: "Mit dem Haushaltsbuch abgeglichen.",
+          message: "Mit Bespin abgeglichen.",
         },
         { status: 200 },
       );

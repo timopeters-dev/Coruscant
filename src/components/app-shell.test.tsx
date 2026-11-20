@@ -105,8 +105,8 @@ describe("externer Link", () => {
     const a = /<a [^>]*href="http:\/\/cockpit\.example\.test"[^>]*>/.exec(html)![0];
     expect(a).toContain('target="_blank"');
     expect(a).toContain('rel="noopener noreferrer"');
-    expect(a).toContain('aria-label="Haushaltsbuch (öffnet in neuem Tab)"');
-    expect(html).toContain("<span>Haushaltsbuch</span>");
+    expect(a).toContain('aria-label="Bespin (öffnet in neuem Tab)"');
+    expect(html).toContain("<span>Bespin</span>");
     const navStart = html.indexOf('aria-label="Hauptnavigation"');
     const navEnd = html.indexOf("</nav>", navStart);
     expect(html.indexOf(COCKPIT)).toBeGreaterThan(navEnd);
@@ -115,7 +115,7 @@ describe("externer Link", () => {
   it.each([null, undefined, ""])("ohne URL (%s) kein Link, kein Trennstrich", (u) => {
     const html = render("/", u);
     expect(html).not.toContain('target="_blank"');
-    expect(html).not.toContain("Haushaltsbuch");
+    expect(html).not.toContain("Bespin");
     expect(html).not.toContain("w-px");
   });
 });

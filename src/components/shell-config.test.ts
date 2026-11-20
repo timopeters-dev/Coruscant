@@ -96,7 +96,7 @@ describe("resolveActiveTheme", () => {
 
 describe("FINANZ_COCKPIT_LINK", () => {
   it("Label und Aria-Label", () => {
-    expect(FINANZ_COCKPIT_LINK.label).toBe("Haushaltsbuch");
+    expect(FINANZ_COCKPIT_LINK.label).toBe("Bespin");
     expect(FINANZ_COCKPIT_LINK.ariaLabel).toContain(FINANZ_COCKPIT_LINK.label);
     expect(FINANZ_COCKPIT_LINK.ariaLabel).toContain("neuem Tab");
     expect(FINANZ_COCKPIT_LINK.label).not.toContain("_");

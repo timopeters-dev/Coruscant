@@ -114,7 +114,7 @@ export async function PATCH(
     }
     if (error instanceof PotLinkedBalanceReadOnlyError) {
       return badRequestResponse(error.message, {
-        currentCents: "Wird beim Abgleich aus dem Haushaltsbuch übernommen.",
+        currentCents: "Wird beim Abgleich aus Bespin übernommen.",
       });
     }
     if (error instanceof LinkedPropertyNotFoundError) {

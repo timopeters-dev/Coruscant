@@ -154,14 +154,14 @@ export async function fetchFinanzCockpitSummary(
       return {
         ok: false,
         code: "timeout",
-        message: "Zeitüberschreitung beim Abruf aus dem Haushaltsbuch.",
+        message: "Zeitüberschreitung beim Abruf aus Bespin.",
       };
     }
 
     return {
       ok: false,
       code: "network_error",
-      message: "Haushaltsbuch ist aktuell nicht erreichbar.",
+      message: "Bespin ist aktuell nicht erreichbar.",
     };
   }
 
@@ -169,7 +169,7 @@ export async function fetchFinanzCockpitSummary(
     return {
       ok: false,
       code: "unauthorized",
-      message: "Anmeldung beim Haushaltsbuch fehlgeschlagen (Token prüfen).",
+      message: "Anmeldung bei Bespin fehlgeschlagen (Token prüfen).",
       httpStatus: response.status,
     };
   }
@@ -178,7 +178,7 @@ export async function fetchFinanzCockpitSummary(
     return {
       ok: false,
       code: "http_error",
-      message: `Haushaltsbuch antwortete mit HTTP ${response.status}.`,
+      message: `Bespin antwortete mit HTTP ${response.status}.`,
       httpStatus: response.status,
     };
   }
@@ -190,7 +190,7 @@ export async function fetchFinanzCockpitSummary(
     return {
       ok: false,
       code: "invalid_payload",
-      message: "Ungültiges JSON-Format vom Haushaltsbuch.",
+      message: "Ungültiges JSON-Format von Bespin.",
     };
   }
 
@@ -199,7 +199,7 @@ export async function fetchFinanzCockpitSummary(
     return {
       ok: false,
       code: "invalid_payload",
-      message: "Ungültiges Antwortformat vom Haushaltsbuch.",
+      message: "Ungültiges Antwortformat von Bespin.",
     };
   }
 

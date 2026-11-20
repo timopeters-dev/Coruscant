@@ -825,7 +825,7 @@ export function AdvisorReportDocument({
             {view.meta.asOfDateDisplay}
             {view.dataQuality.snapshotAgeDays !== null
               ? `, letzter Abgleich vor ${Math.max(0, view.dataQuality.snapshotAgeDays)} Tagen`
-              : ", noch kein Abgleich mit dem Haushaltsbuch"}
+              : ", noch kein Abgleich mit Bespin"}
             ).
           </li>
         </ul>

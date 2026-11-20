@@ -142,7 +142,7 @@ export function buildPurchaseHints(
   if (!household.hasHouseholdData) {
     hints.push({
       key: "no_household_data",
-      text: "Keine Daten aus dem Haushaltsbuch – der Überschuss enthält nur manuelle Posten und Verträge.",
+      text: "Keine Daten aus Bespin – der Überschuss enthält nur manuelle Posten und Verträge.",
     });
   } else if (household.isDummy) {
     hints.push({
