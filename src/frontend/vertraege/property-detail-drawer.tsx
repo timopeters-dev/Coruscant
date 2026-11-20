@@ -31,7 +31,7 @@ import {
   RENOVATION_KIND_LABELS,
 } from "./labels";
 import { LinkedDocumentsSection } from "./linked-documents-section";
-import { PropertyValuationCard } from "./property-valuation-card";
+import { PropertyValuationCard } from "./property-valuation/valuation-card";
 
 const MAX_CLIENT_IMAGE_BYTES = 5 * 1024 * 1024;
 
