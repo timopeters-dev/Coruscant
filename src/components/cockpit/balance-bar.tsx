@@ -1,3 +1,4 @@
+import { formatDateDE } from "@/lib/domain/date-format";
 import {
   Card,
   CardContent,
@@ -13,11 +14,6 @@ interface BalanceBarProps {
   breakdown: BalanceBarBreakdown;
   deltas?: ComponentDeltas | null;
   onShowDetails?: () => void;
-}
-
-function formatDateDE(isoDate: string): string {
-  const [y, m, d] = isoDate.split("-");
-  return `${d}.${m}.${y}`;
 }
 
 function deltaToneClass(key: "free" | "bound" | "liabilities", deltaCents: number): string {

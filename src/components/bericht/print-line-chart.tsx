@@ -1,3 +1,4 @@
+import { formatMonthDE } from "@/lib/domain/date-format";
 import {
   formatAxisCentsDE,
   linearScale,
@@ -22,9 +23,7 @@ const PAD_TOP = 16;
 const PAD_BOTTOM = 32;
 
 function formatShortMonthLabel(ym: string): string {
-  const [year, month] = ym.split("-");
-  if (!year || !month) return ym;
-  return `${month}/${year.slice(-2)}`;
+  return formatMonthDE(ym);
 }
 
 export function PrintLineChart({ rows }: PrintLineChartProps) {

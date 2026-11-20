@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateTimeDE, formatMonthDE } from "@/lib/domain/date-format";
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -106,17 +107,7 @@ function getPotRuleLabel(pot: PotRow): string {
 }
 
 function formatJournalTimestamp(isoString: string): string {
-  const date = new Date(isoString);
-  if (Number.isNaN(date.getTime())) {
-    return isoString;
-  }
-  return new Intl.DateTimeFormat("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+  return formatDateTimeDE(isoString);
 }
 
 export function AllokationWorkspace({
@@ -1314,10 +1305,7 @@ export function AllokationWorkspace({
                         return null;
                       }
                       const badge = POT_DEADLINE_BADGE_META[deadlineEval.status];
-                      const formatYm = (ym: string) => {
-                        const [y, m] = ym.split("-");
-                        return `${m}/${y}`;
-                      };
+                      const formatYm = formatMonthDE;
 
                       return (
                         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-[var(--border)] px-3 py-2 text-xs">

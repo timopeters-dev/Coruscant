@@ -123,11 +123,11 @@ describe("pickYearTicks", () => {
   });
 
   it("aligns prepayment axis when passed startMonth + 1 so last tick matches xTooltipLabel(horizonMonths)", () => {
-    // Prepayment timeline: x=0 is startYm (2026-11), x=2 is 01/2027, x=12 is 11/2027.
+    // Prepayment timeline: x=0 is startYm (2026-11), x=2 is 01.2027, x=12 is 11.2027.
     const ticks = pickYearTicks("2026-12", 12, 7);
     expect(ticks[0]).toEqual({ x: 0, label: "heute" });
     expect(ticks.find((t) => t.label === "2027")?.x).toBe(2);
-    expect(ticks[ticks.length - 1]).toEqual({ x: 12, label: "11/2027" });
+    expect(ticks[ticks.length - 1]).toEqual({ x: 12, label: "11.2027" });
   });
 });
 
@@ -136,15 +136,15 @@ describe("pickDateTicks", () => {
     const from3m = isoDateToDayNumber("2026-08-19");
     const to3m = isoDateToDayNumber("2026-11-19");
     const ticks3m = pickDateTicks(from3m, to3m);
-    expect(ticks3m[0]).toEqual({ x: from3m, label: "19.08." });
+    expect(ticks3m[0]).toEqual({ x: from3m, label: "19.08.2026" });
     expect(ticks3m[ticks3m.length - 1]).toEqual({ x: to3m, label: "heute" });
-    expect(ticks3m.some((t) => t.label === "09/2026")).toBe(true);
-    expect(ticks3m.some((t) => t.label === "10/2026")).toBe(true);
+    expect(ticks3m.some((t) => t.label === "09.2026")).toBe(true);
+    expect(ticks3m.some((t) => t.label === "10.2026")).toBe(true);
 
     const from3y = isoDateToDayNumber("2024-05-01");
     const to3y = isoDateToDayNumber("2027-08-01");
     const ticks3y = pickDateTicks(from3y, to3y);
-    expect(ticks3y[0]).toEqual({ x: from3y, label: "01.05." });
+    expect(ticks3y[0]).toEqual({ x: from3y, label: "01.05.2024" });
     expect(ticks3y[ticks3y.length - 1]).toEqual({ x: to3y, label: "heute" });
     expect(ticks3y.some((t) => t.label === "2025")).toBe(true);
     expect(ticks3y.some((t) => t.label === "2026")).toBe(true);
@@ -159,16 +159,16 @@ describe("pickDateTicks", () => {
     expect(pickDateTicks(to3m, to3m)).toEqual([{ x: to3m, label: "heute" }]);
   });
 
-  it("supports projection variant with MM/JJJJ start and end, no 'heute'", () => {
+  it("supports projection variant with MM.JJJJ start and end, no 'heute'", () => {
     const fromMulti = isoDateToDayNumber("2026-01-01");
     const toMulti = isoDateToDayNumber("2036-06-01");
     const ticksMulti = pickDateTicks(fromMulti, toMulti, 6, {
       variant: "projection",
     });
-    expect(ticksMulti[0]).toEqual({ x: fromMulti, label: "01/2026" });
+    expect(ticksMulti[0]).toEqual({ x: fromMulti, label: "01.2026" });
     expect(ticksMulti[ticksMulti.length - 1]).toEqual({
       x: toMulti,
-      label: "06/2036",
+      label: "06.2036",
     });
     expect(ticksMulti.some((t) => t.label === "heute")).toBe(false);
     expect(ticksMulti.length).toBeLessThanOrEqual(6);
@@ -179,12 +179,12 @@ describe("pickDateTicks", () => {
     const ticksShort = pickDateTicks(fromShort, toShort, 6, {
       variant: "projection",
     });
-    expect(ticksShort[0]).toEqual({ x: fromShort, label: "03/2026" });
+    expect(ticksShort[0]).toEqual({ x: fromShort, label: "03.2026" });
     expect(ticksShort[ticksShort.length - 1]).toEqual({
       x: toShort,
-      label: "10/2026",
+      label: "10.2026",
     });
-    expect(ticksShort.filter((t) => t.label === "10/2026")).toHaveLength(1);
+    expect(ticksShort.filter((t) => t.label === "10.2026")).toHaveLength(1);
     expect(ticksShort.some((t) => t.label === "heute")).toBe(false);
 
     // Same month at start and end yields single tick
@@ -192,23 +192,23 @@ describe("pickDateTicks", () => {
     const sameTo = isoDateToDayNumber("2026-05-28");
     expect(
       pickDateTicks(sameFrom, sameTo, 6, { variant: "projection" }),
-    ).toEqual([{ x: sameFrom, label: "05/2026" }]);
+    ).toEqual([{ x: sameFrom, label: "05.2026" }]);
 
     // to <= from yields single date tick, not 'heute'
     expect(
       pickDateTicks(toShort, fromShort, 6, { variant: "projection" }),
-    ).toEqual([{ x: fromShort, label: "03/2026" }]);
+    ).toEqual([{ x: fromShort, label: "03.2026" }]);
     expect(
       pickDateTicks(toShort, toShort, 6, { variant: "projection" }),
-    ).toEqual([{ x: toShort, label: "10/2026" }]);
+    ).toEqual([{ x: toShort, label: "10.2026" }]);
 
     // maxTicks = 2 returns only start and end
     const twoTicks = pickDateTicks(fromMulti, toMulti, 2, {
       variant: "projection",
     });
     expect(twoTicks).toEqual([
-      { x: fromMulti, label: "01/2026" },
-      { x: toMulti, label: "06/2036" },
+      { x: fromMulti, label: "01.2026" },
+      { x: toMulti, label: "06.2036" },
     ]);
 
     // Inner ticks maintain minGap to both neighbors and end

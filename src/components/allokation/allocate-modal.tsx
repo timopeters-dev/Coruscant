@@ -1,5 +1,6 @@
 "use client";
 
+import { formatMonthDE } from "@/lib/domain/date-format";
 import * as React from "react";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -560,10 +561,7 @@ function AllocateModalInner({
         {deadlineRisks.length > 0 ? (
           <div className="rounded-lg border border-[var(--amber)]/40 bg-[var(--amber)]/5 px-3 py-2 text-xs text-[var(--text-primary)]">
             {(() => {
-              const formatYm = (ym: string) => {
-                const [y, m] = ym.split("-");
-                return `${m}/${y}`;
-              };
+              const formatYm = formatMonthDE;
               if (deadlineRisks.length === 1) {
                 const risk = deadlineRisks[0]!;
                 return (

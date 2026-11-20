@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateDE } from "@/lib/domain/date-format";
 import Link from "next/link";
 import * as React from "react";
 import { ArrowRight, ExternalLink, FileCheck2, Pencil, Trash2 } from "lucide-react";
@@ -241,7 +242,7 @@ export function DocumentArchive({
 
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--text-secondary)]">
                       <span className="tabular-nums">
-                        Datum: {doc.documentDate ?? "–"}
+                        Datum: {doc.documentDate ? formatDateDE(doc.documentDate) : "–"}
                       </span>
                       {linkedProp ? (
                         <span>Immobilie: {linkedProp.name}</span>

@@ -102,7 +102,7 @@ describe("buildFreeMoneyHeadlines", () => {
       bps: 340,
     });
     expect(etf.primary).toBe(
-      "Nach 15 Jahren (03/2041): ETF-Ansparung liegt 12.346 € vor der Sondertilgung.",
+      "Nach 15 Jahren (03.2041): ETF-Ansparung liegt 12.346 € vor der Sondertilgung.",
     );
     expect(etf.secondary).toContain("3,40 %");
     expect(etf.primary).not.toMatch(NO_CENTS_REGEX);
@@ -133,7 +133,7 @@ describe("buildFreeMoneyHeadlines", () => {
       null,
     );
     expect(subFiftyCents.primary).toBe(
-      "Nach 15 Jahren (03/2041) liegen beide Wege gleichauf.",
+      "Nach 15 Jahren (03.2041) liegen beide Wege gleichauf.",
     );
 
     const zeroMonthsView = makeFreeMoneyOk("prepayment", -20_000);
@@ -142,7 +142,7 @@ describe("buildFreeMoneyHeadlines", () => {
     }
     const zeroMonths = buildFreeMoneyHeadlines(zeroMonthsView, null);
     expect(zeroMonths.primary).toBe(
-      "Bis 03/2041: Sondertilgung liegt 200 € vor dem ETF.",
+      "Bis 03.2041: Sondertilgung liegt 200 € vor dem ETF.",
     );
     expect(zeroMonths.primary).not.toContain("sofort");
   });

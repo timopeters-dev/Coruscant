@@ -1,3 +1,4 @@
+import { formatDateDE, formatMonthPartsDE } from "@/lib/domain/date-format";
 import {
   addMonthsToYearMonth,
   dayNumberToIsoDate,
@@ -179,7 +180,7 @@ export function pickYearTicks(
     return [{ x: 0, label: "heute" }];
   }
 
-  const parsedStart = parseYearMonth(startMonth, "startMonth");
+  parseYearMonth(startMonth, "startMonth");
   const januaries: ChartTick[] = [];
 
   for (let t = 1; t <= safeHorizon; t += 1) {
@@ -210,10 +211,7 @@ export function pickYearTicks(
 
   const endYm = addMonthsToYearMonth(startMonth, safeHorizon - 1);
   const endParts = parseYearMonth(endYm, "endYm");
-  const endLabel =
-    endParts.year === parsedStart.year && safeHorizon < 12
-      ? `${String(endParts.month).padStart(2, "0")}/${endParts.year}`
-      : `${String(endParts.month).padStart(2, "0")}/${endParts.year}`;
+  const endLabel = formatMonthPartsDE(endParts.year, endParts.month);
 
   if (ticks[ticks.length - 1]!.x !== safeHorizon) {
     ticks.push({ x: safeHorizon, label: endLabel });
@@ -271,8 +269,8 @@ export interface PickDateTicksOptions {
 /**
  * Picks calendar date ticks (month starts for <= ~13M, year starts for longer spans)
  * between UTC day numbers fromDay and toDay.
- * - "history" (default): start "TT.MM.", end "heute"
- * - "projection": start "MM/JJJJ", end "MM/JJJJ" (actual end date, no "heute")
+ * - "history" (default): start "TT.MM.JJJJ", end "heute"
+ * - "projection": start "MM.JJJJ", end "MM.JJJJ" (actual end date, no "heute")
  */
 export function pickDateTicks(
   fromDay: number,
@@ -290,7 +288,7 @@ export function pickDateTicks(
       return [
         {
           x: safeTo,
-          label: `${String(toParts.month).padStart(2, "0")}/${toParts.year}`,
+          label: formatMonthPartsDE(toParts.year, toParts.month),
         },
       ];
     }
@@ -305,11 +303,11 @@ export function pickDateTicks(
 
   const startLabel =
     variant === "projection"
-      ? `${String(fromParts.month).padStart(2, "0")}/${fromParts.year}`
-      : `${String(fromParts.day).padStart(2, "0")}.${String(fromParts.month).padStart(2, "0")}.`;
+      ? formatMonthPartsDE(fromParts.year, fromParts.month)
+      : formatDateDE(fromIso);
   const endLabel =
     variant === "projection"
-      ? `${String(toParts.month).padStart(2, "0")}/${toParts.year}`
+      ? formatMonthPartsDE(toParts.year, toParts.month)
       : "heute";
 
   if (
@@ -328,7 +326,7 @@ export function pickDateTicks(
       const monthStartIso = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-01`;
       const dayNum = isoDateToDayNumber(monthStartIso);
       if (dayNum > safeFrom && dayNum < safeTo) {
-        const label = `${String(month).padStart(2, "0")}/${year}`;
+        const label = formatMonthPartsDE(year, month);
         if (variant !== "projection" || (label !== startLabel && label !== endLabel)) {
           innerCandidates.push({
             x: dayNum,

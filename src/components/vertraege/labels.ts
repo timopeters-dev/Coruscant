@@ -1,3 +1,4 @@
+import { formatMonthDE } from "@/lib/domain/date-format";
 import type { AmortizationMarkerKind } from "@/lib/domain/contract-series";
 import type { AutoValuationInterval } from "@/lib/domain/auto-valuation-schedule";
 import type {
@@ -173,10 +174,9 @@ export const AMORTIZATION_MARKER_LABELS: Record<AmortizationMarkerKind, string> 
   rate_change: "Ratenänderung",
 };
 
+/** `YYYY-MM-DD` / `YYYY-MM` → `MM.JJJJ`. */
 export function formatMonthYearDE(isoDate: string): string {
-  const [year, month] = isoDate.split("-");
-  if (!year || !month) return isoDate;
-  return `${month}/${year}`;
+  return formatMonthDE(isoDate);
 }
 
 export function formatDurationMonthsDE(totalMonths: number): string {

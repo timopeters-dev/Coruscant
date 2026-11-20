@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateDE } from "@/lib/domain/date-format";
 import * as React from "react";
 import { ChartDataTable } from "@/components/charts/chart-data-table";
 import { formatWholeEuroDE, pickDateTicks } from "@/components/charts/chart-scale";
@@ -112,7 +113,7 @@ export function SavingsProgressSection({
       {
         x: firstDay,
         y: firstPoint.balanceCents,
-        label: `Geeicht ${series.startDate}`,
+        label: `Geeicht ${formatDateDE(series.startDate)}`,
         role: "bound",
       },
     ],

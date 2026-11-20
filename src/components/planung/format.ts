@@ -1,9 +1,11 @@
+import { formatDateDE, formatMonthDE } from "@/lib/domain/date-format";
+
+/** `YYYY-MM-DD` → `TT.MM.JJJJ`. */
 export function formatIsoDateDE(iso: string): string {
-  const [y, m, d] = iso.split("-");
-  return `${d}.${m}.${y}`;
+  return formatDateDE(iso);
 }
 
+/** `YYYY-MM` → `MM.JJJJ`. */
 export function formatYearMonthDE(ym: string): string {
-  const [y, m] = ym.split("-");
-  return `${m}/${y}`;
+  return formatMonthDE(ym);
 }
