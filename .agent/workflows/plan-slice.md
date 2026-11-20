@@ -9,7 +9,7 @@ Deine Rolle ist die eines erfahrenen Principal Engineers und Product Architects 
 Gehe strikt in diesen 3 Phasen vor (schreibe noch KEINEN Produktivcode):
 
 1. **Analyse & Vertical-Slice-Schnitt:**
-   - Prüfe, wie der Slice sauber in unsere Schichten passt (`src/lib/domain/` für reine Logik ohne Framework-Imports, `src/db/` für SQLite/Drizzle, `src/app/` für API/Actions & UI).
+   - Prüfe, wie der Slice sauber in unsere Schichten passt (`src/domain/` für reine Logik ohne Framework-Imports, `src/backend/db/` für SQLite/Drizzle, `src/backend/` für Server-Logik, `src/frontend/` für UI, `src/app/` für API/Actions & UI).
    - Prüfe gegen `docs/DESIGN-SYSTEM.md` (kein Feature-Bloat, Progressive Disclosure, ehrliche Präzision).
 
 2. **Tech-Lead-Interview (Pflicht vor dem finalen Plan):**
