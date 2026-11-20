@@ -97,7 +97,9 @@ describe("property-vs-etf-defaults", () => {
         saverAllowanceCents: 100_000,
         partialExemptionBps: 3_000,
         churchTaxBps: 0,
-        saleCostsBps: 0,
+        brokerFeeBps: 357,
+        otherSaleCostsBps: 30,
+        reserveDeductionLagYears: 5,
       });
     });
 

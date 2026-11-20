@@ -49,12 +49,40 @@ export interface PropertyVsEtfChartModel {
   markers: LineChartMarker[];
   tooltipTitle: (year: number) => string;
   tooltipExtra: (year: number) => ChartTooltipExtra[];
+  /** Spalten der Wertetabelle (bei Überschuss-Depot eine mehr). */
+  tableColumns: Array<{
+    key: "year" | "property" | "propertyWithoutDepot" | "etf" | "advantage";
+    header: string;
+    align?: "right";
+  }>;
   tableRows: Array<{
     year: string;
     property: string;
+    propertyWithoutDepot?: string;
     etf: string;
     advantage: string;
   }>;
+  /** Legendeneinträge in Serienreihenfolge. */
+  legend: Array<{
+    role: LineSeries["role"];
+    dashed: true;
+    shape: "line";
+    label: string;
+  }>;
+  ariaLabel: string;
+}
+
+const LABEL_PROPERTY = "Immobilie (nach Verkauf)";
+const LABEL_PROPERTY_WITH_DEPOT = "Immobilie mit Überschuss-Depot";
+const LABEL_PROPERTY_WITHOUT_DEPOT = "Immobilie mit zinslosem Überschuss";
+const LABEL_ETF = "ETF (nach Verkauf)";
+
+/** Beschriftung für Screenreader; nennt die dritte Linie bei Überschuss-Depot. */
+export function chartAriaLabel(result: PropertyVsEtfResult): string {
+  const horizon = result.years.length - 1;
+  return result.reinvestSurplus
+    ? `Vermögen bei Verkauf: Immobilie mit Überschuss-Depot, Immobilie mit zinslosem Überschuss und ETF über ${horizon} Jahre`
+    : `Vermögen bei Verkauf: Immobilie und ETF über ${horizon} Jahre`;
 }
 
 function buildMarkers(result: PropertyVsEtfResult): LineChartMarker[] {
@@ -98,29 +126,68 @@ export function toPropertyVsEtfChart(
 ): PropertyVsEtfChartModel {
   const horizon = result.years.length - 1;
   const byYear = (year: number) => result.years[year];
+  const reinvest = result.reinvestSurplus;
+
+  const series: LineSeries[] = [
+    {
+      id: "property",
+      label: reinvest ? LABEL_PROPERTY_WITH_DEPOT : LABEL_PROPERTY,
+      role: "bound",
+      dashed: true,
+      points: result.years.map((y) => ({
+        x: y.year,
+        y: y.propertyLiquidationCents,
+      })),
+    },
+    ...(reinvest
+      ? [
+          {
+            id: "propertyWithoutDepot",
+            label: LABEL_PROPERTY_WITHOUT_DEPOT,
+            role: "baseline" as const,
+            dashed: true,
+            points: result.years.map((y) => ({
+              x: y.year,
+              y: y.propertyLiquidationWithoutDepotCents,
+            })),
+          },
+        ]
+      : []),
+    {
+      id: "etf",
+      label: LABEL_ETF,
+      role: "optionB",
+      dashed: true,
+      points: result.years.map((y) => ({
+        x: y.year,
+        y: y.etfLiquidationCents,
+      })),
+    },
+  ];
 
   return {
-    series: [
-      {
-        id: "property",
-        label: "Immobilie (nach Verkauf)",
-        role: "bound",
-        dashed: true,
-        points: result.years.map((y) => ({
-          x: y.year,
-          y: y.propertyLiquidationCents,
-        })),
-      },
-      {
-        id: "etf",
-        label: "ETF (nach Verkauf)",
-        role: "optionB",
-        dashed: true,
-        points: result.years.map((y) => ({
-          x: y.year,
-          y: y.etfLiquidationCents,
-        })),
-      },
+    series,
+    legend: series.map((x) => ({
+      role: x.role,
+      dashed: true as const,
+      shape: "line" as const,
+      label: x.label,
+    })),
+    ariaLabel: chartAriaLabel(result),
+    tableColumns: [
+      { key: "year", header: "Jahr" },
+      { key: "property", header: "Immobilie", align: "right" },
+      ...(reinvest
+        ? [
+            {
+              key: "propertyWithoutDepot" as const,
+              header: "Immobilie mit zinslosem Überschuss",
+              align: "right" as const,
+            },
+          ]
+        : []),
+      { key: "etf", header: "ETF", align: "right" },
+      { key: "advantage", header: "Vorteil", align: "right" },
     ],
     xDomain: [0, horizon],
     xTicks: buildHorizonYearTicks(horizon),
@@ -130,20 +197,40 @@ export function toPropertyVsEtfChart(
     tooltipExtra: (year) => {
       const row = byYear(year);
       if (!row) return [];
-      return [
+      const extra: ChartTooltipExtra[] = [
         {
           label: "Vorteil Immobilie",
           value: formatWholeEuroDE(row.advantageCents, { showPlusSign: true }),
         },
-        {
-          label: "Bestand ohne Verkauf",
-          value: `Immobilie ${formatWholeEuroDE(row.propertyNetWorthCents)} · ETF ${formatWholeEuroDE(row.etfValueCents)}`,
-        },
       ];
+      if (reinvest) {
+        extra.push(
+          {
+            label: "Überschuss-Depot (nach Steuern)",
+            value: formatWholeEuroDE(row.surplusDepotNetCents),
+          },
+          {
+            label: "Immobilie mit zinslosem Überschuss",
+            value: formatWholeEuroDE(row.propertyLiquidationWithoutDepotCents),
+          },
+        );
+      }
+      extra.push({
+        label: "Bestand ohne Verkauf",
+        value: `Immobilie ${formatWholeEuroDE(row.propertyNetWorthCents)} · ETF ${formatWholeEuroDE(row.etfValueCents)}`,
+      });
+      return extra;
     },
     tableRows: result.years.map((y) => ({
       year: yearLabel(y.year),
       property: formatWholeEuroDE(y.propertyLiquidationCents),
+      ...(reinvest
+        ? {
+            propertyWithoutDepot: formatWholeEuroDE(
+              y.propertyLiquidationWithoutDepotCents,
+            ),
+          }
+        : {}),
       etf: formatWholeEuroDE(y.etfLiquidationCents),
       advantage: formatWholeEuroDE(y.advantageCents, { showPlusSign: true }),
     })),
@@ -151,7 +238,7 @@ export function toPropertyVsEtfChart(
 }
 
 export interface PropertyVsEtfKpi {
-  key: "property" | "etf" | "advantage";
+  key: "property" | "etf" | "advantage" | "propertyWithoutDepot";
   label: string;
   value: string;
   tone: "bound" | "accent" | "positive" | "negative" | "neutral";
@@ -161,10 +248,12 @@ export function toPropertyVsEtfKpis(
   result: PropertyVsEtfResult,
 ): PropertyVsEtfKpi[] {
   const advantage = result.final.advantageCents;
-  return [
+  const kpis: PropertyVsEtfKpi[] = [
     {
       key: "property",
-      label: "Immobilien-Vermögen",
+      label: result.reinvestSurplus
+        ? "Immobilien-Vermögen inkl. Überschuss-Depot"
+        : "Immobilien-Vermögen",
       value: formatWholeEuroDE(result.final.propertyLiquidationCents),
       tone: "bound",
     },
@@ -181,13 +270,25 @@ export function toPropertyVsEtfKpis(
       tone: advantage > 0 ? "positive" : advantage < 0 ? "negative" : "neutral",
     },
   ];
+  if (result.reinvestSurplus) {
+    kpis.push({
+      key: "propertyWithoutDepot",
+      label: "Immobilien-Vermögen mit zinslosem Überschuss",
+      value: formatWholeEuroDE(result.final.propertyLiquidationWithoutDepotCents),
+      tone: "neutral",
+    });
+  }
+  return kpis;
 }
 
 export function describeKpiBasis(result: PropertyVsEtfResult): string {
   const horizon = result.years.length - 1;
-  return result.taxesEnabled
+  const base = result.taxesEnabled
     ? `Verkauf Ende Jahr ${horizon}, nach Verkaufskosten und Steuern`
     : `Verkauf Ende Jahr ${horizon}, nach Verkaufskosten, ohne Steuern`;
+  return result.reinvestSurplus
+    ? `${base}, inkl. Überschuss-Depot nach Steuern`
+    : base;
 }
 
 export function describeBreakEven(result: PropertyVsEtfResult): string {

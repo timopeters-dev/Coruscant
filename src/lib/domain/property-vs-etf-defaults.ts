@@ -74,6 +74,15 @@ export const PROPERTY_VS_ETF_DEFAULTS = {
   horizonYears: 20,
 } as const;
 
+/** Halbteilung § 656c BGB: 3 % + 19 % USt = 3,57 %. */
+export const DEFAULT_BROKER_FEE_BPS = 357;
+/** Löschung der Grundschuld, Energieausweis, Unterlagen. */
+export const DEFAULT_OTHER_SALE_COSTS_BPS = 30;
+/** Jahre bis zur Verwendung (und steuerlichen Absetzung) der Instandhaltungsrücklage. */
+export const DEFAULT_RESERVE_DEDUCTION_LAG_YEARS = 5;
+/** Überschuss-Depot auf der Immobilien-Seite (Schalter aus). */
+export const DEFAULT_REINVEST_SURPLUS = false;
+
 /** Grenzen der Steuer-Eingaben (Slice 25b). `churchTaxBps`: siehe `ALLOWED_CHURCH_TAX_BPS`. */
 export const PROPERTY_VS_ETF_TAX_LIMITS = {
   marginalTaxRateBps: { min: 0, max: 5_000 },
@@ -82,7 +91,9 @@ export const PROPERTY_VS_ETF_TAX_LIMITS = {
   speculationPeriodYears: { min: 0, max: 40 },
   saverAllowanceCents: { min: 0, max: MAX_SAVER_ALLOWANCE_CENTS },
   partialExemptionBps: { min: 0, max: 10_000 },
-  saleCostsBps: { min: 0, max: 2_000 },
+  brokerFeeBps: { min: 0, max: 2_000 },
+  otherSaleCostsBps: { min: 0, max: 1_000 },
+  reserveDeductionLagYears: { min: 0, max: 15 },
 } as const;
 
 /**
@@ -99,5 +110,7 @@ export const PROPERTY_VS_ETF_TAX_DEFAULTS = {
   saverAllowanceCents: DEFAULT_SAVER_ALLOWANCE_CENTS,
   partialExemptionBps: PARTIAL_EXEMPTION_EQUITY_ETF_BPS,
   churchTaxBps: 0,
-  saleCostsBps: 0,
+  brokerFeeBps: DEFAULT_BROKER_FEE_BPS,
+  otherSaleCostsBps: DEFAULT_OTHER_SALE_COSTS_BPS,
+  reserveDeductionLagYears: DEFAULT_RESERVE_DEDUCTION_LAG_YEARS,
 } as const;

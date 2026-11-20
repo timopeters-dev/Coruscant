@@ -9,8 +9,12 @@ import { ALLOWED_CHURCH_TAX_BPS, calculateEtfLiquidationTax } from "./scenarios"
  *
  * Vereinfachungen: lineare AfA ab Monat 1 (keine zeitanteilige Kürzung), AfA-Basis
  * inkl. anteiliger Nebenkosten, Verluste werden im selben Monat erstattet
- * (kein Verlustvortrag), Instandhaltungsrücklage gilt als abzugsfähig (steuerlich
- * erst die Verwendung), Tilgung nicht abzugsfähig, Spekulationsfrist: Jahr ≤ Frist
+ * (kein Verlustvortrag), Instandhaltungsrücklage wird erst nach
+ * `reserveDeductionLagYears` Jahren als Erhaltungsaufwand abgesetzt (Abfluss bei
+ * Verwendung, BFH). Zahlungen der letzten Jahre vor dem Verkauf werden nie abgesetzt
+ * (gehen mit der Rücklage an den Käufer, kein Ausgleich im Kaufpreis modelliert).
+ * Keine anschaffungsnahen Herstellungskosten (§ 6 Abs. 1 Nr. 1a EStG), kein von der
+ * Rücklage abweichender Erhaltungsaufwand, keine Vorfälligkeitsentschädigung. Tilgung nicht abzugsfähig, Spekulationsfrist: Jahr ≤ Frist
  * steuerpflichtig, keine Verlustverrechnung, ETF: einmaliger Sparerpauschbetrag
  * beim fiktiven Verkauf, keine Vorabpauschale.
  */
@@ -26,8 +30,12 @@ export interface PropertyVsEtfTaxInput {
   saverAllowanceCents: number;
   partialExemptionBps: number;
   churchTaxBps: number;
-  /** Verkaufskosten in % vom Verkaufswert, wirken auch bei taxesEnabled = false. */
-  saleCostsBps: number;
+  /** Maklerprovision des Verkäufers in % vom Verkaufswert, wirkt auch bei taxesEnabled = false. */
+  brokerFeeBps: number;
+  /** Sonstige Verkaufskosten in % vom Verkaufswert, wirken auch bei taxesEnabled = false. */
+  otherSaleCostsBps: number;
+  /** Jahre bis zum Absetzen der Rücklage. 0 = im Jahr der Zahlung. Wirkt nur bei taxesEnabled = true. */
+  reserveDeductionLagYears: number;
 }
 
 const RANGE_KEYS = [
@@ -37,7 +45,9 @@ const RANGE_KEYS = [
   "speculationPeriodYears",
   "saverAllowanceCents",
   "partialExemptionBps",
-  "saleCostsBps",
+  "brokerFeeBps",
+  "otherSaleCostsBps",
+  "reserveDeductionLagYears",
 ] as const satisfies readonly (keyof PropertyVsEtfTaxInput)[];
 
 export function validatePropertyVsEtfTaxInput(tax: PropertyVsEtfTaxInput): void {
@@ -68,6 +78,42 @@ function shareHalfUp(baseCents: number, bps: number): number {
     Number(roundHalfUpBigInt(BigInt(baseCents) * BigInt(bps), 10_000n)),
     "shareCents",
   );
+}
+
+/** Summe aus Maklerprovision und sonstigen Verkaufskosten (Basispunkte). */
+export function totalSaleCostsBps(
+  tax: Pick<PropertyVsEtfTaxInput, "brokerFeeBps" | "otherSaleCostsBps">,
+): number {
+  return (
+    assertNonNegativeInteger(tax.brokerFeeBps, "brokerFeeBps") +
+    assertNonNegativeInteger(tax.otherSaleCostsBps, "otherSaleCostsBps")
+  );
+}
+
+/**
+ * Im Jahr `year` abgezogene Monatsrücklage: die des Jahres `year − lagYears`,
+ * falls dieses ≥ 1 ist, sonst 0. `reserveByYear[y]` = Monatsrücklage in Jahr y.
+ */
+export function reserveDeductionForYearCents(
+  reserveByYear: readonly number[],
+  year: number,
+  lagYears: number,
+): number {
+  if (!Number.isInteger(year) || year < 1) {
+    throw new RangeError(`year must be an integer >= 1, received: ${year}`);
+  }
+  if (!Number.isInteger(lagYears) || lagYears < 0) {
+    throw new RangeError(`lagYears must be an integer >= 0, received: ${lagYears}`);
+  }
+  const source = year - lagYears;
+  if (source < 1) {
+    return 0;
+  }
+  const value = reserveByYear[source];
+  if (value === undefined) {
+    throw new RangeError(`no reserve for year ${source}`);
+  }
+  return value;
 }
 
 /** roundHalfUp(Gesamtkosten × Gebäudeanteil). */
@@ -144,7 +190,7 @@ export function calculatePropertySale(args: {
 }): PropertySaleResult {
   const { tax } = args;
   const value = assertNonNegativeInteger(args.valueCents, "valueCents");
-  const saleCostsCents = shareHalfUp(value, tax.saleCostsBps);
+  const saleCostsCents = shareHalfUp(value, totalSaleCostsBps(tax));
   const netProceedsCents = value - saleCostsCents;
   const basis =
     assertNonNegativeInteger(args.totalCostCents, "totalCostCents") -

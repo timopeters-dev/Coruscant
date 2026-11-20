@@ -6,6 +6,7 @@ import {
 } from "@/lib/domain/property-vs-etf";
 import {
   calculatePurchaseCostsCents,
+  DEFAULT_REINVEST_SURPLUS,
   defaultEquityCents,
   PROPERTY_VS_ETF_DEFAULTS,
   PROPERTY_VS_ETF_SLIDER_RANGES,
@@ -63,6 +64,7 @@ export interface PropertyVsEtfFormState {
   maintenanceReserveBps: number;
   etfAnnualReturnBps: number;
   horizonYears: number;
+  reinvestSurplus: boolean;
   tax: PropertyVsEtfTaxInput;
 }
 
@@ -116,6 +118,7 @@ export function createPropertyVsEtfFormState(): PropertyVsEtfFormState {
     equityMode: "auto",
     manualEquityCents: 0,
     ...assumptionDefaults(),
+    reinvestSurplus: DEFAULT_REINVEST_SURPLUS,
     tax: taxDefaults(),
   };
 }
@@ -126,6 +129,7 @@ export type PropertyVsEtfAction =
   | { type: "resetEquityToCosts" }
   | { type: "setTaxField"; field: TaxNumericFieldKey; value: number }
   | { type: "setTaxesEnabled"; value: boolean }
+  | { type: "setReinvestSurplus"; value: boolean }
   | { type: "resetAssumptions" }
   | { type: "resetTaxes" }
   | { type: "resetAll" };
@@ -150,8 +154,14 @@ export function propertyVsEtfReducer(
       return { ...s, tax: { ...s.tax, [a.field]: a.value } };
     case "setTaxesEnabled":
       return { ...s, tax: { ...s.tax, taxesEnabled: a.value } };
+    case "setReinvestSurplus":
+      return { ...s, reinvestSurplus: a.value };
     case "resetAssumptions":
-      return { ...s, ...assumptionDefaults() };
+      return {
+        ...s,
+        ...assumptionDefaults(),
+        reinvestSurplus: DEFAULT_REINVEST_SURPLUS,
+      };
     case "resetTaxes":
       return { ...s, tax: taxDefaults() };
     case "resetAll":
@@ -163,7 +173,10 @@ export function propertyVsEtfReducer(
 
 export function isAssumptionsModified(s: PropertyVsEtfFormState): boolean {
   const defaults = assumptionDefaults();
-  return ASSUMPTION_FIELDS.some((key) => s[key] !== defaults[key]);
+  return (
+    ASSUMPTION_FIELDS.some((key) => s[key] !== defaults[key]) ||
+    s.reinvestSurplus !== DEFAULT_REINVEST_SURPLUS
+  );
 }
 
 export function isTaxModified(s: PropertyVsEtfFormState): boolean {
@@ -204,7 +217,9 @@ export const PROPERTY_VS_ETF_UI_SLIDERS = {
   buildingShareBps: { min: 0, max: 10_000, step: 500 },
   speculationPeriodYears: { min: 0, max: 15, step: 1 },
   partialExemptionBps: { min: 0, max: 10_000, step: 500 },
-  saleCostsBps: { min: 0, max: 1_000, step: 10 },
+  brokerFeeBps: { min: 0, max: 700, step: 1 },
+  otherSaleCostsBps: { min: 0, max: 200, step: 5 },
+  reserveDeductionLagYears: { min: 0, max: 15, step: 1 },
 } as const satisfies Record<string, SliderRange>;
 
 export type SliderFieldKey = keyof typeof PROPERTY_VS_ETF_UI_SLIDERS;
@@ -332,6 +347,7 @@ export function evaluatePropertyVsEtf(
     maintenanceReserveBps: state.maintenanceReserveBps,
     etfAnnualReturnBps: state.etfAnnualReturnBps,
     horizonYears: state.horizonYears,
+    reinvestSurplus: state.reinvestSurplus,
   };
 
   const fieldErrors: Partial<Record<string, string>> = {};

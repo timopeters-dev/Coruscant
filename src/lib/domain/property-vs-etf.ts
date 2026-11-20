@@ -11,6 +11,7 @@ import {
   calculateDepreciationBasisCents,
   calculateEtfLiquidation,
   calculatePropertySale,
+  reserveDeductionForYearCents,
   calculateRentalIncomeTaxCents,
   depreciationForMonthCents,
   validatePropertyVsEtfTaxInput,
@@ -42,6 +43,11 @@ export interface PropertyVsEtfInput {
   maintenanceReserveBps: number;
   etfAnnualReturnBps: number;
   horizonYears: number;
+  /**
+   * Positiven Monats-Cashflow in ein Überschuss-Depot auf der Immobilien-Seite
+   * anlegen; `undefined` = `false`.
+   */
+  reinvestSurplus?: boolean;
 }
 
 export interface PropertyVsEtfYear {
@@ -83,6 +89,18 @@ export interface PropertyVsEtfYear {
   propertyLiquidationCents: number;
   etfTaxCents: number;
   etfLiquidationCents: number;
+  /** In diesem Jahr abgezogene Rücklage (Summe der Monate); 0 bei Steuern aus. */
+  reserveDeductionYearCents: number;
+  /** Depotwert am Jahresende vor Steuer; 0 bei Schalter aus. */
+  surplusDepotValueCents: number;
+  /** Kumulierte Einzahlungen ins Depot; 0 bei Schalter aus. */
+  surplusDepotPaidInCents: number;
+  /** ETF-Steuer auf das Depot bei Verkauf am Jahresende. */
+  surplusDepotTaxCents: number;
+  /** `surplusDepotValueCents − surplusDepotTaxCents`. */
+  surplusDepotNetCents: number;
+  /** Immobilien-Liquidation mit zinslos angesammeltem Überschuss (25d-Formel). */
+  propertyLiquidationWithoutDepotCents: number;
 }
 
 export type PropertyVsEtfBreakEven =
@@ -99,6 +117,9 @@ export interface PropertyVsEtfResult {
   initialMonthlyCashflowCents: number;
   initialMonthlyCashflowBeforeTaxCents: number;
   taxesEnabled: boolean;
+  reinvestSurplus: boolean;
+  /** 0 bei Steuern aus. */
+  reserveDeductionLagYears: number;
   depreciationBasisCents: number;
   annualDepreciationCents: number;
   /** `Frist + 1` bei aktiven Steuern, sonst `null`. */
@@ -112,6 +133,11 @@ export interface PropertyVsEtfResult {
     etfLiquidationCents: number;
     /** Bezieht sich auf die Liquidationswerte. */
     advantageCents: number;
+    propertyLiquidationWithoutDepotCents: number;
+    surplusDepotValueCents: number;
+    surplusDepotPaidInCents: number;
+    surplusDepotTaxCents: number;
+    surplusDepotNetCents: number;
   };
   breakEven: PropertyVsEtfBreakEven;
   leadsAtHorizon: boolean;
@@ -123,6 +149,8 @@ export interface PropertyVsEtfResult {
     hadSurplus: boolean;
     hadRefunds: boolean;
     speculationTaxApplied: boolean;
+    /** Steuern an, Verzögerung > 0 und gezahlte Rücklage wurde nie abgesetzt. */
+    reserveDeductionDeferred: boolean;
   };
 }
 
@@ -153,6 +181,14 @@ export function validatePropertyVsEtfInput(input: PropertyVsEtfInput): void {
         `${key} must be between ${min} and ${max}, received: ${value}`,
       );
     }
+  }
+  if (
+    input.reinvestSurplus !== undefined &&
+    typeof input.reinvestSurplus !== "boolean"
+  ) {
+    throw new TypeError(
+      `reinvestSurplus must be a boolean, received: ${String(input.reinvestSurplus)}`,
+    );
   }
 
   const purchaseCosts = calculatePurchaseCostsCents(
@@ -198,7 +234,9 @@ function shareOfBps(baseCents: number, bps: number): number {
 const NEUTRAL_TAX: PropertyVsEtfTaxInput = {
   ...PROPERTY_VS_ETF_TAX_DEFAULTS,
   taxesEnabled: false,
-  saleCostsBps: 0,
+  brokerFeeBps: 0,
+  otherSaleCostsBps: 0,
+  reserveDeductionLagYears: 0,
 };
 
 /**
@@ -216,6 +254,7 @@ export function simulatePropertyVsEtf(
   }
   validatePropertyVsEtfInput(input);
   const t = tax ?? NEUTRAL_TAX;
+  const reinvest = input.reinvestSurplus === true;
 
   const purchaseCostsCents = calculatePurchaseCostsCents(
     input.purchasePriceCents,
@@ -253,6 +292,8 @@ export function simulatePropertyVsEtf(
     surplusCents: number,
     etfValueCents: number,
     paidInCents: number,
+    depotValueCents: number,
+    depotPaidInCents: number,
   ) => {
     const sale = calculatePropertySale({
       valueCents: propertyValueCents,
@@ -266,14 +307,28 @@ export function simulatePropertyVsEtf(
       paidInCents,
       tax: t,
     });
-    const propertyLiquidationCents = assertSafeInteger(
+    const depotLiq = reinvest
+      ? calculateEtfLiquidation({
+          valueCents: depotValueCents,
+          paidInCents: depotPaidInCents,
+          tax: t,
+        })
+      : { etfTaxCents: 0, etfLiquidationCents: 0 };
+    const propertyBase =
       propertyValueCents -
-        sale.saleCostsCents -
-        sale.speculationTaxCents -
-        debtCents +
-        surplusCents,
-      "propertyLiquidationCents",
+      sale.saleCostsCents -
+      sale.speculationTaxCents -
+      debtCents;
+    const propertyLiquidationWithoutDepotCents = assertSafeInteger(
+      propertyBase + surplusCents,
+      "propertyLiquidationWithoutDepotCents",
     );
+    const propertyLiquidationCents = reinvest
+      ? assertSafeInteger(
+          propertyBase + depotLiq.etfLiquidationCents,
+          "propertyLiquidationCents",
+        )
+      : propertyLiquidationWithoutDepotCents;
     if (sale.speculationTaxCents > 0) {
       speculationTaxApplied = true;
     }
@@ -284,6 +339,11 @@ export function simulatePropertyVsEtf(
       propertyLiquidationCents,
       etfTaxCents: etfLiq.etfTaxCents,
       etfLiquidationCents: etfLiq.etfLiquidationCents,
+      propertyLiquidationWithoutDepotCents,
+      surplusDepotValueCents: reinvest ? depotValueCents : 0,
+      surplusDepotPaidInCents: reinvest ? depotPaidInCents : 0,
+      surplusDepotTaxCents: depotLiq.etfTaxCents,
+      surplusDepotNetCents: reinvest ? depotLiq.etfLiquidationCents : 0,
       advantageCents: assertSafeInteger(
         propertyLiquidationCents - etfLiq.etfLiquidationCents,
         "advantageCents",
@@ -308,6 +368,9 @@ export function simulatePropertyVsEtf(
   let etf = input.equityCents;
   let paidIn = input.equityCents;
   let surplus = 0;
+  let depot = 0;
+  let depotPaidIn = 0;
+  const reserveByYear: number[] = [0];
   let loanPaidOffInMonth: number | null = null;
   let monthCounter = 0;
   let initialMonthlyCashflowCents = 0;
@@ -316,7 +379,7 @@ export function simulatePropertyVsEtf(
 
   const years: PropertyVsEtfYear[] = [];
   const row0NetWorth = value - debt;
-  const liq0 = liquidationFields(0, value, debt, 0, etf, paidIn);
+  const liq0 = liquidationFields(0, value, debt, 0, etf, paidIn, 0, 0);
   years.push({
     year: 0,
     propertyValueCents: value,
@@ -341,6 +404,7 @@ export function simulatePropertyVsEtf(
     cumulativeDepreciationCents: 0,
     taxableRentalIncomeYearCents: 0,
     rentalIncomeTaxYearCents: 0,
+    reserveDeductionYearCents: 0,
   });
 
   for (let y = 1; y <= input.horizonYears; y += 1) {
@@ -350,6 +414,10 @@ export function simulatePropertyVsEtf(
     }
     const vacancy = shareOfBps(rent, input.vacancyBps);
     const reserve = monthlyShareOfAnnualBps(value, input.maintenanceReserveBps);
+    reserveByYear[y] = reserve;
+    const deductibleReserve = t.taxesEnabled
+      ? reserveDeductionForYearCents(reserveByYear, y, t.reserveDeductionLagYears)
+      : 0;
     const debtStart = debt;
 
     let interestYear = 0;
@@ -360,6 +428,7 @@ export function simulatePropertyVsEtf(
     let incomeTaxYear = 0;
     let topUpYear = 0;
     let surplusYear = 0;
+    let reserveDeductionYear = 0;
 
     for (let m = 1; m <= 12; m += 1) {
       monthCounter += 1;
@@ -382,7 +451,8 @@ export function simulatePropertyVsEtf(
           depreciationBasisCents - cumulativeDepreciation,
         );
         cumulativeDepreciation += afa;
-        taxable = rent - vacancy - hoa - reserve - interest - afa;
+        taxable = rent - vacancy - hoa - deductibleReserve - interest - afa;
+        reserveDeductionYear += deductibleReserve;
         incomeTax = calculateRentalIncomeTaxCents(
           taxable,
           t.marginalTaxRateBps,
@@ -403,6 +473,9 @@ export function simulatePropertyVsEtf(
       incomeTaxYear += incomeTax;
 
       etf = applyMonthlyGrowth(etf, factor);
+      if (reinvest) {
+        depot = applyMonthlyGrowth(depot, factor);
+      }
       if (cf < 0) {
         etf += -cf;
         paidIn += -cf;
@@ -412,15 +485,30 @@ export function simulatePropertyVsEtf(
         surplus += cf;
         surplusYear += cf;
         hadSurplus = true;
+        if (reinvest) {
+          depot += cf;
+          depotPaidIn += cf;
+        }
       }
     }
 
     assertSafeInteger(etf, "etfValueCents");
     assertSafeInteger(surplus, "accumulatedSurplusCents");
+    assertSafeInteger(depot, "surplusDepotValueCents");
+    assertSafeInteger(depotPaidIn, "surplusDepotPaidInCents");
     value = stepByBps(value, input.valueGrowthBps);
-    const netWorth = value - debt + surplus;
+    const netWorth = value - debt + (reinvest ? depot : surplus);
     assertSafeInteger(netWorth, "propertyNetWorthCents");
-    const liq = liquidationFields(y, value, debt, surplus, etf, paidIn);
+    const liq = liquidationFields(
+      y,
+      value,
+      debt,
+      surplus,
+      etf,
+      paidIn,
+      depot,
+      depotPaidIn,
+    );
 
     years.push({
       year: y,
@@ -455,6 +543,7 @@ export function simulatePropertyVsEtf(
         incomeTaxYear,
         "rentalIncomeTaxYearCents",
       ),
+      reserveDeductionYearCents: reserveDeductionYear,
     });
   }
 
@@ -474,6 +563,8 @@ export function simulatePropertyVsEtf(
     initialMonthlyCashflowCents,
     initialMonthlyCashflowBeforeTaxCents,
     taxesEnabled: t.taxesEnabled,
+    reinvestSurplus: reinvest,
+    reserveDeductionLagYears: t.taxesEnabled ? t.reserveDeductionLagYears : 0,
     depreciationBasisCents,
     annualDepreciationCents,
     speculationFreeFromYear: t.taxesEnabled
@@ -487,6 +578,12 @@ export function simulatePropertyVsEtf(
       propertyLiquidationCents: last.propertyLiquidationCents,
       etfLiquidationCents: last.etfLiquidationCents,
       advantageCents: last.advantageCents,
+      propertyLiquidationWithoutDepotCents:
+        last.propertyLiquidationWithoutDepotCents,
+      surplusDepotValueCents: last.surplusDepotValueCents,
+      surplusDepotPaidInCents: last.surplusDepotPaidInCents,
+      surplusDepotTaxCents: last.surplusDepotTaxCents,
+      surplusDepotNetCents: last.surplusDepotNetCents,
     },
     breakEven: firstLead
       ? { kind: "year", year: firstLead.year }
@@ -500,6 +597,10 @@ export function simulatePropertyVsEtf(
       hadSurplus,
       hadRefunds,
       speculationTaxApplied,
+      reserveDeductionDeferred:
+        t.taxesEnabled &&
+        t.reserveDeductionLagYears >= 1 &&
+        (reserveByYear[input.horizonYears] ?? 0) > 0,
     },
   };
 }

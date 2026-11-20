@@ -8,7 +8,6 @@ import {
 import type { PropertyVsEtfTaxInput } from "@/lib/domain/property-vs-etf-tax";
 import {
   PROPERTY_VS_ETF_DEFAULTS,
-  PROPERTY_VS_ETF_TAX_DEFAULTS,
   defaultEquityCents,
 } from "@/lib/domain/property-vs-etf-defaults";
 import {
@@ -20,6 +19,7 @@ import {
   toPropertyVsEtfChart,
   toPropertyVsEtfKpis,
 } from "./property-vs-etf-chart-data";
+import { TAX_25D } from "../../lib/domain/__fixtures__/property-vs-etf-tax-25d";
 
 const OBJ_A = {
   purchasePriceCents: 30_000_000,
@@ -47,7 +47,7 @@ function simulate(
   base = OBJ_B,
 ): PropertyVsEtfResult {
   return simulatePropertyVsEtf(makeInput(overrides, base), {
-    ...PROPERTY_VS_ETF_TAX_DEFAULTS,
+    ...TAX_25D,
     ...tax,
   });
 }

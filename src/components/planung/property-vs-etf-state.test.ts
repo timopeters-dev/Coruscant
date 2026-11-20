@@ -337,7 +337,7 @@ describe("Reducer – Resets", () => {
       withObject(OBJ_B),
       { type: "setField", field: "etfAnnualReturnBps", value: 700 },
       { type: "setField", field: "horizonYears", value: 25 },
-      { type: "setTaxField", field: "saleCostsBps", value: 300 },
+      { type: "setTaxField", field: "brokerFeeBps", value: 300 },
       { type: "setEquity", value: 9_999_999 },
       { type: "setField", field: "purchaseCostsBps", value: 900 },
     );
@@ -346,7 +346,7 @@ describe("Reducer – Resets", () => {
     const s = reduce(touched(), { type: "resetAssumptions" });
     expect(s.etfAnnualReturnBps).toBe(PROPERTY_VS_ETF_DEFAULTS.etfAnnualReturnBps);
     expect(s.horizonYears).toBe(PROPERTY_VS_ETF_DEFAULTS.horizonYears);
-    expect(s.tax.saleCostsBps).toBe(300);
+    expect(s.tax.brokerFeeBps).toBe(300);
     expect(s.purchasePriceCents).toBe(OBJ_B.purchasePriceCents);
     expect(s.purchaseCostsBps).toBe(900);
     expect(s.equityMode).toBe("manual");
@@ -387,7 +387,10 @@ describe("PROPERTY_VS_ETF_UI_SLIDERS", () => {
     buildingShareBps: PROPERTY_VS_ETF_TAX_DEFAULTS.buildingShareBps,
     speculationPeriodYears: PROPERTY_VS_ETF_TAX_DEFAULTS.speculationPeriodYears,
     partialExemptionBps: PROPERTY_VS_ETF_TAX_DEFAULTS.partialExemptionBps,
-    saleCostsBps: PROPERTY_VS_ETF_TAX_DEFAULTS.saleCostsBps,
+    brokerFeeBps: PROPERTY_VS_ETF_TAX_DEFAULTS.brokerFeeBps,
+    otherSaleCostsBps: PROPERTY_VS_ETF_TAX_DEFAULTS.otherSaleCostsBps,
+    reserveDeductionLagYears:
+      PROPERTY_VS_ETF_TAX_DEFAULTS.reserveDeductionLagYears,
   };
 
   for (const key of Object.keys(PROPERTY_VS_ETF_UI_SLIDERS) as SliderFieldKey[]) {

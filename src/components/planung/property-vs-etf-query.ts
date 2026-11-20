@@ -23,6 +23,13 @@ const ORIGIN_PARAM = "von";
 const ORIGIN_VALUE = "kaufrechner";
 const EQUITY_KEY = "ek";
 const TAXES_ENABLED_KEY = "steuer";
+const REINVEST_KEY = "reinv";
+/**
+ * Altes Lesezeichen (25b–25d): Verkaufskosten gesamt. Grenzen hart im Codec, damit
+ * spätere Änderungen der Domänengrenzen alte Links nicht brechen. Wird nie geschrieben.
+ */
+const LEGACY_SALE_COSTS_KEY = "vk";
+const LEGACY_SALE_COSTS_LIMITS: Range = { min: 0, max: 2_000 };
 
 interface Range {
   min: number;
@@ -66,7 +73,9 @@ const TAX_FIELDS = {
   speculationPeriodYears: { key: "frist", limits: PROPERTY_VS_ETF_TAX_LIMITS.speculationPeriodYears },
   saverAllowanceCents: { key: "spb", limits: PROPERTY_VS_ETF_TAX_LIMITS.saverAllowanceCents },
   partialExemptionBps: { key: "tf", limits: PROPERTY_VS_ETF_TAX_LIMITS.partialExemptionBps },
-  saleCostsBps: { key: "vk", limits: PROPERTY_VS_ETF_TAX_LIMITS.saleCostsBps },
+  brokerFeeBps: { key: "makler", limits: PROPERTY_VS_ETF_TAX_LIMITS.brokerFeeBps },
+  otherSaleCostsBps: { key: "vks", limits: PROPERTY_VS_ETF_TAX_LIMITS.otherSaleCostsBps },
+  reserveDeductionLagYears: { key: "ihrv", limits: PROPERTY_VS_ETF_TAX_LIMITS.reserveDeductionLagYears },
 } as const satisfies Partial<Record<TaxNumericFieldKey, FieldDef>>;
 
 /** `kist` ist ein Aufzählungswert (kein Bereich) und steht daher separat. */
@@ -104,9 +113,11 @@ export const PROPERTY_VS_ETF_QUERY_KEYS: readonly string[] = [
   ...OBJECT_AND_COST_ENTRIES.map(([, d]) => d.key),
   EQUITY_KEY,
   ...ASSUMPTION_ENTRIES.map(([, d]) => d.key),
+  REINVEST_KEY,
   TAXES_ENABLED_KEY,
   ...TAX_ENTRIES.map(([, d]) => d.key),
   CHURCH_TAX_KEY,
+  LEGACY_SALE_COSTS_KEY,
 ];
 
 export interface PropertyVsEtfQueryState {
@@ -171,10 +182,37 @@ export function parsePropertyVsEtfQuery(
       state.manualEquityCents = equity;
     }
 
+    const reinvest = getParam(params, REINVEST_KEY)?.trim();
+    if (reinvest === "1") state.reinvestSurplus = true;
+    else if (reinvest === "0") state.reinvestSurplus = false;
+
     const tax = state.tax as unknown as Record<string, number | boolean>;
     for (const [field, def] of TAX_ENTRIES) {
       const value = readInt(params, def.key, def.limits);
       if (value !== null) tax[field] = value;
+    }
+    // Altes `vk`: nur wenn kein gültiges `makler` vorliegt. Fehlt ein gültiges `vks`,
+    // gilt Sonstiges = 0 (nicht der neue Standard).
+    const hasBroker =
+      readInt(
+        params,
+        "makler",
+        PROPERTY_VS_ETF_TAX_LIMITS.brokerFeeBps,
+      ) !== null;
+    const legacy = readInt(
+      params,
+      LEGACY_SALE_COSTS_KEY,
+      LEGACY_SALE_COSTS_LIMITS,
+    );
+    if (!hasBroker && legacy !== null) {
+      state.tax.brokerFeeBps = legacy;
+      const hasOther =
+        readInt(
+          params,
+          "vks",
+          PROPERTY_VS_ETF_TAX_LIMITS.otherSaleCostsBps,
+        ) !== null;
+      if (!hasOther) state.tax.otherSaleCostsBps = 0;
     }
     const taxes = getParam(params, TAXES_ENABLED_KEY)?.trim();
     if (taxes === "0") state.tax.taxesEnabled = false;
@@ -229,6 +267,8 @@ export function serializePropertyVsEtfState(
 
   writeForm(ASSUMPTION_ENTRIES);
 
+  if (state.reinvestSurplus) out.set(REINVEST_KEY, "1");
+
   if (!state.tax.taxesEnabled) out.set(TAXES_ENABLED_KEY, "0");
 
   const t = state.tax as unknown as Record<string, unknown>;
@@ -244,8 +284,8 @@ export function serializePropertyVsEtfState(
     }
   };
   for (const [field, def] of TAX_ENTRIES) {
-    // Reihenfolge laut Tabelle: ... tf, kist, vk.
-    if (field === "saleCostsBps") writeChurchTax();
+    // Reihenfolge laut Tabelle: ... tf, kist, makler, vks, ihrv.
+    if (field === "brokerFeeBps") writeChurchTax();
     const value = t[field];
     if (!isValidInt(value, def.limits)) continue;
     if (value === td[field]) continue;

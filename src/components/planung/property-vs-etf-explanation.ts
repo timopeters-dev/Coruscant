@@ -3,6 +3,7 @@ import {
   formatCentsDE,
   formatWholeEuroDE,
 } from "@/lib/domain/money";
+import { totalSaleCostsBps } from "@/lib/domain/property-vs-etf-tax";
 import type { PropertyVsEtfEvaluation } from "./property-vs-etf-state";
 
 export interface ExplanationItem {
@@ -131,15 +132,39 @@ export function buildPropertyVsEtfExplanation(
       }),
     },
   ];
+  const reinvest = result.reinvestSurplus;
+  if (reinvest) {
+    const f = result.final;
+    cashflowItems.push(
+      {
+        label: "Einzahlungen ins Depot",
+        value: formatWholeEuroDE(f.surplusDepotPaidInCents),
+      },
+      { label: "Depotwert", value: formatWholeEuroDE(f.surplusDepotValueCents) },
+      { label: "Depot-Steuer", value: formatWholeEuroDE(f.surplusDepotTaxCents) },
+      {
+        label: "Immobilien-Vermögen mit zinslosem Überschuss (Vergleich)",
+        value: formatWholeEuroDE(f.propertyLiquidationWithoutDepotCents),
+      },
+    );
+  }
   const cashflowNote = joinNotes(
-    "Negativ: Zuzahlung, derselbe Betrag geht in den ETF. Positiv: sammelt sich zinslos auf der Immobilien-Seite.",
+    reinvest
+      ? "Negativ: Zuzahlung, derselbe Betrag geht in den ETF. Positiv: fließt in ein Überschuss-Depot auf der Immobilien-Seite (gleiche ETF-Rendite, beim Verkauf mit ETF-Steuer). Spätere Zuzahlungen werden nicht aus dem Depot entnommen."
+      : "Negativ: Zuzahlung, derselbe Betrag geht in den ETF. Positiv: sammelt sich zinslos auf der Immobilien-Seite.",
     flags.hadTopUps
       ? "Im Verlauf gab es Zuzahlungen, die in den ETF geflossen sind."
       : null,
     flags.hadSurplus
-      ? "Im Verlauf gab es Überschüsse, die zinslos angesammelt wurden."
-      : null,
+      ? reinvest
+        ? "Im Verlauf gab es Überschüsse, die ins Überschuss-Depot geflossen sind."
+        : "Im Verlauf gab es Überschüsse, die zinslos angesammelt wurden."
+      : reinvest
+        ? "Kein Überschuss im Verlauf."
+        : null,
   );
+
+  const saleCostsTotal = formatBpsDE(totalSaleCostsBps(tax));
 
   // 5. ETF
   const etfItems: ExplanationItem[] = [
@@ -162,11 +187,23 @@ export function buildPropertyVsEtfExplanation(
         },
         {
           label: "Verkaufskosten",
-          value: `${formatBpsDE(tax.saleCostsBps)} wirken weiter`,
+          value: `Makler ${formatBpsDE(tax.brokerFeeBps)} + Sonstiges ${formatBpsDE(tax.otherSaleCostsBps)} = Summe ${saleCostsTotal} wirken weiter`,
+        },
+        {
+          label: "Rücklage-Verzögerung",
+          value: "ohne Wirkung (keine Steuern)",
         },
       ],
     };
   } else {
+    const lag = tax.reserveDeductionLagYears;
+    let reserveText =
+      lag === 0
+        ? "im Jahr der Zahlung als Werbungskosten abgesetzt"
+        : `erst nach ${lag} Jahren abgesetzt (bei Verwendung); Zahlungen der letzten ${lag} Jahre vor dem Verkauf werden nie abgesetzt`;
+    if (flags.reserveDeductionDeferred && lag >= horizon) {
+      reserveText += ". Innerhalb des Horizonts wird keine Rücklage abgesetzt.";
+    }
     const speculation =
       result.speculationFreeFromYear === null
         ? `Frist ${tax.speculationPeriodYears} Jahre`
@@ -187,8 +224,16 @@ export function buildPropertyVsEtfExplanation(
         },
         { label: "Kirchensteuer", value: formatBpsDE(tax.churchTaxBps) },
         { label: "Teilfreistellung (ETF)", value: formatBpsDE(tax.partialExemptionBps) },
-        { label: "Sparerpauschbetrag", value: formatWholeEuroDE(tax.saverAllowanceCents) },
-        { label: "Verkaufskosten", value: formatBpsDE(tax.saleCostsBps) },
+        {
+          label: "Sparerpauschbetrag",
+          value: reinvest
+            ? `${formatWholeEuroDE(tax.saverAllowanceCents)} je Szenario einmal (Vergleichs-ETF und Überschuss-Depot getrennt)`
+            : formatWholeEuroDE(tax.saverAllowanceCents),
+        },
+        { label: "Maklerprovision", value: formatBpsDE(tax.brokerFeeBps) },
+        { label: "Sonstige Verkaufskosten", value: formatBpsDE(tax.otherSaleCostsBps) },
+        { label: "Verkaufskosten gesamt", value: saleCostsTotal },
+        { label: "Instandhaltungsrücklage", value: reserveText },
       ],
       note: joinNotes(
         "Ein steuerlicher Verlust führt zu einer Erstattung.",
@@ -202,12 +247,13 @@ export function buildPropertyVsEtfExplanation(
   const saleItems: ExplanationItem[] = [
     {
       label: "Chart",
-      value: `Jedes Jahr zeigt: Verkauf in diesem Jahr, nach Verkaufskosten (${formatBpsDE(tax.saleCostsBps)}) und Steuern.`,
+      value: `Jedes Jahr zeigt: Verkauf in diesem Jahr, nach Verkaufskosten (${saleCostsTotal}) und Steuern.`,
     },
     {
       label: "Immobilie",
-      value:
-        "Wert − Restschuld + Überschüsse − Verkaufskosten − Spekulationssteuer",
+      value: reinvest
+        ? "Wert − Restschuld + Überschuss-Depot nach Steuern − Verkaufskosten − Spekulationssteuer"
+        : "Wert − Restschuld + Überschüsse − Verkaufskosten − Spekulationssteuer",
     },
     { label: "ETF", value: "Depotwert − ETF-Steuer" },
     { label: "Horizont", value: `${horizon} Jahre` },
@@ -227,6 +273,23 @@ export function buildPropertyVsEtfExplanation(
       items: [
         { label: "Zinsbindung", value: "Anschlussfinanzierung nicht modelliert" },
         { label: "Vorabpauschale", value: "vereinfachend ignoriert" },
+        {
+          label: "Vorfälligkeitsentschädigung",
+          value:
+            "bei Verkauf innerhalb der Zinsbindung nicht abgebildet (Zinsbindung nicht modelliert)",
+        },
+        {
+          label: "Anschaffungsnahe Herstellungskosten",
+          value: "§ 6 Abs. 1 Nr. 1a EStG nicht abgebildet",
+        },
+        {
+          label: "Erhaltungsaufwand",
+          value: "der von der Rücklage abweicht, nicht abgebildet",
+        },
+        {
+          label: "Rücklage beim Verkauf",
+          value: "kein Ausgleich im Kaufpreis (konservativ)",
+        },
         {
           label: "Bundesland",
           value: "Besonderheiten nur über die Kaufnebenkosten",

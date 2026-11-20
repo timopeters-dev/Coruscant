@@ -89,7 +89,8 @@ describe("buildPropertyVsEtfExplanation", () => {
   it("Steuern aus: Aus-Text, keine AfA-/Spekulationszeilen, Verkaufskosten bleiben", () => {
     const shown = evaluate(
       { type: "setTaxesEnabled", value: false },
-      { type: "setTaxField", field: "saleCostsBps", value: 300 },
+      { type: "setTaxField", field: "brokerFeeBps", value: 300 },
+      { type: "setTaxField", field: "otherSaleCostsBps", value: 0 },
     );
     const taxes = section(shown, "taxes");
     expect(taxes).toContain("nicht berücksichtigt");
@@ -181,6 +182,8 @@ describe("buildPropertyVsEtfExplanation", () => {
     expect(source).not.toContain("simulatePropertyVsEtf");
     expect(source).not.toMatch(/\bcalculate[A-Z]\w*/);
     expect(source).not.toContain("defaultEquityCents");
-    expect(source).not.toContain("property-vs-etf-tax");
+    // Einzige erlaubte Domänen-Funktion: die Summe der Verkaufskosten.
+    expect(source).toContain('import { totalSaleCostsBps } from "@/lib/domain/property-vs-etf-tax";');
+    expect(source.match(/property-vs-etf-tax/g)).toHaveLength(1);
   });
 });

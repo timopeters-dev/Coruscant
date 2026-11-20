@@ -6,9 +6,9 @@ import {
 } from "./property-vs-etf";
 import {
   PROPERTY_VS_ETF_DEFAULTS,
-  PROPERTY_VS_ETF_TAX_DEFAULTS,
 } from "./property-vs-etf-defaults";
 import type { PropertyVsEtfTaxInput } from "./property-vs-etf-tax";
+import { TAX_25D } from "./__fixtures__/property-vs-etf-tax-25d";
 
 const BASE_A: PropertyVsEtfInput = {
   purchasePriceCents: 20_000_000,
@@ -37,7 +37,7 @@ const BASE_B: PropertyVsEtfInput = {
   costGrowthBps: 0,
 };
 
-const TAX_ON: PropertyVsEtfTaxInput = { ...PROPERTY_VS_ETF_TAX_DEFAULTS };
+const TAX_ON: PropertyVsEtfTaxInput = { ...TAX_25D };
 const TAX_OFF: PropertyVsEtfTaxInput = { ...TAX_ON, taxesEnabled: false };
 
 const run = (
@@ -104,7 +104,7 @@ describe("Handrechnung E: Spekulationssteuer und Verkaufskosten", () => {
     expect(y.propertyLiquidationCents).toBe(2_294_396);
   });
   it("Verkaufskosten 5 %", () => {
-    const r = run({ valueGrowthBps: 1_000, horizonYears: 1 }, { saleCostsBps: 500 });
+    const r = run({ valueGrowthBps: 1_000, horizonYears: 1 }, { brokerFeeBps: 500 });
     const y = r.years[1]!;
     expect(y.saleCostsCents).toBe(1_100_000);
     expect(y.speculationTaxCents).toBe(0);
@@ -189,7 +189,7 @@ describe("Grenzfälle", () => {
   });
 
   it("Verkaufskosten hoch, auch bei Schalter aus; Jahr 0 darf negativ sein", () => {
-    const r = run({ horizonYears: 3 }, { saleCostsBps: 2_000, taxesEnabled: false });
+    const r = run({ horizonYears: 3 }, { brokerFeeBps: 2_000, taxesEnabled: false });
     for (const y of r.years) {
       expect(y.propertyValueCents).toBe(20_000_000);
       expect(y.saleCostsCents).toBe(4_000_000);
@@ -199,8 +199,8 @@ describe("Grenzfälle", () => {
       y0.propertyValueCents - y0.saleCostsCents - y0.remainingDebtCents,
     );
     expect(y0.propertyLiquidationCents).toBeLessThan(0);
-    const lowCosts = run({ horizonYears: 12, valueGrowthBps: 500 }, { saleCostsBps: 0 });
-    const highCosts = run({ horizonYears: 12, valueGrowthBps: 500 }, { saleCostsBps: 2_000 });
+    const lowCosts = run({ horizonYears: 12, valueGrowthBps: 500 }, { brokerFeeBps: 0 });
+    const highCosts = run({ horizonYears: 12, valueGrowthBps: 500 }, { brokerFeeBps: 2_000 });
     expect(highCosts.years[5]!.speculationTaxCents).toBeLessThan(lowCosts.years[5]!.speculationTaxCents);
   });
 
@@ -288,7 +288,7 @@ const INPUTS: [string, PropertyVsEtfInput][] = [
 
 describe("Regression gegen 25a", () => {
   it.each(INPUTS)("Schalter aus, 0 % Verkaufskosten = ohne tax (%s)", (_n, x) => {
-    const r = simulatePropertyVsEtf(x, { ...TAX_OFF, saleCostsBps: 0 });
+    const r = simulatePropertyVsEtf(x, { ...TAX_OFF, brokerFeeBps: 0 });
     expect(r).toEqual(simulatePropertyVsEtf(x));
     expect(
       r.years.every(
@@ -310,7 +310,9 @@ describe("Regression gegen 25a", () => {
     saverAllowanceCents: 0,
     partialExemptionBps: 0,
     churchTaxBps: 900,
-    saleCostsBps: 0,
+    brokerFeeBps: 0,
+    otherSaleCostsBps: 0,
+    reserveDeductionLagYears: 15,
   };
   it.each(INPUTS)("Schalter aus ignoriert extreme Parameter (%s)", (_n, x) => {
     expect(simulatePropertyVsEtf(x, EXTREME)).toEqual(simulatePropertyVsEtf(x));
@@ -319,8 +321,14 @@ describe("Regression gegen 25a", () => {
   it("Verkaufskosten bei Schalter aus ändern nur Liquidationsfelder", () => {
     const x = { ...BASE_A, horizonYears: 10 };
     const base = simulatePropertyVsEtf(x);
-    const costly = simulatePropertyVsEtf(x, { ...TAX_OFF, saleCostsBps: 500 });
-    const liq = ["saleCostsCents", "propertyLiquidationCents", "advantageCents", "speculationGainCents"] as const;
+    const costly = simulatePropertyVsEtf(x, { ...TAX_OFF, brokerFeeBps: 500 });
+    const liq = [
+      "saleCostsCents",
+      "propertyLiquidationCents",
+      "propertyLiquidationWithoutDepotCents",
+      "advantageCents",
+      "speculationGainCents",
+    ] as const;
     costly.years.forEach((row, i) => {
       const b = base.years[i]!;
       const strip = (o: object) =>
@@ -374,7 +382,7 @@ function checkInvariants(r: PropertyVsEtfResult, frist: number) {
 
 describe("Invarianten (Steuer an)", () => {
   it.each(INPUTS)("%s", (_n, x) => {
-    checkInvariants(simulatePropertyVsEtf(x, { ...TAX_ON, saleCostsBps: 300 }), 10);
+    checkInvariants(simulatePropertyVsEtf(x, { ...TAX_ON, brokerFeeBps: 300 }), 10);
   });
 
   it("Frist 5, KiSt 9 %", () => {
@@ -394,7 +402,9 @@ describe("Invarianten (Steuer an)", () => {
       saverAllowanceCents: 0,
       partialExemptionBps: 0,
       churchTaxBps: 900,
-      saleCostsBps: 2_000,
+      brokerFeeBps: 2_000,
+      otherSaleCostsBps: 1_000,
+      reserveDeductionLagYears: 0,
     };
     for (const x of [maxInput, { ...maxInput, coldRentPerSqmCents: 0 }]) {
       let r!: PropertyVsEtfResult;

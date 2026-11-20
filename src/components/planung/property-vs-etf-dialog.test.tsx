@@ -121,7 +121,9 @@ describe("PropertyVsEtfWorkbench", () => {
       return m![0];
     };
     expect(inputTag(idOf("Grenzsteuersatz"))).toContain('disabled=""');
-    expect(inputTag(idOf("Verkaufskosten"))).not.toContain('disabled=""');
+    expect(inputTag(idOf("Maklerprovision \\(Verkäufer\\)"))).not.toContain('disabled=""');
+    expect(inputTag(idOf("Sonstige Verkaufskosten"))).not.toContain('disabled=""');
+    expect(inputTag(idOf("Rücklage wird verwendet nach"))).toContain('disabled=""');
     expect(html).toContain("ohne Steuern");
     expect(html).toContain("Verkaufskosten wirken auch ohne Steuern");
   });

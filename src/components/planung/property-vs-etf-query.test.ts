@@ -46,6 +46,7 @@ function fullState(): PropertyVsEtfFormState {
     maintenanceReserveBps: 120,
     etfAnnualReturnBps: 700,
     horizonYears: 15,
+    reinvestSurplus: true,
     tax: {
       taxesEnabled: false,
       marginalTaxRateBps: 4_200,
@@ -55,7 +56,9 @@ function fullState(): PropertyVsEtfFormState {
       saverAllowanceCents: 200_000,
       partialExemptionBps: 2_000,
       churchTaxBps: 900,
-      saleCostsBps: 350,
+      brokerFeeBps: 350,
+      otherSaleCostsBps: 20,
+      reserveDeductionLagYears: 3,
     },
   };
 }
@@ -116,7 +119,9 @@ describe("Roundtrip serialize → parse", () => {
       "speculationPeriodYears",
       "saverAllowanceCents",
       "partialExemptionBps",
-      "saleCostsBps",
+      "brokerFeeBps",
+      "otherSaleCostsBps",
+      "reserveDeductionLagYears",
     ] as const;
     for (const field of fields) {
       for (const bound of ["min", "max"] as const) {
@@ -163,7 +168,7 @@ describe("Roundtrip serialize → parse", () => {
 
   it("Schlüsselreihenfolge ist stabil", () => {
     expect(serializePropertyVsEtfState(fullState()).toString()).toBe(
-      "kp=35000000&wfl=6550&kmqm=1250&nk=1000&ek=4500000&zins=410&tilg=250&mst=-100&wst=150&kst=300&ausfall=400&weg=25000&ihr=120&etf=700&jahre=15&steuer=0&gst=4200&afa=300&geb=7000&frist=8&spb=200000&tf=2000&kist=900&vk=350",
+      "kp=35000000&wfl=6550&kmqm=1250&nk=1000&ek=4500000&zins=410&tilg=250&mst=-100&wst=150&kst=300&ausfall=400&weg=25000&ihr=120&etf=700&jahre=15&reinv=1&steuer=0&gst=4200&afa=300&geb=7000&frist=8&spb=200000&tf=2000&kist=900&makler=350&vks=20&ihrv=3",
     );
   });
 });

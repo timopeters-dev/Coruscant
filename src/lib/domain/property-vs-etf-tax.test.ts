@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { PROPERTY_VS_ETF_TAX_DEFAULTS } from "./property-vs-etf-defaults";
 import {
   calculateAnnualDepreciationCents,
   calculateDepreciationBasisCents,
@@ -11,8 +10,9 @@ import {
   validatePropertyVsEtfTaxInput,
   type PropertyVsEtfTaxInput,
 } from "./property-vs-etf-tax";
+import { TAX_25D } from "./__fixtures__/property-vs-etf-tax-25d";
 
-const TAX_ON: PropertyVsEtfTaxInput = { ...PROPERTY_VS_ETF_TAX_DEFAULTS };
+const TAX_ON: PropertyVsEtfTaxInput = { ...TAX_25D };
 
 describe("AfA", () => {
   it("Basis und Satz", () => {
@@ -113,7 +113,7 @@ describe("Immobilienverkauf", () => {
 
   it("Verkaufskosten erzeugen Verlust → keine Erstattung", () => {
     expect(
-      calculatePropertySale({ ...base, tax: { ...TAX_ON, saleCostsBps: 500 } }),
+      calculatePropertySale({ ...base, tax: { ...TAX_ON, brokerFeeBps: 500 } }),
     ).toEqual({
       saleCostsCents: 1_100_000,
       netProceedsCents: 20_900_000,
@@ -129,14 +129,14 @@ describe("Immobilienverkauf", () => {
   it("Schalter aus: keine Steuer, Verkaufskosten bleiben", () => {
     const r = calculatePropertySale({
       ...base,
-      tax: { ...TAX_ON, taxesEnabled: false, saleCostsBps: 500 },
+      tax: { ...TAX_ON, taxesEnabled: false, brokerFeeBps: 500 },
     });
     expect(r.speculationTaxCents).toBe(0);
     expect(r.saleCostsCents).toBe(1_100_000);
   });
 
   it("Maximum 20 % Verkaufskosten", () => {
-    const r = calculatePropertySale({ ...base, tax: { ...TAX_ON, saleCostsBps: 2_000 } });
+    const r = calculatePropertySale({ ...base, tax: { ...TAX_ON, brokerFeeBps: 2_000 } });
     expect(r.saleCostsCents).toBe(4_400_000);
   });
 });
@@ -207,8 +207,8 @@ describe("validatePropertyVsEtfTaxInput", () => {
     ["saverAllowanceCents", 200_001],
     ["partialExemptionBps", -1],
     ["partialExemptionBps", 10_001],
-    ["saleCostsBps", -1],
-    ["saleCostsBps", 2_001],
+    ["brokerFeeBps", -1],
+    ["brokerFeeBps", 2_001],
     ["churchTaxBps", 500],
   ])("%s = %s wirft RangeError", (key, value) => {
     expect(() => validatePropertyVsEtfTaxInput({ ...TAX_ON, [key]: value })).toThrow(RangeError);

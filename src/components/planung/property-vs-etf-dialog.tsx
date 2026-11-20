@@ -7,12 +7,14 @@ import { LineChart } from "@/components/charts/line-chart";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { InfoTip } from "@/components/ui/info-tip";
 import { Input } from "@/components/ui/input";
 import { Link as LinkIcon } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { centsToEuroInputString, formatBpsDE, parseEuroInputToCents } from "@/lib/domain/money";
 import { CURRENT_PURCHASE_COST_RULE_SET } from "@/lib/domain/property-purchase-defaults";
 import { formatWholeEuroDE } from "@/components/charts/chart-scale";
+import { totalSaleCostsBps } from "@/lib/domain/property-vs-etf-tax";
 import { ALLOWED_CHURCH_TAX_BPS } from "@/lib/domain/scenarios";
 import { cn } from "@/lib/utils";
 import { SliderField } from "./euro-slider-field";
@@ -25,6 +27,7 @@ import {
   toPropertyVsEtfKpis,
   type PropertyVsEtfKpi,
 } from "./property-vs-etf-chart-data";
+import { PROPERTY_VS_ETF_FIELD_INFO } from "./property-vs-etf-field-info";
 import { buildPropertyVsEtfExplanation } from "./property-vs-etf-explanation";
 import {
   evaluatePropertyVsEtf,
@@ -81,6 +84,8 @@ interface NumberFieldProps {
   error?: string;
   disabled?: boolean;
   autoFocus?: boolean;
+  /** Erklärtext (Info-Symbol neben dem Label). */
+  info?: string;
 }
 
 /** Zahlenfeld für Beträge/Flächen auf ganzzahligen Cent bzw. Hundertstel-qm. */
@@ -95,6 +100,7 @@ function NumberField({
   error,
   disabled = false,
   autoFocus = false,
+  info,
 }: NumberFieldProps) {
   const parse = kind === "sqm" ? parseSqmInputToCentiSqm : parseEuroInputToCents;
   const [draft, setDraft] = React.useState<string | null>(null);
@@ -106,9 +112,12 @@ function NumberField({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-xs font-medium text-[var(--text-secondary)]">
-        {label}
-      </label>
+      <div className="flex items-center gap-1">
+        <label htmlFor={id} className="text-xs font-medium text-[var(--text-secondary)]">
+          {label}
+        </label>
+        {info ? <InfoTip label={label} text={info} id={`${id}-info`} /> : null}
+      </div>
       <div className="relative">
         <Input
           id={id}
@@ -291,6 +300,13 @@ export function PropertyVsEtfWorkbench({
     evaluation.status === "invalid" ? evaluation.fieldErrors : {};
   const equity = React.useMemo(() => resolveEquity(deferred), [deferred]);
   const taxOn = state.tax.taxesEnabled;
+  // Summe kommt aus der Domäne; außerhalb der Grenzen wird die Zeile ausgeblendet.
+  let saleCostsTotalText: string | null = null;
+  try {
+    saleCostsTotalText = formatBpsDE(totalSaleCostsBps(state.tax));
+  } catch {
+    saleCostsTotalText = null;
+  }
   const assumptionsModified = isAssumptionsModified(state);
   const taxModified = isTaxModified(state);
 
@@ -317,6 +333,7 @@ export function PropertyVsEtfWorkbench({
         disabled={extra?.disabled}
         allowNegative={extra?.allowNegative}
         error={extra?.error ?? errors[key]}
+        info={PROPERTY_VS_ETF_FIELD_INFO[key]}
       />
     );
   };
@@ -356,6 +373,7 @@ export function PropertyVsEtfWorkbench({
             </h3>
             <NumberField
               id={fid("purchasePrice")}
+              info={PROPERTY_VS_ETF_FIELD_INFO.purchasePriceCents}
               label="Kaufpreis"
               kind="euro"
               value={state.purchasePriceCents}
@@ -366,6 +384,7 @@ export function PropertyVsEtfWorkbench({
             />
             <NumberField
               id={fid("livingArea")}
+              info={PROPERTY_VS_ETF_FIELD_INFO.livingAreaCentiSqm}
               label="Wohnfläche"
               kind="sqm"
               value={state.livingAreaCentiSqm}
@@ -375,6 +394,7 @@ export function PropertyVsEtfWorkbench({
             />
             <NumberField
               id={fid("coldRent")}
+              info={PROPERTY_VS_ETF_FIELD_INFO.coldRentPerSqmCents}
               label="Kaltmiete pro qm"
               kind="euro"
               value={state.coldRentPerSqmCents}
@@ -393,6 +413,7 @@ export function PropertyVsEtfWorkbench({
             <div className="flex flex-col gap-1.5">
               <NumberField
                 id={fid("equity")}
+                info={PROPERTY_VS_ETF_FIELD_INFO.equityCents}
                 label="Eigenkapital"
                 kind="euro"
                 value={equityValue}
@@ -472,6 +493,7 @@ export function PropertyVsEtfWorkbench({
               )}
               <NumberField
                 id={fid("hoa")}
+                info={PROPERTY_VS_ETF_FIELD_INFO.monthlyHoaCostsCents}
                 label="WEG-Kosten pro Monat (nicht umlagefähig)"
                 kind="euro"
                 value={state.monthlyHoaCostsCents}
@@ -495,6 +517,30 @@ export function PropertyVsEtfWorkbench({
                 (v) => dispatch({ type: "setField", field: "etfAnnualReturnBps", value: v }),
                 { allowNegative: true },
               )}
+              <div className="flex items-center gap-1">
+                <label
+                  htmlFor={fid("reinvestSurplus")}
+                  className="flex items-center gap-2 text-sm font-medium"
+                >
+                  <input
+                    id={fid("reinvestSurplus")}
+                    type="checkbox"
+                    role="switch"
+                    aria-checked={state.reinvestSurplus}
+                    checked={state.reinvestSurplus}
+                    onChange={(e) =>
+                      dispatch({ type: "setReinvestSurplus", value: e.target.checked })
+                    }
+                    className="h-4 w-4 accent-[var(--accent)]"
+                  />
+                  Positiven Cashflow im ETF anlegen
+                </label>
+                <InfoTip
+                  label="Positiven Cashflow im ETF anlegen"
+                  text={PROPERTY_VS_ETF_FIELD_INFO.reinvestSurplus}
+                  id={`${fid("reinvestSurplus")}-info`}
+                />
+              </div>
               {slider("horizonYears", "Anlagehorizont", state.horizonYears, "years", (v) =>
                 dispatch({ type: "setField", field: "horizonYears", value: v }),
               )}
@@ -508,6 +554,7 @@ export function PropertyVsEtfWorkbench({
             </summary>
             <div className="mt-4 flex flex-col gap-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-1">
                 <label
                   htmlFor={fid("taxesEnabled")}
                   className="flex items-center gap-2 text-sm font-medium"
@@ -525,6 +572,12 @@ export function PropertyVsEtfWorkbench({
                   />
                   Steuern berücksichtigen
                 </label>
+                <InfoTip
+                  label="Steuern berücksichtigen"
+                  text={PROPERTY_VS_ETF_FIELD_INFO.taxesEnabled}
+                  id={`${fid("taxesEnabled")}-info`}
+                />
+                </div>
                 <button
                   type="button"
                   onClick={() => dispatch({ type: "resetTaxes" })}
@@ -570,13 +623,28 @@ export function PropertyVsEtfWorkbench({
                 setTax("speculationPeriodYears"),
                 { disabled: !taxOn },
               )}
+              {slider(
+                "reserveDeductionLagYears",
+                "Rücklage wird verwendet nach",
+                state.tax.reserveDeductionLagYears,
+                "years",
+                setTax("reserveDeductionLagYears"),
+                { disabled: !taxOn },
+              )}
               <div className="flex flex-col gap-1.5">
-                <label
-                  htmlFor={fid("churchTax")}
-                  className="text-xs font-medium text-[var(--text-secondary)]"
-                >
-                  Kirchensteuer
-                </label>
+                <div className="flex items-center gap-1">
+                  <label
+                    htmlFor={fid("churchTax")}
+                    className="text-xs font-medium text-[var(--text-secondary)]"
+                  >
+                    Kirchensteuer
+                  </label>
+                  <InfoTip
+                    label="Kirchensteuer"
+                    text={PROPERTY_VS_ETF_FIELD_INFO.churchTaxBps}
+                    id={`${fid("churchTax")}-info`}
+                  />
+                </div>
                 <Select
                   id={fid("churchTax")}
                   disabled={!taxOn}
@@ -606,6 +674,7 @@ export function PropertyVsEtfWorkbench({
               )}
               <NumberField
                 id={fid("saverAllowance")}
+                info={PROPERTY_VS_ETF_FIELD_INFO.saverAllowanceCents}
                 label="Sparerpauschbetrag"
                 kind="euro"
                 value={state.tax.saverAllowanceCents}
@@ -617,12 +686,24 @@ export function PropertyVsEtfWorkbench({
                 Kapitalertragsteuer inkl. Soli: 26,375 % (fest)
               </p>
               {slider(
-                "saleCostsBps",
-                "Verkaufskosten",
-                state.tax.saleCostsBps,
+                "brokerFeeBps",
+                "Maklerprovision (Verkäufer)",
+                state.tax.brokerFeeBps,
                 "percent",
-                setTax("saleCostsBps"),
+                setTax("brokerFeeBps"),
               )}
+              {slider(
+                "otherSaleCostsBps",
+                "Sonstige Verkaufskosten",
+                state.tax.otherSaleCostsBps,
+                "percent",
+                setTax("otherSaleCostsBps"),
+              )}
+              {saleCostsTotalText !== null ? (
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Verkaufskosten gesamt: {saleCostsTotalText}
+                </p>
+              ) : null}
             </div>
           </details>
         </div>
@@ -651,10 +732,7 @@ export function PropertyVsEtfWorkbench({
                 </p>
               ) : null}
               <ChartLegend
-                items={[
-                  { role: "bound", dashed: true, shape: "line", label: "Immobilie (nach Verkauf)" },
-                  { role: "optionB", dashed: true, shape: "line", label: "ETF (nach Verkauf)" },
-                ]}
+                items={chart.legend}
               />
               <LineChart
                 series={chart.series}
@@ -663,22 +741,22 @@ export function PropertyVsEtfWorkbench({
                 xTooltipLabel={chart.tooltipTitle}
                 markers={chart.markers}
                 height={280}
-                ariaLabel={`Vermögen bei Verkauf: Immobilie und ETF über ${shown.input.horizonYears} Jahre`}
+                ariaLabel={chart.ariaLabel}
                 tooltipExtra={(_values, x) =>
                   x === undefined ? null : chart.tooltipExtra(x)
                 }
               />
               <ChartDataTable
                 summary="Werte als Tabelle"
-                columns={[
-                  { key: "year", header: "Jahr" },
-                  { key: "property", header: "Immobilie", align: "right" },
-                  { key: "etf", header: "ETF", align: "right" },
-                  { key: "advantage", header: "Vorteil", align: "right" },
-                ]}
+                columns={chart.tableColumns}
                 rows={chart.tableRows}
               />
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div
+                className={cn(
+                  "grid gap-3",
+                  kpis.length > 3 ? "sm:grid-cols-2" : "sm:grid-cols-3",
+                )}
+              >
                 {kpis.map((kpi) => (
                   <div
                     key={kpi.key}

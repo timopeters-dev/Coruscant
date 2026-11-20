@@ -132,6 +132,9 @@ export const propertyVsEtfInputSchema = z
       min: "ganze Jahre zwischen 1 und 40",
       max: "ganze Jahre zwischen 1 und 40",
     }),
+    reinvestSurplus: z
+      .boolean({ message: "Überschuss im ETF anlegen: Ja/Nein angeben" })
+      .optional(),
   })
   .superRefine((value, ctx) => {
     // Zod 4 führt Objekt-Refinements auch bei Feldfehlern aus: nur vergleichen,
@@ -216,11 +219,27 @@ export const propertyVsEtfTaxInputSchema = z.object({
     .refine((v): boolean => v === 0 || v === 800 || v === 900, {
       message: "Kirchensteuer: 0 %, 8 % oder 9 %",
     }),
-  saleCostsBps: percent(
-    "Verkaufskosten",
-    taxLimits.saleCostsBps,
+  brokerFeeBps: percent(
+    "Maklerprovision",
+    taxLimits.brokerFeeBps,
     "mindestens 0,00 %",
     "höchstens 20,00 %",
+  ),
+  otherSaleCostsBps: percent(
+    "Sonstige Verkaufskosten",
+    taxLimits.otherSaleCostsBps,
+    "mindestens 0,00 %",
+    "höchstens 10,00 %",
+  ),
+  reserveDeductionLagYears: intField(
+    "Rücklage-Verwendung",
+    taxLimits.reserveDeductionLagYears,
+    {
+      invalid: "gültige Jahreszahl angeben",
+      unit: "ganze Jahre zwischen 0 und 15",
+      min: "ganze Jahre zwischen 0 und 15",
+      max: "ganze Jahre zwischen 0 und 15",
+    },
   ),
 });
 

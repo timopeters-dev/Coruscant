@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { InfoTip } from "@/components/ui/info-tip";
 import { Input } from "@/components/ui/input";
 import {
   bpsToPercentInputString,
@@ -25,6 +26,8 @@ interface SliderFieldProps {
   allowNegative?: boolean;
   /** Feldfehler (rot, unter dem Feld). */
   error?: string;
+  /** Erklärtext; mit Wert steht ein Info-Symbol neben dem Label. */
+  info?: string;
 }
 
 /**
@@ -44,6 +47,7 @@ export function SliderField({
   disabled = false,
   allowNegative = false,
   error,
+  info,
 }: SliderFieldProps) {
   const format =
     kind === "euro"
@@ -68,9 +72,18 @@ export function SliderField({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-xs font-medium text-[var(--text-secondary)]">
-        {label}
-      </label>
+      {info ? (
+        <div className="flex items-center gap-1">
+          <label htmlFor={id} className="text-xs font-medium text-[var(--text-secondary)]">
+            {label}
+          </label>
+          <InfoTip label={label} text={info} id={`${id}-info`} />
+        </div>
+      ) : (
+        <label htmlFor={id} className="text-xs font-medium text-[var(--text-secondary)]">
+          {label}
+        </label>
+      )}
       <div className="flex items-center gap-3">
         <input
           id={id}
