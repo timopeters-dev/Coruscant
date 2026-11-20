@@ -263,7 +263,7 @@ export function LineChart({
         width={width}
         height={height}
         style={{ touchAction: "pan-y" }}
-        className="block overflow-visible rounded-md outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
+        className="block overflow-visible rounded-md outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]"
         onKeyDown={handleKeyDown}
         onBlur={() => setActiveIndex(null)}
         onPointerLeave={(e) => {

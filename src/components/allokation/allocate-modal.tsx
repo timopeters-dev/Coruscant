@@ -391,7 +391,7 @@ function AllocateModalInner({
         {/* Schritt 2: Töpfe & manuelle Korrektur */}
         <div className="space-y-2.5">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+            <h3 className="section-label text-[var(--text-secondary)]">
               Zuteilung nach Priorität
             </h3>
             {isManualOverride ? (
@@ -427,11 +427,11 @@ function AllocateModalInner({
                           {pot.name}
                         </span>
                         {pot.externalLinkKind !== null ? (
-                          <span className="shrink-0 rounded-md border border-solid border-[var(--emerald)]/35 bg-[var(--emerald)]/10 px-1.5 py-0.5 text-[11px] font-medium text-[var(--emerald)]">
+                          <span className="shrink-0 rounded-md border border-solid border-[var(--emerald)]/35 bg-[var(--emerald)]/10 px-1.5 py-0.5 text-2xs font-medium text-[var(--emerald)]">
                             Überweisung
                           </span>
                         ) : (
-                          <span className="shrink-0 rounded-md border border-dashed border-[var(--border-sub)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--text-secondary)]">
+                          <span className="shrink-0 rounded-md border border-dashed border-[var(--border-sub)] px-1.5 py-0.5 text-2xs font-medium text-[var(--text-secondary)]">
                             Buchung
                           </span>
                         )}
@@ -467,7 +467,7 @@ function AllocateModalInner({
                       </p>
                       {mode === "one_time" &&
                       pot.ruleType === "fixed_monthly" ? (
-                        <p className="text-[11px] text-[var(--text-secondary)]">
+                        <p className="text-2xs text-[var(--text-secondary)]">
                           Wird bei Einmalzufluss übersprungen (0,00 €)
                         </p>
                       ) : null}
@@ -490,7 +490,7 @@ function AllocateModalInner({
                     </div>
 
                     <div className="text-right">
-                      <div className="text-[11px] text-[var(--text-secondary)]">
+                      <div className="text-2xs text-[var(--text-secondary)]">
                         Neuer Stand
                       </div>
                       <div className="tabular-nums text-sm font-semibold text-[var(--text-primary)]">

@@ -192,7 +192,7 @@ export function SavingsProgressSection({
 
           <div className="grid gap-2.5 sm:grid-cols-3">
             <div className="rounded-lg border border-dashed border-[var(--border-sub)] bg-[var(--surface-elevated)]/30 p-3">
-              <p className="text-[11px] text-[var(--text-secondary)]">
+              <p className="text-2xs text-[var(--text-secondary)]">
                 Fortschritt
               </p>
               <p className="mt-1 tabular-nums text-sm font-semibold text-[var(--text-primary)]">
@@ -202,7 +202,7 @@ export function SavingsProgressSection({
               </p>
             </div>
             <div className="rounded-lg border border-dashed border-[var(--border-sub)] bg-[var(--surface-elevated)]/30 p-3">
-              <p className="text-[11px] text-[var(--text-secondary)]">
+              <p className="text-2xs text-[var(--text-secondary)]">
                 Zuteilungsschwelle ca.
               </p>
               <p className="mt-1 tabular-nums text-sm font-semibold text-[var(--text-primary)]">
@@ -212,7 +212,7 @@ export function SavingsProgressSection({
               </p>
             </div>
             <div className="rounded-lg border border-dashed border-[var(--border-sub)] bg-[var(--surface-elevated)]/30 p-3">
-              <p className="text-[11px] text-[var(--text-secondary)]">
+              <p className="text-2xs text-[var(--text-secondary)]">
                 Zielsumme ca.
               </p>
               <p className="mt-1 tabular-nums text-sm font-semibold text-[var(--text-primary)]">

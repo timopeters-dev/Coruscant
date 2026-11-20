@@ -92,7 +92,7 @@ export function TimelineRangeChart({
                       ? CHART_ROLE_COLOR[m.role]
                       : CHART_ROLE_COLOR.axisText,
                   }}
-                  className="absolute top-0 -translate-x-1/2 whitespace-nowrap text-[10px] tabular-nums"
+                  className="absolute top-0 -translate-x-1/2 whitespace-nowrap text-3xs tabular-nums"
                 >
                   {m.label}
                 </span>
@@ -126,7 +126,7 @@ export function TimelineRangeChart({
               onMouseLeave={() => setHoveredId((prev) => (prev === row.id ? null : prev))}
               onFocus={() => setHoveredId(row.id)}
               onBlur={() => setHoveredId((prev) => (prev === row.id ? null : prev))}
-              className="relative flex min-h-[32px] items-center rounded px-1 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
+              className="relative flex min-h-[32px] items-center rounded px-1 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]"
             >
               <span
                 title={row.label}
@@ -239,7 +239,7 @@ export function TimelineRangeChart({
               {showTooltip ? (
                 <div
                   role="status"
-                  className="pointer-events-none absolute right-2 -top-8 z-10 animate-fade rounded-lg border border-[var(--border)] bg-[var(--surface-overlay)] px-2.5 py-1 text-[11px] tabular-nums backdrop-blur-xl shadow-sm"
+                  className="pointer-events-none absolute right-2 -top-8 z-10 animate-fade rounded-lg border border-[var(--border)] bg-[var(--surface-overlay)] px-2.5 py-1 text-2xs tabular-nums backdrop-blur-xl shadow-sm"
                 >
                   {rowAria}
                 </div>
@@ -252,7 +252,7 @@ export function TimelineRangeChart({
       {/* X axis ticks */}
       <div className="mt-1 flex items-center">
         <div className="w-[40%] shrink-0 pr-3" />
-        <div className="relative h-4 flex-1 text-[11px] tabular-nums text-[var(--text-secondary)]">
+        <div className="relative h-4 flex-1 text-2xs tabular-nums text-[var(--text-secondary)]">
           {xTicks.map((tick, idx) => {
             const leftPct = Math.min(100, Math.max(0, pct(tick.x)));
             const translateClass =

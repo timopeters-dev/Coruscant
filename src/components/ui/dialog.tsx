@@ -37,7 +37,7 @@ export function Dialog({
         {open ? (
           <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
             <motion.div
-              className="fixed inset-0 bg-[var(--backdrop)] backdrop-blur-[3px]"
+              className="fixed inset-0 bg-[var(--backdrop)]"
               aria-hidden="true"
               onClick={close}
               initial={{ opacity: 0 }}
@@ -52,17 +52,16 @@ export function Dialog({
               aria-labelledby={titleId}
               aria-describedby={description ? descriptionId : undefined}
               tabIndex={-1}
-              initial={{ opacity: 0, y: 14, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
               exit={{
                 opacity: 0,
-                y: 8,
-                scale: 0.985,
+                y: 6,
                 transition: { duration: 0.14, ease: EASE_OUT },
               }}
               transition={SPRING_SOFT}
               className={cn(
-                "relative z-10 flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-t-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-lg),inset_0_1px_0_0_var(--hairline-highlight)] outline-hidden sm:max-h-[90vh] sm:rounded-2xl",
+                "relative z-10 flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-t-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-lg)] outline-hidden sm:max-h-[90vh] sm:rounded-2xl",
                 className,
               )}
             >
@@ -70,7 +69,7 @@ export function Dialog({
                 <div className="min-w-0 space-y-1">
                   <h2
                     id={titleId}
-                    className="text-base font-semibold tracking-tight text-[var(--text-primary)]"
+                    className="text-lg font-semibold leading-6 text-[var(--text-primary)]"
                   >
                     {title}
                   </h2>
@@ -109,7 +108,7 @@ export function CloseButton({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="-mr-1.5 shrink-0 rounded-lg p-1.5 text-[var(--text-secondary)] transition-[background-color,color,transform] duration-150 hover:rotate-90 hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)] focus-visible:outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] motion-reduce:hover:rotate-0"
+      className="-mr-1.5 shrink-0 rounded-lg p-1.5 text-[var(--text-secondary)] transition-[background-color,color] duration-150 hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)] focus-visible:outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]"
     >
       <X className="h-4 w-4" />
     </button>

@@ -171,7 +171,7 @@ export function AdvisorReportDialog({
             ))}
           </ul>
           {mode === "anonymized" ? (
-            <p className="text-[11px] text-[var(--text-secondary)]">
+            <p className="text-2xs text-[var(--text-secondary)]">
               Beispiel: Aus „Darlehen Musterbank“ wird „KREDIT-1 · Annuität“.
             </p>
           ) : null}
@@ -219,7 +219,7 @@ export function AdvisorReportDialog({
               Bericht öffnen
             </Link>
           </div>
-          <p className="text-[11px] text-[var(--text-secondary)]">
+          <p className="text-2xs text-[var(--text-secondary)]">
             Die App sendet nichts. Du entscheidest, ob und wem du den Bericht
             gibst.
           </p>

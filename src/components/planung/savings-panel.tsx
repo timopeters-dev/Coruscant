@@ -199,7 +199,7 @@ export function SavingsPanel({
             <div>
               <Link
                 href="/allokation"
-                className="inline-flex h-8 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-elevated)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
+                className="inline-flex h-8 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-elevated)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]"
               >
                 Zur Allokation
               </Link>

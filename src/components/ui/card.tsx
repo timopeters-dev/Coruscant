@@ -1,13 +1,13 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-/** Grundfläche jeder Karte: feiner Rahmen, weicher Schatten, Lichtkante oben. */
+/** Grundfläche jeder Karte: Bogen auf Kalkpapier, eine feine Linie, kein Schatten. */
 export const CARD_SURFACE =
-  "rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)]";
+  "rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)]";
 
-/** Zusatz für klickbare Karten: dezentes Anheben beim Hover. */
+/** Zusatz für klickbare Karten: die Linie wird beim Hover zur Tintenlinie. */
 export const CARD_INTERACTIVE =
-  "cursor-pointer transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-[var(--border-sub)] hover:shadow-[var(--shadow-md),inset_0_1px_0_0_var(--hairline-highlight)] motion-reduce:hover:translate-y-0";
+  "cursor-pointer transition-[border-color,box-shadow] duration-150 ease-out hover:border-[var(--text-secondary)] hover:shadow-[inset_0_0_0_0.5px_var(--text-secondary)]";
 
 interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   interactive?: boolean;
@@ -43,7 +43,7 @@ export const CardTitle = React.forwardRef<
   <h2
     ref={ref}
     className={cn(
-      "text-base font-semibold tracking-tight text-[var(--text-primary)]",
+      "text-base font-semibold text-[var(--text-primary)]",
       className,
     )}
     {...props}

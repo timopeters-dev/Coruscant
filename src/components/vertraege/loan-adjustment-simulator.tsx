@@ -313,7 +313,7 @@ export function LoanAdjustmentSimulator({
         type="button"
         onClick={() => setSimOpen((v) => !v)}
         aria-expanded={simOpen}
-        className="flex w-full items-center justify-between text-left text-xs font-medium text-[var(--text-primary)] hover:text-[var(--accent)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
+        className="flex w-full items-center justify-between text-left text-xs font-medium text-[var(--text-primary)] hover:text-[var(--accent)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]"
       >
         <span>Anpassung simulieren</span>
         <CollapseChevron open={simOpen} className="h-4 w-4" />
@@ -329,7 +329,7 @@ export function LoanAdjustmentSimulator({
               </span>
               {allowance.remainingCents !== null &&
               allowance.status === "allowed" ? (
-                <span className="tabular-nums text-[11px] text-[var(--text-secondary)]">
+                <span className="tabular-nums text-2xs text-[var(--text-secondary)]">
                   Frei: {formatWholeEuroDE(allowance.remainingCents)}
                   {allowance.capCents !== null
                     ? ` von ${formatWholeEuroDE(allowance.capCents)}/Jahr`
@@ -379,7 +379,7 @@ export function LoanAdjustmentSimulator({
                     )
                   }
                   aria-label="Sondertilgung Betrag in Euro"
-                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-sm tabular-nums text-[var(--text-primary)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] disabled:opacity-50"
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-sm tabular-nums text-[var(--text-primary)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)] disabled:opacity-50"
                 />
               </div>
 
@@ -416,12 +416,12 @@ export function LoanAdjustmentSimulator({
             </div>
 
             {allowance.status === "unknown" || allowance.flags.capUnknown ? (
-              <p className="text-[11px] text-[var(--amber)]">
+              <p className="text-2xs text-[var(--amber)]">
                 Sondertilgungsrecht im Vertrag prüfen.
               </p>
             ) : null}
             {allowance.flags.usageFromOtherYear ? (
-              <p className="text-[11px] text-[var(--text-secondary)]">
+              <p className="text-2xs text-[var(--text-secondary)]">
                 Hinterlegte Sondertilgungsnutzung stammt aus einem anderen Jahr
                 und wird hier nicht abgezogen.
               </p>
@@ -438,7 +438,7 @@ export function LoanAdjustmentSimulator({
                 {!rateDisabled &&
                 corridor.minMonthlyCents !== null &&
                 corridor.maxMonthlyCents !== null ? (
-                  <span className="tabular-nums text-[11px] text-[var(--text-secondary)]">
+                  <span className="tabular-nums text-2xs text-[var(--text-secondary)]">
                     Korridor: {formatWholeEuroDE(rateMinCents)} –{" "}
                     {formatWholeEuroDE(rateMaxCents)}/Monat
                   </span>
@@ -491,11 +491,11 @@ export function LoanAdjustmentSimulator({
                         );
                       }}
                       aria-label="Neue Monatsrate in Euro"
-                      className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-sm tabular-nums text-[var(--text-primary)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] disabled:opacity-50"
+                      className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-sm tabular-nums text-[var(--text-primary)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)] disabled:opacity-50"
                     />
                   </div>
                   {selectedRepaymentBps !== null ? (
-                    <p className="tabular-nums text-[11px] text-[var(--text-secondary)]">
+                    <p className="tabular-nums text-2xs text-[var(--text-secondary)]">
                       Entspricht ≈ {formatBpsDE(selectedRepaymentBps)} Tilgung
                       {corridor.flags.approximatedBase
                         ? " (Näherung über Restschuld)"
@@ -520,7 +520,7 @@ export function LoanAdjustmentSimulator({
                     onChange={setRateStartMonth}
                   />
                   {corridor.remainingChanges !== null ? (
-                    <p className="tabular-nums text-[11px] text-[var(--text-secondary)]">
+                    <p className="tabular-nums text-2xs text-[var(--text-secondary)]">
                       Wechsel übrig: {corridor.remainingChanges}
                     </p>
                   ) : null}
@@ -528,12 +528,12 @@ export function LoanAdjustmentSimulator({
               </div>
 
               {!rateDisabled && corridor.flags.corridorAssumed ? (
-                <p className="text-[11px] text-[var(--amber)]">
+                <p className="text-2xs text-[var(--amber)]">
                   Korridor angenommen (1–10 % Tilgung) – im Vertrag prüfen.
                 </p>
               ) : null}
               {!rateDisabled && corridor.flags.perYearUsageUntracked ? (
-                <p className="text-[11px] text-[var(--text-secondary)]">
+                <p className="text-2xs text-[var(--text-secondary)]">
                   Wechsel gelten pro Jahr – Verbrauch im laufenden Jahr im
                   Vertrag prüfen.
                 </p>
@@ -681,7 +681,7 @@ export function LoanAdjustmentSimulator({
                     type="button"
                     onClick={() => setTimingOpen((v) => !v)}
                     aria-expanded={timingOpen}
-                    className="flex items-center gap-1 text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    className="flex items-center gap-1 text-2xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                   >
                     <CollapseChevron open={timingOpen} className="h-3.5 w-3.5" />
                     <span>Erweitert: Effekt nach Startmonat</span>
@@ -704,7 +704,7 @@ export function LoanAdjustmentSimulator({
               ) : null}
 
               {/* Domain clamp / overflow notices */}
-              <div className="space-y-1 text-[11px] text-[var(--amber)]">
+              <div className="space-y-1 text-2xs text-[var(--amber)]">
                 {effect.adjusted.special &&
                 effect.adjusted.special.capOverflowCents > 0 ? (
                   <p>

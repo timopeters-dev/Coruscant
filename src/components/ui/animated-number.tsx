@@ -16,15 +16,15 @@ interface AnimatedNumberProps {
 }
 
 /**
- * Zeigt eine Kennzahl, die beim ersten Rendern und bei Änderungen sanft zum
- * Zielwert gleitet. Server und erster Paint zeigen immer den exakten Endwert;
- * Zwischenwerte sind reine Darstellung (gerundet auf ganze Einheiten).
+ * Zeigt eine Kennzahl, die bei Änderungen (z. B. nach einer Eingabe) sanft zum
+ * neuen Wert gleitet. Beim ersten Rendern steht sofort der exakte Wert – kein
+ * Hochzählen. Zwischenwerte sind reine Darstellung (gerundet auf ganze Einheiten).
  */
 export function AnimatedNumber({
   value,
   format,
   className,
-  from = 0.94,
+  from = 1,
   duration = 0.9,
 }: AnimatedNumberProps) {
   const ref = React.useRef<HTMLSpanElement>(null);

@@ -123,7 +123,7 @@ export function DocumentReviewPanel({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)]  px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-[var(--text-primary)]">
             Prüf-Warteschlange
@@ -949,7 +949,7 @@ function DocumentReviewSplitView({
             {contractMode === "existing" && selectedContract ? (
               <div className="space-y-3 rounded-xl border border-[var(--amber)]/35 bg-[var(--amber)]/5 p-3.5">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
+                  <span className="section-label text-[var(--text-primary)]">
                     Vertrags-Eichung
                   </span>
                   <span className="tabular-nums text-xs text-[var(--text-secondary)]">
@@ -1151,7 +1151,7 @@ function DocumentReviewSplitView({
             {contractMode === "new" ? (
               <div className="space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]/30 p-3.5">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
+                  <span className="section-label text-[var(--text-primary)]">
                     Neuer Vertrag (Vorausgefüllt)
                   </span>
                   <StatusBadge variant="ai_suggestion" />

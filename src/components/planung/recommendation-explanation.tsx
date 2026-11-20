@@ -180,7 +180,7 @@ export function RecommendationExplanationBox({
           <summary className="cursor-pointer font-medium text-[var(--text-secondary)]">
             Was die KI sieht
           </summary>
-          <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-[11px] text-[var(--text-secondary)]">
+          <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-2xs text-[var(--text-secondary)]">
             {contextJson}
           </pre>
         </details>

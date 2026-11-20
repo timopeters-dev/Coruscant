@@ -36,7 +36,7 @@ export function Sheet({
         {open ? (
           <div className="fixed inset-0 z-50 flex justify-end">
             <motion.div
-              className="fixed inset-0 bg-[var(--backdrop)] backdrop-blur-[3px]"
+              className="fixed inset-0 bg-[var(--backdrop)]"
               aria-hidden="true"
               onClick={close}
               initial={{ opacity: 0 }}
@@ -50,16 +50,15 @@ export function Sheet({
               aria-modal="true"
               aria-labelledby={titleId}
               tabIndex={-1}
-              initial={{ x: "100%", opacity: 0.6 }}
-              animate={{ x: 0, opacity: 1 }}
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
               exit={{
                 x: "100%",
-                opacity: 0.6,
                 transition: { duration: 0.22, ease: [0.4, 0, 1, 1] },
               }}
               transition={{ type: "spring", stiffness: 380, damping: 40, mass: 0.9 }}
               className={cn(
-                "relative z-10 flex h-full w-full max-w-lg flex-col border-l border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-lg)] outline-hidden sm:m-2 sm:h-[calc(100%-1rem)] sm:rounded-2xl sm:border",
+                "relative z-10 flex h-full w-full max-w-lg flex-col border-l border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-lg)] outline-hidden sm:border-l",
                 className,
               )}
             >
@@ -67,7 +66,7 @@ export function Sheet({
                 <div className="min-w-0 space-y-1">
                   <h2
                     id={titleId}
-                    className="truncate text-base font-semibold tracking-tight text-[var(--text-primary)]"
+                    className="truncate text-lg font-semibold leading-6 text-[var(--text-primary)]"
                   >
                     {title}
                   </h2>

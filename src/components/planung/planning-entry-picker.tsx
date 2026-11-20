@@ -71,13 +71,13 @@ export function PlanningEntryPicker({
             href={buildPlanningHref("geld")}
             prefetch={false}
             onClick={handleInternalClick("geld")}
-            className="flex flex-col justify-between gap-4 group rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5 transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-[var(--border-sub)] hover:shadow-[var(--shadow-md),inset_0_1px_0_0_var(--hairline-highlight)] motion-reduce:hover:translate-y-0 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
+            className="flex flex-col justify-between gap-4 group rounded-xl border border-[var(--border)] bg-[var(--surface)]  p-5 transition-[border-color] duration-200 ease-out hover:border-[var(--border-sub)] hover:border-[var(--text-secondary)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]"
           >
             <div className="flex flex-col gap-2">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)] transition-transform duration-300 ease-out group-hover:scale-110 motion-reduce:group-hover:scale-100">
+              <span className="inline-flex h-6 items-center text-[var(--text-primary)]">
                 <Coins className="h-[18px] w-[18px]" aria-hidden="true" />
               </span>
-              <h2 className="text-base font-semibold tracking-tight">
+              <h2 className="text-lg font-semibold leading-6">
                 Freies Geld einsetzen
               </h2>
               <p className="text-sm text-[var(--text-secondary)]">
@@ -95,13 +95,13 @@ export function PlanningEntryPicker({
             href={buildPlanningHref("gehalt")}
             prefetch={false}
             onClick={handleInternalClick("gehalt")}
-            className="flex flex-col justify-between gap-4 group rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5 transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-[var(--border-sub)] hover:shadow-[var(--shadow-md),inset_0_1px_0_0_var(--hairline-highlight)] motion-reduce:hover:translate-y-0 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
+            className="flex flex-col justify-between gap-4 group rounded-xl border border-[var(--border)] bg-[var(--surface)]  p-5 transition-[border-color] duration-200 ease-out hover:border-[var(--border-sub)] hover:border-[var(--text-secondary)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]"
           >
             <div className="flex flex-col gap-2">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)] transition-transform duration-300 ease-out group-hover:scale-110 motion-reduce:group-hover:scale-100">
+              <span className="inline-flex h-6 items-center text-[var(--text-primary)]">
                 <TrendingUp className="h-[18px] w-[18px]" aria-hidden="true" />
               </span>
-              <h2 className="text-base font-semibold tracking-tight">
+              <h2 className="text-lg font-semibold leading-6">
                 Mehr Gehalt
               </h2>
               <p className="text-sm text-[var(--text-secondary)]">
@@ -117,13 +117,13 @@ export function PlanningEntryPicker({
 
           <Link
             href="/planung/kaufrechner"
-            className="flex flex-col justify-between gap-4 group rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5 transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-[var(--border-sub)] hover:shadow-[var(--shadow-md),inset_0_1px_0_0_var(--hairline-highlight)] motion-reduce:hover:translate-y-0 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
+            className="flex flex-col justify-between gap-4 group rounded-xl border border-[var(--border)] bg-[var(--surface)]  p-5 transition-[border-color] duration-200 ease-out hover:border-[var(--border-sub)] hover:border-[var(--text-secondary)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]"
           >
             <div className="flex flex-col gap-2">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)] transition-transform duration-300 ease-out group-hover:scale-110 motion-reduce:group-hover:scale-100">
+              <span className="inline-flex h-6 items-center text-[var(--text-primary)]">
                 <Home className="h-[18px] w-[18px]" aria-hidden="true" />
               </span>
-              <h2 className="text-base font-semibold tracking-tight">
+              <h2 className="text-lg font-semibold leading-6">
                 Immobilie kaufen
               </h2>
               <p className="text-sm text-[var(--text-secondary)]">
@@ -138,13 +138,13 @@ export function PlanningEntryPicker({
           <button
             type="button"
             onClick={onOpenPropertyVsEtf}
-            className="flex flex-col justify-between gap-4 group rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5 text-left transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-[var(--border-sub)] hover:shadow-[var(--shadow-md),inset_0_1px_0_0_var(--hairline-highlight)] motion-reduce:hover:translate-y-0 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
+            className="flex flex-col justify-between gap-4 group rounded-xl border border-[var(--border)] bg-[var(--surface)]  p-5 text-left transition-[border-color] duration-200 ease-out hover:border-[var(--border-sub)] hover:border-[var(--text-secondary)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]"
           >
             <div className="flex flex-col gap-2">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)] transition-transform duration-300 ease-out group-hover:scale-110 motion-reduce:group-hover:scale-100">
+              <span className="inline-flex h-6 items-center text-[var(--text-primary)]">
                 <Scale className="h-[18px] w-[18px]" aria-hidden="true" />
               </span>
-              <h2 className="text-base font-semibold tracking-tight">
+              <h2 className="text-lg font-semibold leading-6">
                 Schlägt diese Immobilie einen ETF?
               </h2>
               <p className="text-sm text-[var(--text-secondary)]">

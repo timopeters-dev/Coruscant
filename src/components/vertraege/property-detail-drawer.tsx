@@ -468,7 +468,7 @@ function PropertyDetailDrawerInner({
         {/* Stammdaten-Block */}
         {hasMetadata ? (
           <div className="space-y-2 rounded-xl border border-[var(--border)] p-4 text-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+            <p className="section-label text-[var(--text-secondary)]">
               Objektdaten
             </p>
 
@@ -564,10 +564,10 @@ function PropertyDetailDrawerInner({
           <div className="space-y-3 rounded-xl border border-dashed border-[var(--border-sub)] bg-[var(--surface-elevated)]/40 p-4">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                <p className="section-label text-[var(--text-secondary)]">
                   Vermietung
                 </p>
-                <p className="text-[11px] text-[var(--text-secondary)]">
+                <p className="text-2xs text-[var(--text-secondary)]">
                   vor Steuern
                 </p>
               </div>
@@ -658,7 +658,7 @@ function PropertyDetailDrawerInner({
                     ? formatBpsDE(rentalMetrics.netYieldBps)
                     : "–"}
                 </p>
-                <p className="text-[11px] text-[var(--text-secondary)]">
+                <p className="text-2xs text-[var(--text-secondary)]">
                   auf Kaufpreis, ohne Nebenkosten
                 </p>
               </div>
@@ -698,7 +698,7 @@ function PropertyDetailDrawerInner({
         ) : null}
 
         {maintenancePot ? (
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-3.5 text-sm">
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)]  p-3.5 text-sm">
             <div>
               <p className="text-xs text-[var(--text-secondary)]">
                 Instandhaltungs-Topf
@@ -717,7 +717,7 @@ function PropertyDetailDrawerInner({
               href="/allokation"
               className="shrink-0 text-xs font-medium text-[var(--accent)] hover:underline"
             >
-              Zur Allokation →
+              Zur Allokation
             </Link>
           </div>
         ) : null}
@@ -725,7 +725,7 @@ function PropertyDetailDrawerInner({
         {loanDraft && loanDraft.loanAmountCents > 0 ? (
           <div className="space-y-3 rounded-xl border border-dashed border-[var(--border-sub)] bg-[var(--surface-elevated)]/40 p-4">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+              <p className="section-label text-[var(--text-secondary)]">
                 Objektkredit anlegen (Entwurf)
               </p>
               <StatusBadge variant="modeled" />
@@ -762,7 +762,7 @@ function PropertyDetailDrawerInner({
         ) : null}
 
         <div className="space-y-2.5">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+          <div className="flex items-center gap-2 section-label text-[var(--text-secondary)]">
             <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
             <span>Verknüpfte Verträge ({linkedContracts.length})</span>
           </div>
@@ -784,12 +784,12 @@ function PropertyDetailDrawerInner({
                 return (
                   <div
                     key={contract.id}
-                    className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-2 transition-colors hover:bg-[var(--surface-elevated)]"
+                    className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)]  p-2 transition-colors hover:bg-[var(--surface-elevated)]"
                   >
                     <button
                       type="button"
                       onClick={() => onSelectContract(contract)}
-                      className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg p-1 text-left outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
+                      className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg p-1 text-left outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]"
                     >
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-[var(--text-primary)]">
@@ -820,7 +820,7 @@ function PropertyDetailDrawerInner({
                       disabled={isBusy}
                       title="Verknüpfung lösen"
                       aria-label={`Verknüpfung von ${contract.name} lösen`}
-                      className="shrink-0 rounded-lg p-1.5 text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--rose)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] disabled:cursor-not-allowed disabled:opacity-50"
+                      className="shrink-0 rounded-lg p-1.5 text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--rose)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Unlink
                         className={`h-3.5 w-3.5 ${isMutatingThis ? "animate-pulse" : ""}`}

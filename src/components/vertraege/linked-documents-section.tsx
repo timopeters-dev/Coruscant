@@ -24,7 +24,7 @@ export function LinkedDocumentsSection({
   return (
     <div className="space-y-2.5">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+        <div className="flex flex-wrap items-center gap-2 section-label text-[var(--text-secondary)]">
           <FileText className="h-3.5 w-3.5" aria-hidden="true" />
           <span>Verknüpfte Belege ({documents.length})</span>
           {showTaxTags && documents.length > 0 ? (
@@ -37,7 +37,7 @@ export function LinkedDocumentsSection({
           href="/dokumente"
           className="shrink-0 text-xs font-medium text-[var(--accent)] hover:underline"
         >
-          Zur Inbox →
+          Zur Inbox
         </Link>
       </div>
 
@@ -56,7 +56,7 @@ export function LinkedDocumentsSection({
                 href={`/api/documents/${doc.id}/file`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-3 text-left transition-colors hover:bg-[var(--surface-elevated)]"
+                className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)]  p-3 text-left transition-colors hover:bg-[var(--surface-elevated)]"
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-[var(--text-primary)]">
@@ -68,7 +68,7 @@ export function LinkedDocumentsSection({
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {showTaxTags && doc.taxCategory ? (
-                    <Badge variant="outline" className="text-[11px]">
+                    <Badge variant="outline" className="text-2xs">
                       {TAX_CATEGORY_LABELS[doc.taxCategory]}
                     </Badge>
                   ) : null}
