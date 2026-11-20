@@ -159,7 +159,7 @@ describe("purchase-calculator-state", () => {
     const noHouseholdHint = targetShortfallHints.find(
       (h) => h.key === "no_household_data",
     );
-    expect(noHouseholdHint?.text).toContain("Haushaltsbuch");
+    expect(noHouseholdHint?.text).toContain("Bespin");
     expect(noHouseholdHint?.text).toContain("manuelle Posten und Verträge");
     expect(noHouseholdHint?.text).not.toContain("0,00 €");
   });

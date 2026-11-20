@@ -6,6 +6,7 @@ import { LayoutGroup, motion } from "motion/react";
 import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CoruscantLogo } from "@/components/coruscant-logo";
+import { BespinMark } from "@/components/bespin-mark";
 import { CommandMenu } from "@/components/command-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SPRING_SNAPPY } from "@/components/ui/motion";
@@ -120,10 +121,11 @@ export function AppShell({
                   rel="noopener noreferrer"
                   aria-label={FINANZ_COCKPIT_LINK.ariaLabel}
                   className={cn(
-                    "hidden items-center gap-1 rounded-md text-xs font-medium text-[var(--text-secondary)] transition-colors motion-reduce:transition-none hover:text-[var(--text-primary)] sm:inline-flex print:hidden",
+                    "hidden items-center gap-1.5 rounded-md text-xs font-medium text-[var(--text-secondary)] transition-colors motion-reduce:transition-none hover:text-[var(--text-primary)] sm:inline-flex print:hidden",
                     FOCUS_RING,
                   )}
                 >
+                  <BespinMark className="h-4 w-4" />
                   <span>{FINANZ_COCKPIT_LINK.label}</span>
                   <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
                 </a>
