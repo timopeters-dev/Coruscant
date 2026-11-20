@@ -23,6 +23,13 @@ export const nonNegativeSafeInt = z
   .nonnegative()
   .max(Number.MAX_SAFE_INTEGER);
 
+/** Ganzzahl im sicheren Bereich, auch negativ (z. B. Bauspar-Saldo nach Abschlussgebühr). */
+export const signedSafeInt = z
+  .number()
+  .int()
+  .min(Number.MIN_SAFE_INTEGER)
+  .max(Number.MAX_SAFE_INTEGER);
+
 export const basisPointsSchema = z.number().int().nonnegative().max(100_000);
 
 export const isoDateSchema = z
@@ -352,7 +359,8 @@ export const contractBaseObject = z.object({
   provider: nullableOptionalTrimmedString(120),
   category: contractCategorySchema,
   status: contractStatusSchema.default("active"),
-  currentBalanceCents: nonNegativeSafeInt,
+  // Vorzeichen wird kategorieabhängig in refineBalanceSign geprüft.
+  currentBalanceCents: signedSafeInt,
   balanceAsOfDate: isoDateSchema,
   monthlyRateCents: nonNegativeSafeInt.default(0),
   interestRateBps: basisPointsSchema.default(0),
@@ -689,7 +697,25 @@ export function refineLoanOptionConsistency(
   }
 }
 
+/**
+ * Darlehen: Restschuld >= 0. Bausparverträge dürfen negativ starten, weil die
+ * Abschlussgebühr zuerst vom Guthaben abgebucht wird.
+ */
+export function refineBalanceSign(
+  data: Pick<ContractBaseValues, "category" | "currentBalanceCents">,
+  ctx: z.RefinementCtx,
+): void {
+  if (data.category === "loan" && data.currentBalanceCents < 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["currentBalanceCents"],
+      message: "Die Restschuld eines Darlehens darf nicht negativ sein.",
+    });
+  }
+}
+
 export const contractCreateSchema = contractBaseObject
+  .superRefine(refineBalanceSign)
   .superRefine(refineLoanOptionConsistency)
   .transform(normalizeContractPayload);
 
@@ -699,7 +725,8 @@ export const contractUpdateSchema = z
     provider: nullableOptionalTrimmedString(120),
     category: contractCategorySchema,
     status: contractStatusSchema,
-    currentBalanceCents: nonNegativeSafeInt,
+    // Vorzeichen prüft contractCreateSchema am zusammengeführten Datensatz.
+    currentBalanceCents: signedSafeInt,
     balanceAsOfDate: isoDateSchema,
     monthlyRateCents: nonNegativeSafeInt,
     interestRateBps: basisPointsSchema,

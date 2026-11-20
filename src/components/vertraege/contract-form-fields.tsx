@@ -334,7 +334,13 @@ export function validateAndBuildContractPayload(
   }
 
   const currentBalanceCents = parseEuroInputToCents(values.currentBalanceEuro);
-  if (currentBalanceCents === null || currentBalanceCents < 0) {
+  if (values.category === "savings_contract") {
+    // Bausparverträge dürfen durch die Abschlussgebühr negativ starten.
+    if (currentBalanceCents === null) {
+      nextErrors.currentBalanceEuro =
+        "Bitte ein gültiges Guthaben eingeben (negativ möglich, z. B. -1200,00).";
+    }
+  } else if (currentBalanceCents === null || currentBalanceCents < 0) {
     nextErrors.currentBalanceEuro =
       "Bitte einen gültigen Stand >= 0,00 € eingeben.";
   }
@@ -1059,7 +1065,9 @@ export function ContractFormFields({
             inputMode="decimal"
             value={values.currentBalanceEuro}
             onChange={(e) => updateField("currentBalanceEuro", e.target.value)}
-            placeholder="z. B. 295000,00"
+            placeholder={
+              values.category === "loan" ? "z. B. 295000,00" : "z. B. -1200,00"
+            }
             hasError={Boolean(errors.currentBalanceEuro)}
             disabled={disabled}
             className="tabular-nums"
@@ -1067,6 +1075,11 @@ export function ContractFormFields({
           {errors.currentBalanceEuro ? (
             <p className="text-xs text-[var(--rose)]">
               {errors.currentBalanceEuro}
+            </p>
+          ) : values.category === "savings_contract" ? (
+            <p className="text-xs text-[var(--text-secondary)]">
+              Negativ möglich, wenn die Abschlussgebühr das Guthaben ins Minus
+              gebracht hat.
             </p>
           ) : null}
         </div>

@@ -175,9 +175,11 @@ export const financialContracts = sqliteTable(
     updatedAt: text("updated_at").notNull(),
   },
   (table) => [
+    // Darlehen: Restschuld >= 0. Bausparverträge dürfen durch die
+    // Abschlussgebühr negativ starten.
     check(
-      "financial_contracts_balance_non_negative",
-      sql`${table.currentBalanceCents} >= 0`,
+      "financial_contracts_balance_sign",
+      sql`${table.category} = 'savings_contract' OR ${table.currentBalanceCents} >= 0`,
     ),
     check(
       "financial_contracts_monthly_rate_non_negative",
@@ -404,10 +406,6 @@ export const documents = sqliteTable(
     check(
       "documents_deductible_amount_non_negative",
       sql`${table.deductibleAmountCents} IS NULL OR ${table.deductibleAmountCents} >= 0`,
-    ),
-    check(
-      "documents_detected_balance_non_negative",
-      sql`${table.detectedBalanceCents} IS NULL OR ${table.detectedBalanceCents} >= 0`,
     ),
   ],
 );

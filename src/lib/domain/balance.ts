@@ -84,6 +84,15 @@ export function calculateHouseholdBalance(input: BalanceInput): BalanceSummary {
     }
   }
 
+  // Bausparverträge können durch die Abschlussgebühr negativ starten. Negative
+  // Salden werden mit anderen Bausparguthaben verrechnet; ein insgesamt
+  // negativer Bauspar-Saldo erscheint als Verbindlichkeit (Aktiva bleiben >= 0,
+  // das Nettovermögen ist in beiden Fällen gleich).
+  if (savingsContractsValueCents < 0) {
+    liabilitiesCents += -savingsContractsValueCents;
+    savingsContractsValueCents = 0;
+  }
+
   const boundAssetsCents = propertiesValueCents + savingsContractsValueCents;
   const totalAssetsCents = freeAssetsCents + boundAssetsCents;
   const netWorthCents = totalAssetsCents - liabilitiesCents;

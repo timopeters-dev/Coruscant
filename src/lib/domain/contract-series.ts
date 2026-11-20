@@ -1294,7 +1294,8 @@ export function buildContractOverview(
     const asOfPoint =
       series.points.find((p) => p.monthIndex === series.asOfMonthIndex) ??
       series.points[series.points.length - 1]!;
-    const asOfBalance = asOfPoint.balanceCents;
+    // Negativer Saldo (Abschlussgebühr) zählt als 0 % Fortschritt.
+    const asOfBalance = Math.max(0, asOfPoint.balanceCents);
     const progress =
       (BigInt(asOfBalance) * 10_000n) / BigInt(contract.targetSumCents);
     targetProgressBps = assertSafeInteger(

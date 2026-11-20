@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ZodError } from "zod";
 import {
   deleteContract,
   getContractById,
@@ -62,6 +63,11 @@ export async function PATCH(
       return badRequestResponse("Verknüpfte Immobilie existiert nicht.", {
         linkedPropertyId: "Unbekannte Immobilie.",
       });
+    }
+    // Regeln, die erst am zusammengeführten Datensatz greifen (z. B. negative
+    // Restschuld nach Wechsel Bausparvertrag -> Darlehen), als 400 melden.
+    if (error instanceof ZodError) {
+      return validationErrorResponse(error);
     }
     return internalErrorResponse();
   }

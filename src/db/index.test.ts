@@ -738,4 +738,134 @@ describe("Database client and startup migrations", () => {
       }
     });
   });
+
+  describe("migration 0015_bauspar_negative_balance", () => {
+    function buildDirUpTo14(dbPath: string): string {
+      const sourceDrizzleDir = path.resolve(process.cwd(), "drizzle");
+      const tempDrizzleDir = path.join(path.dirname(dbPath), "drizzle-0014");
+      fs.mkdirSync(path.join(tempDrizzleDir, "meta"), { recursive: true });
+      const fullJournal = JSON.parse(
+        fs.readFileSync(path.join(sourceDrizzleDir, "meta/_journal.json"), "utf-8"),
+      ) as { entries: Array<{ idx: number; tag: string }> };
+      const kept = fullJournal.entries.filter((entry) => entry.idx <= 14);
+      for (const entry of kept) {
+        fs.copyFileSync(
+          path.join(sourceDrizzleDir, `${entry.tag}.sql`),
+          path.join(tempDrizzleDir, `${entry.tag}.sql`),
+        );
+      }
+      fs.writeFileSync(
+        path.join(tempDrizzleDir, "meta/_journal.json"),
+        JSON.stringify({ ...fullJournal, entries: kept }),
+      );
+      return tempDrizzleDir;
+    }
+
+    it("keeps contract links of documents, pots and cashflow items when rebuilding the tables", () => {
+      const dbPath = makeTempDbPath("bauspar-negative.db");
+      const oldDir = buildDirUpTo14(dbPath);
+      const oldClient = createDbClient(dbPath, oldDir);
+      const now = "2026-11-20T10:00:00.000Z";
+      try {
+        oldClient.sqlite
+          .prepare(
+            `INSERT INTO financial_contracts (id, name, provider, sphere, category, status, current_balance_cents, balance_as_of_date, monthly_rate_cents, interest_rate_bps, updated_at)
+             VALUES ('sav-1', 'Bausparvertrag Musterkasse', 'Musterkasse', 'household', 'savings_contract', 'active', 250000, '2026-01-01', 50000, 10, ?)`,
+          )
+          .run(now);
+        oldClient.sqlite
+          .prepare(
+            `INSERT INTO documents (id, filename, storage_path, sha256_hash, status, document_type, linked_contract_id, is_tax_relevant, detected_balance_cents, created_at)
+             VALUES ('doc-1', 'Musterkasse_Auszug.pdf', 'x/doc-1.pdf', 'hash-doc-1', 'verified', 'bauspar_statement', 'sav-1', 0, 250000, ?)`,
+          )
+          .run(now);
+        oldClient.sqlite
+          .prepare(
+            `INSERT INTO pots (id, name, priority, current_cents, rule_type, linked_contract_id, updated_at)
+             VALUES ('pot-1', 'Bauspar-Topf', 1, 0, 'fill_to_target', 'sav-1', ?)`,
+          )
+          .run(now);
+        oldClient.sqlite
+          .prepare(
+            `INSERT INTO cashflow_items (id, name, direction, amount_cents, frequency, source, linked_contract_id, active, updated_at)
+             VALUES ('cf-1', 'Sparrate', 'outflow', 50000, 'monthly', 'contract_linked', 'sav-1', 1, ?)`,
+          )
+          .run(now);
+      } finally {
+        oldClient.sqlite.close();
+      }
+
+      const upgraded = createDbClient(dbPath);
+      try {
+        expect(upgraded.sqlite.pragma("foreign_keys", { simple: true })).toBe(1);
+        const doc = upgraded.db.select().from(documents).where(eq(documents.id, "doc-1")).get();
+        expect(doc?.linkedContractId).toBe("sav-1");
+        expect(doc?.detectedBalanceCents).toBe(250_000);
+        const pot = upgraded.db.select().from(pots).where(eq(pots.id, "pot-1")).get();
+        expect(pot?.linkedContractId).toBe("sav-1");
+        const cf = upgraded.db.select().from(cashflowItems).where(eq(cashflowItems.id, "cf-1")).get();
+        expect(cf?.linkedContractId).toBe("sav-1");
+        const contract = upgraded.db
+          .select()
+          .from(financialContracts)
+          .where(eq(financialContracts.id, "sav-1"))
+          .get();
+        expect(contract?.currentBalanceCents).toBe(250_000);
+      } finally {
+        upgraded.sqlite.close();
+      }
+    });
+
+    it("allows a negative balance only for savings contracts and negative detected document balances", () => {
+      const { db, sqlite } = createDbClient(":memory:");
+      const now = "2026-11-20T10:00:00.000Z";
+      const base = {
+        name: "Musterkasse",
+        currentBalanceCents: -120_000,
+        balanceAsOfDate: "2026-01-01",
+        monthlyRateCents: 50_000,
+        interestRateBps: 10,
+        updatedAt: now,
+      };
+      try {
+        expect(() =>
+          db
+            .insert(financialContracts)
+            .values({ ...base, id: "sav-neg", category: "savings_contract" })
+            .run(),
+        ).not.toThrow();
+
+        expect(() =>
+          db
+            .insert(financialContracts)
+            .values({ ...base, id: "loan-neg", category: "loan" })
+            .run(),
+        ).toThrow();
+
+        expect(() =>
+          db
+            .insert(financialContracts)
+            .values({ ...base, id: "loan-zero", category: "loan", currentBalanceCents: 0 })
+            .run(),
+        ).not.toThrow();
+
+        expect(() =>
+          db
+            .insert(documents)
+            .values({
+              id: "doc-neg",
+              filename: "Musterkasse_Auszug.pdf",
+              storagePath: "x/doc-neg.pdf",
+              sha256Hash: "hash-doc-neg",
+              documentType: "bauspar_statement",
+              detectedBalanceCents: -120_000,
+              createdAt: now,
+            })
+            .run(),
+        ).not.toThrow();
+      } finally {
+        sqlite.close();
+      }
+    });
+  });
 });

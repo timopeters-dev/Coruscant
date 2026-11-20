@@ -205,7 +205,16 @@ export function calculateMonthlyInterestCents(
 }
 
 export function validateContract(contract: DomainContract): void {
-  assertNonNegativeInteger(contract.currentBalanceCents, "currentBalanceCents");
+  // Bausparverträge dürfen negativ starten (Abschlussgebühr wird zuerst belastet);
+  // Darlehen bleiben >= 0.
+  if (contract.category === "savings_contract") {
+    assertSafeInteger(contract.currentBalanceCents, "currentBalanceCents");
+  } else {
+    assertNonNegativeInteger(
+      contract.currentBalanceCents,
+      "currentBalanceCents",
+    );
+  }
   assertNonNegativeInteger(contract.monthlyRateCents, "monthlyRateCents");
   assertNonNegativeInteger(contract.interestRateBps, "interestRateBps");
   parseIsoDate(contract.balanceAsOfDate, "balanceAsOfDate");
@@ -247,7 +256,6 @@ export function stepContractMonth(
   input: ContractStepInput,
   balanceCents: number,
 ): ContractMonthStep {
-  const safeBalance = assertNonNegativeInteger(balanceCents, "balanceCents");
   const safeRate = assertNonNegativeInteger(
     input.monthlyRateCents,
     "monthlyRateCents",
@@ -258,9 +266,15 @@ export function stepContractMonth(
   );
 
   if (input.category === "savings_contract") {
-    const interestCents = calculateMonthlyInterestCents(safeBalance, safeBps);
+    // Negativer Saldo (Abschlussgebühr) wird durch die Sparrate zuerst
+    // ausgeglichen; Guthabenzins nur auf den positiven Teil des Saldos.
+    const safeSavingsBalance = assertSafeInteger(balanceCents, "balanceCents");
+    const interestCents = calculateMonthlyInterestCents(
+      Math.max(0, safeSavingsBalance),
+      safeBps,
+    );
     const nextBalance = assertSafeInteger(
-      safeBalance + safeRate + interestCents,
+      safeSavingsBalance + safeRate + interestCents,
       "projectedBalanceCents",
     );
     return {
@@ -273,6 +287,7 @@ export function stepContractMonth(
   }
 
   // category === "loan"
+  const safeBalance = assertNonNegativeInteger(balanceCents, "balanceCents");
   if (safeBalance === 0) {
     return {
       balanceCents: 0,
@@ -417,8 +432,10 @@ export function projectContractBalance(
   let isAllocationThresholdReached: boolean | null = null;
 
   if (contract.targetSumCents != null && contract.targetSumCents > 0) {
+    // Negativer Saldo (Abschlussgebühr) zählt als 0 % Fortschritt.
     const progress =
-      (BigInt(balance) * 10_000n) / BigInt(contract.targetSumCents);
+      (BigInt(Math.max(0, balance)) * 10_000n) /
+      BigInt(contract.targetSumCents);
     targetProgressBps = assertSafeInteger(
       Number(progress),
       "targetProgressBps",

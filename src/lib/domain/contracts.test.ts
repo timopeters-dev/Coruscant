@@ -7,6 +7,7 @@ import {
   getCalibrationAge,
   projectContractBalance,
   stepContractMonth,
+  validateContract,
 } from "./contracts";
 
 function makeLoan(overrides: Partial<DomainContract> = {}): DomainContract {
@@ -119,6 +120,54 @@ describe("projectContractBalance", () => {
     expect(res2.projectedBalanceCents).toBe(2_003_852);
     expect(res2.isAllocationThresholdReached).toBe(true);
     expect(res2.targetProgressBps).toBe(4007);
+  });
+
+  it("projects a savings_contract starting negative (Abschlussgebühr) with 0 % target progress", () => {
+    const bausparer: DomainContract = {
+      id: "sav-neg",
+      name: "Bausparvertrag Musterkasse",
+      category: "savings_contract",
+      status: "active",
+      currentBalanceCents: -150_000, // −1.500 € Abschlussgebühr
+      balanceAsOfDate: "2026-01-01",
+      monthlyRateCents: 50_000,
+      interestRateBps: 120,
+      targetSumCents: 15_000_000,
+      allocationThresholdPercent: 40,
+    };
+
+    const start = projectContractBalance(bausparer, "2026-01-01");
+    expect(start.projectedBalanceCents).toBe(-150_000);
+    expect(start.targetProgressBps).toBe(0);
+    expect(start.isAllocationThresholdReached).toBe(false);
+
+    // Monate 1–3 gleichen aus (−100.000, −50.000, 0), Monat 4 baut Guthaben auf.
+    const afterThree = projectContractBalance(bausparer, "2026-04-01");
+    expect(afterThree.projectedBalanceCents).toBe(0);
+    expect(afterThree.totalInterestAccruedCents).toBe(0);
+    expect(afterThree.targetProgressBps).toBe(0);
+
+    const afterFour = projectContractBalance(bausparer, "2026-05-01");
+    expect(afterFour.projectedBalanceCents).toBe(50_000);
+    expect(afterFour.totalContributionsCents).toBe(200_000);
+  });
+
+  it("rejects a negative balance for loans but not for savings contracts", () => {
+    expect(() =>
+      validateContract(makeLoan({ currentBalanceCents: -1 })),
+    ).toThrow(RangeError);
+    expect(() =>
+      validateContract({
+        id: "sav-neg",
+        name: "Bausparvertrag Musterkasse",
+        category: "savings_contract",
+        status: "active",
+        currentBalanceCents: -1,
+        balanceAsOfDate: "2026-01-01",
+        monthlyRateCents: 0,
+        interestRateBps: 0,
+      }),
+    ).not.toThrow();
   });
 
   it("stops annuity loan at 0 without overpayment and records reachedZeroAtMonth", () => {
@@ -339,6 +388,50 @@ describe("stepContractMonth", () => {
       paymentCents: 3_000,
       paidOff: false,
     });
+  });
+
+  it("steps a negative savings_contract (Abschlussgebühr) without interest on the negative part", () => {
+    const step = stepContractMonth(
+      {
+        category: "savings_contract",
+        monthlyRateCents: 50_000,
+        interestRateBps: 120,
+      },
+      -120_000,
+    );
+    expect(step).toEqual({
+      balanceCents: -70_000,
+      interestCents: 0,
+      principalCents: 0,
+      paymentCents: 50_000,
+      paidOff: false,
+    });
+  });
+
+  it("starts paying interest once a negative savings balance has turned positive", () => {
+    // Monat 1: -30.000 + 50.000 = 20.000 (kein Zins, Saldo war negativ).
+    const first = stepContractMonth(
+      { category: "savings_contract", monthlyRateCents: 50_000, interestRateBps: 1200 },
+      -30_000,
+    );
+    expect(first.balanceCents).toBe(20_000);
+    expect(first.interestCents).toBe(0);
+    // Monat 2: Zins auf 20.000 bei 1 %/Monat = 200.
+    const second = stepContractMonth(
+      { category: "savings_contract", monthlyRateCents: 50_000, interestRateBps: 1200 },
+      first.balanceCents,
+    );
+    expect(second.interestCents).toBe(200);
+    expect(second.balanceCents).toBe(70_200);
+  });
+
+  it("still rejects a negative loan balance in stepContractMonth", () => {
+    expect(() =>
+      stepContractMonth(
+        { category: "loan", monthlyRateCents: 50_000, interestRateBps: 120, repaymentType: "annuity" },
+        -1,
+      ),
+    ).toThrow(RangeError);
   });
 
   it("steps a savings_contract with rate + interest", () => {
