@@ -24,9 +24,19 @@
 - **Geldbeträge:** Strikte Integer-Cent-Arithmetik (`amountCents`) – niemals `float` für Währungsberechnungen verwenden.
 - **Zinssätze:** Strikte Integer-Basispunkte (`interestRateBps`, z. B. `350` = `3,50 %`).
 - **KI-Konfiguration:** Modell nur über `GEMINI_MODEL` (Hartcodieren verhindert `pnpm lint`) hinter einem abstrakten KI-Adapter. KI mutiert Bestandsdaten niemals stillschweigend (immer 1-Klick-Bestätigung durch den Nutzer).
-- **Design-System (`docs/DESIGN-SYSTEM.md`):** „Quiet Galactic Precision“ – `tabular-nums` für alle Beträge/Daten, klare visuelle Trennung von *Geeicht/Ist* (solide) vs. *Modelliert/Schätzung* (`border-dashed`) vs. *KI-Vorschlag* (Amber).
+- **Design-System (`docs/DESIGN-SYSTEM.md`):** „Eichamt“ – Tabellenziffern für alle Beträge, Daten nur über `src/lib/domain/date-format.ts` (`TT.MM.JJJJ` / `MM.JJJJ`), klare visuelle Trennung von *Geeicht/Ist* (solide) vs. *Modelliert/Schätzung* (`border-dashed`) vs. *KI-Vorschlag* (Amber).
 
 ## 4. Tests, Datenschutz & Sicherheit
 - Für jede Domänen-Logik neben Happy-Paths zwingend Negativ- und Grenzfalltests (0-Cent-Werte, Überzahlungen, Rundungsgrenzen, ungültige KI-Outputs) in `*.test.ts` abdecken.
 - **Keine echten Daten in Code, Tests oder Kommentaren:** Ausschließlich eindeutig fiktive Dummy-Werte nutzen (z. B. *Musterbank*, *Musterstraße 1*).
 - `data/*.db*`, `data/backups/`, `data/documents/`, `.env*`, `*.pdf` und `secrets/` bleiben in `.gitignore` ausgeschlossen.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

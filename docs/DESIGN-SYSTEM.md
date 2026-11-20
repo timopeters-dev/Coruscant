@@ -1,73 +1,87 @@
-# Design-System: „Quiet Galactic Precision“ (Coruscant)
+# Design-System: „Eichamt“ (Coruscant)
 
 Verbindliche UX- und UI-Leitplanken für alle Komponenten in **Coruscant**.
+
+Leitidee: Coruscant ist ein Messinstrument für das eigene Vermögen. Die App unterscheidet ständig zwischen *geeicht* (gemessen) und *modelliert* (gerechnet) – diese Unterscheidung trägt die Gestaltung.
 
 ---
 
 ## 1. UX-Grundsätze
-1. **Ruhe statt Trading-Terminal:** Keine blinkenden Ticker, keine grellen Neon-Farben, maximal 3 visuelle Ebenen.
+1. **Ruhe statt Trading-Terminal:** Keine Ticker, keine Leuchteffekte, maximal 3 visuelle Ebenen.
 2. **Progressive Disclosure:** Hauptansichten zeigen Status, Summen und Meilensteine; Formulare liegen in Modals oder Drawers.
 3. **Ehrliche Präzision:** Modellierte Werte (Modus A / Pauschalen) tragen `border-dashed` + Badge *Modelliert*; geeichte Werte (`finanz_cockpit` / PDF-Auszug) tragen soliden Rahmen + *Geeicht*.
 4. **1-Klick-Freigabe bei KI:** KI macht Vorschläge, mutiert aber niemals stillschweigend Bestandsdaten.
 
 ---
 
-## 2. Farbpalette (Light & Dark Mode)
+## 2. Farbe: Tinte auf Kalkpapier
+
+**Farbe gehört dem Geld.** Bedien-Elemente (Buttons, Navigation, Schalter, Segment-Umschalter, Checkboxen) sind einfarbig in Tinte. Farbe erscheint nur, wo sie finanzielle Bedeutung trägt. Die Variablennamen in `globals.css` sind historisch (`--emerald`, `--rose` …) und bleiben stabil; Komponenten referenzieren nur Rollen.
 
 ### Basis-Flächen & Text
-| Token / Rolle | Light Mode | Dark Mode („Command Deck“) | Verwendung |
+| Token | Light | Dark | Verwendung |
 | :--- | :--- | :--- | :--- |
-| **Background** | `#F8FAFC` | `#0B1120` | Seiten-Hintergrund |
-| **Surface (Card)** | `#FFFFFF` | `#111827` | Karten, Modals, Panels |
-| **Surface Elevated** | `#F1F5F9` | `#1E293B` | Hover-States, Sub-Container, Tabellen-Header |
-| **Border** | `#E2E8F0` | `#1E293B` / `#334155` | Feine 1px-Rahmen statt harter Schatten |
-| **Text Primary** | `#0F172A` | `#F8FAFC` | Überschriften, Hauptbeträge |
-| **Text Secondary** | `#475569` | `#94A3B8` | Labels, Erklärtexte, Metadaten |
+| `--bg` (Kalkpapier) | `#ECEEEA` | `#111715` | Seiten-Hintergrund, Header |
+| `--surface` (Bogen) | `#F8F9F6` | `#171E1C` | Karten, Modals, Panels |
+| `--surface-elevated` | `#E4E7E2` | `#1F2825` | Sub-Container, Hover, leere Skalen |
+| `--border` / `--border-sub` | `#D3D8D2` / `#B6BDB6` | `#29332F` / `#3C4843` | Haarlinien / Feld- und Steuerrahmen |
+| `--text-primary` (Tinte) | `#18201D` | `#E3E8E2` | Überschriften, Beträge |
+| `--text-secondary` (Graphit) | `#535E59` | `#9AA49E` | Labels, Erklärtexte |
+| `--accent` | = Tinte | = Tinte (hell) | Primär-Button, aktive Navigation, Füllungen |
 
-### Akzent- & Finanz-Semantik
-| Bedeutung | Light Mode | Dark Mode | Einsatz |
+### Finanz-Semantik
+| Rolle | Token | Light | Dark |
 | :--- | :--- | :--- | :--- |
-| **Primary Accent (Indigo)** | `#4F46E5` | `#6366F1` | Primäre Buttons, aktive Navigation, Fokus |
-| **KI / Meilenstein (Amber)** | `#D97706` | `#F59E0B` | KI-Vorschläge, Eich-Hinweise, Meilensteine |
-| **Positiv / Aktiva (Emerald)** | `#059669` | `#34D399` | Nettovermögen, Überschuss, gefüllte Töpfe |
-| **Negativ / Passiva (Rose)** | `#E11D48` | `#FB7185` | Kredite/Restschuld, Abflüsse, Unterdeckung |
-| **Gebundenes Vermögen (Sky)** | `#0284C7` | `#38BDF8` | Immobilie #0, Bauspar-Guthaben |
+| Positiv / Aktiva (Patina) | `--emerald` | `#2E6B4C` | `#78C49A` |
+| Negativ / Passiva (Karmin) | `--rose` | `#A8283A` | `#EE8B8B` |
+| Gebunden: Immobilien, Bauspar (Stahlblau) | `--sky` | `#2F5D8A` | `#8DB2DE` |
+| KI-Vorschlag / Meilenstein (Signalocker) | `--amber` | `#A35F00` | `#E0A548` |
 
----
-
-## 3. Typografie & Tokens
-- **UI-Schrift:** `Inter` (System-Sans-Fallback).
-- **Zahlen-Pflicht:** Alle Beträge, Prozentsätze und Datumsangaben nutzen **`tabular-nums`**.
-- **Radien:** Karten `rounded-xl` (`p-5`/`p-6`), Buttons/Inputs `rounded-lg`, Badges `rounded-md`.
+- **Fokus:** `--focus` (Stahlblau-Mischung), 3px-Ring per `focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]` mit `outline-hidden` (nicht `outline-none`).
 - **Print:** `@media print` rendert strikt im hellen Layout.
 
 ---
 
-## 4. Tiefe, Fokus & Flächen (ab UI-Refresh)
-- **Ebenen:** `--shadow-xs|sm|md|lg` statt harter Schatten; Karten tragen zusätzlich eine feine Lichtkante oben (`inset 0 1px 0 var(--hairline-highlight)`). Basis: `CARD_SURFACE` in `src/components/ui/card.tsx`.
-- **Klickbare Karten:** `<Card interactive>` (dezentes Anheben beim Hover, respektiert `prefers-reduced-motion`).
-- **Fokus:** einheitlicher 3px-Glow (`focus-visible:ring-[3px]` in Akzent-Mischung) mit `outline-hidden` (nicht `outline-none`), damit der Fokus im Kontrastmodus sichtbar bleibt.
-- **Glas:** Header, Mobile-Dock und schwebende Panels nutzen `surface-glass` bzw. `--surface-overlay` mit Blur – fast deckend, damit beim Scrollen nichts durch die Navigation scheint.
-- **Primär-Button:** satte Akzentfläche mit feiner, dunklerer Kante und neutralem Schatten – kein Verlauf, kein farbiger Glow. Für Links im Button-Look `buttonVariants()` nutzen statt eigener Klassen.
-- **Cursor:** klickbare Elemente zeigen die Hand, deaktivierte den Verbotszeiger (globale Regel in `globals.css`).
-- **Hintergrund:** statischer Ambient-Verlauf + feines Punktraster (`.ambient-backdrop`), kein Flackern; im Druck ausgeblendet.
+## 3. Typografie
+- **Schrift:** Barlow (DIN-nah, echte Tabellenziffern) für UI und Fließtext; **Barlow Semi Condensed** (`--font-display`) für `h1`–`h4`, Seitentitel (`.page-title`) und große Beträge (`figure`-Utility).
+- **Ziffern:** `tabular-nums` ist global gesetzt; die Klasse bleibt an Beträgen trotzdem erlaubt.
+- **Grade:** an Barlow angepasst (`text-sm` = 15px, `text-xs` = 13px); für Kleinsttext `text-2xs` (12px) und `text-3xs` (11px) statt `text-[11px]`/`text-[10px]`.
+- **Keine Versalien-Labels:** Abschnitts-Überschriften in Karten/Formularen nutzen `section-label` (Satzschreibung, halbschmal). `eyebrow` ist ebenfalls Satzschreibung.
+- **Keine Deko-Pfeile:** Linktexte enden nicht auf `→`; Pfeile nur für echte Übergänge (vorher → nachher).
 
-## 5. Bewegung
-- **Prinzip:** Bewegung erklärt Zustandswechsel, lenkt nicht ab. Easing `--ease-out` (`cubic-bezier(0.16, 1, 0.3, 1)`), Dauern `--dur-fast` 140 ms / `--dur` 220 ms / `--dur-slow` 420 ms; Federn zentral in `src/components/ui/motion.ts`.
-- **Muster:** Seiten blenden per `template.tsx` ein (`.page-enter`), Raster staffeln (`.stagger`), Balken decken sich von links auf (`.meter`, `.reveal-x`), Line-Charts per Clip-Reveal (gestrichelte *Modelliert*-Serien bleiben gestrichelt), Kennzahlen gleiten per `AnimatedNumber` zum Zielwert (SSR zeigt immer den exakten Wert).
-- **Aufklappen:** per `Collapse` (Höhen-Animation) bzw. nativ animiertes `<details>` (`interpolate-size`); Pfeile drehen sich per `CollapseChevron`.
-- **Laden:** `app/loading.tsx` zeigt beim Seitenwechsel ein ruhiges Skelett (`.skeleton`), das erst nach ~160 ms einblendet; der angeklickte Navigationspunkt trägt einen feinen Lichtstreif (`useLinkStatus`).
-- **Hover-Feedback in Charts:** Fadenkreuz und Tooltip folgen der Maus ohne spürbare Verzögerung (≤ 70 ms, linear).
+## 4. Datumsanzeige
+- Tagesgenau: **`TT.MM.JJJJ`**, monatsgenau: **`MM.JJJJ`** (kein erfundener Tag), Zeitpunkte: **`TT.MM.JJJJ, HH:MM`** (Europe/Berlin).
+- Ausschließlich über `src/lib/domain/date-format.ts` (`formatDateDE`, `formatMonthDE`, `formatMonthPartsDE`, `formatDateTimeDE`). Kein rohes ISO in der Oberfläche, keine lokalen Formatter.
+- Gespeichert wird weiterhin ISO (`YYYY-MM-DD` / `YYYY-MM`).
+
+## 5. Flächen, Formen, Struktur
+- **Karten:** `CARD_SURFACE` (`src/components/ui/card.tsx`) – Bogen mit einer Haarlinie, **kein Schatten**. Klickbare Karten (`<Card interactive>`) wechseln beim Hover nur die Linie zu Tinte, kein Anheben.
+- **Radien:** bewusst klein (Tailwind-Skala in `@theme` überschrieben: `md` 3px, `lg` 5px, `xl` 7px, `2xl` 10px) – Hierarchie über Größe, nicht über Weichheit.
+- **Keine Kästen in Kästen:** Listen innerhalb einer Karte sind Zeilen mit Haarlinien (`divide-y`), Kennzahl-Gruppen Spalten mit Trennlinien.
+- **Header & Dock:** deckend auf Kalkpapier, Haarlinie unten bzw. oben; aktiver Navigationspunkt mit Tintenstrich.
+- **Kein Ambient-Hintergrund**, keine Verläufe, keine Glows, keine Icon-Chips als Dekoration.
+- **Nummerierung** nur bei echten Folgen (z. B. Wasserfall-Priorität der Töpfe) – als schlichte halbschmale Ziffer, nicht als `#1`-Badge.
+
+## 6. Signatur-Elemente
+- **Eichskala:** Jeder Fortschritts-/Anteilsbalken trägt `.meter` – flache Skala mit Kerben alle 10 %, Füllung in Tinte oder Semantikfarbe. `.scale-ticks` ergänzt eine Teilstrich-Skala (0/50/100 %) unter Balken, wo Anteile gelesen werden.
+- **Prüfzeichen im `StatusBadge`:** Geeicht = Eichmarke (voller Kern im Ring), Modelliert = gestrichelter Ring, KI-Vorschlag = Raute, Eich-Hinweis = Dreieck. Detailwerte stehen hinter einer feinen Trennlinie, nicht hinter `·`.
+- **Bilanzgleichung (Cockpit):** Aktiva − Passiva = Nettovermögen als ein Band mit Rechenzeichen statt drei gleichförmiger Kennzahl-Kacheln.
+- **Slider:** Tintenfüllung bis zum Schieber über `rangeFillStyle(value, min, max)` (`src/components/ui/range-fill.ts`).
+
+## 7. Bewegung
+- **Prinzip:** Bewegung beantwortet Handlungen (Öffnen, Umschalten, Bestätigen). Der einzige automatische Moment: Skalen (`.meter`) und Chart-Serien decken sich beim ersten Rendern einmal von links auf.
+- Seiten blenden nur kurz ein (`.page-enter`, ohne Versatz). Kein gestaffeltes Einblenden, kein Hover-Anheben, Kennzahlen zählen beim Laden **nicht** hoch (`AnimatedNumber` animiert nur Wertänderungen).
+- Easing `--ease-out`, Dauern `--dur-fast` 120 ms / `--dur` 200 ms / `--dur-slow` 380 ms; Federn zentral in `src/components/ui/motion.ts`.
 - **Pflicht:** `prefers-reduced-motion` schaltet alle Animationen ab; Druck rendert ohne Animation.
 
-## 6. Komponenten-Bausteine (`src/components/ui/`)
-- `Select` – eigene Listbox (Radix Popover), API wie natives `<select>` (`<option>`/`<optgroup>`, `onChange(e)` mit `e.target.value`), Tastatur & Type-ahead.
-- `DatePicker` / `MonthPicker` – Eingabe `TT.MM.JJJJ` oder Kalender (react-day-picker, de, Montag zuerst); Werte bleiben ISO (`YYYY-MM-DD` / `YYYY-MM`).
+## 8. Komponenten-Bausteine (`src/components/ui/`)
+- `Select` – eigene Listbox (Radix Popover), API wie natives `<select>`, Tastatur & Type-ahead.
+- `DatePicker` / `MonthPicker` – Eingabe `TT.MM.JJJJ` oder Kalender (react-day-picker, de, Montag zuerst); Werte bleiben ISO.
 - `Dialog` / `Sheet` – animiert, Portal nach `body`, Fokus-Falle, Scroll-Lock, Escape respektiert innere Popover.
-- Segment-Umschalter (`segmented.tsx`) – einheitliche Schiene mit gleitender Pille für Tabs, Zeiträume und Ansichten.
-- `KpiCard` – Kennzahl-Kachel mit Icon-Chip, semantischem Ton und optionaler Hero-Variante.
+- Segment-Umschalter (`segmented.tsx`) – Schiene mit gleitender Tinten-Pille für Tabs, Zeiträume und Ansichten.
+- `KpiCard` – Kennzahl-Kachel mit farbigem Messstrich links (nur Semantikfarbe), ohne Icon.
 - Befehlspalette (`command-menu.tsx`, ⌘K / Strg+K) für Navigation und Farbschema.
-- `InfoTip` – erklärt Schalter, Umschalter und Fachbegriffe direkt am Element (`align="end"` für Symbole am rechten Rand). Neue Toggles bekommen einen InfoTip, wenn ihre Wirkung nicht selbsterklärend ist.
+- `InfoTip` – erklärt Schalter, Umschalter und Fachbegriffe direkt am Element (`align="end"` für Symbole am rechten Rand).
 - `Collapse` / `CollapseChevron` – weiches Auf-/Zuklappen für per State gesteuerte Bereiche.
-- Formulare in geteilten Ansichten nutzen Container-Queries (`@container`, `@md:`/`@xl:`), damit Spalten nach verfügbarer Breite statt nach Fenstergröße umbrechen.
+- Formulare in geteilten Ansichten nutzen Container-Queries (`@container`, `@md:`/`@xl:`).
 - Native Checkboxen, Radios und Slider sind global im App-Look gestylt (`globals.css`).

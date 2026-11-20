@@ -1,5 +1,6 @@
 "use client";
 
+import { rangeFillStyle } from "@/components/ui/range-fill";
 import * as React from "react";
 import { InfoTip } from "@/components/ui/info-tip";
 import { Input } from "@/components/ui/input";
@@ -98,11 +99,12 @@ export function SliderField({
           step={step}
           disabled={disabled}
           value={Math.min(max, Math.max(min, value))}
+          style={rangeFillStyle(value, min, max)}
           onChange={(e) => {
             setDraft(null);
             onChange(Number(e.target.value));
           }}
-          className="h-2 min-w-0 flex-1 accent-[var(--accent)] disabled:opacity-50"
+          className="min-w-0 flex-1 disabled:opacity-50"
         />
         <div className="relative w-32 shrink-0">
           <Input
