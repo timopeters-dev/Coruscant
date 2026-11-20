@@ -788,7 +788,7 @@ function PropertyDetailDrawerInner({
                     <button
                       type="button"
                       onClick={() => onSelectContract(contract)}
-                      className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg p-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                      className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg p-1 text-left outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
                     >
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-[var(--text-primary)]">
@@ -819,7 +819,7 @@ function PropertyDetailDrawerInner({
                       disabled={isBusy}
                       title="Verknüpfung lösen"
                       aria-label={`Verknüpfung von ${contract.name} lösen`}
-                      className="shrink-0 rounded-lg p-1.5 text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--rose)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+                      className="shrink-0 rounded-lg p-1.5 text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--rose)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Unlink
                         className={`h-3.5 w-3.5 ${isMutatingThis ? "animate-pulse" : ""}`}

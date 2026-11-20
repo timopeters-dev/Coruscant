@@ -58,7 +58,7 @@ export function AllocationBar({
       <div
         role="img"
         aria-label={ariaLabel}
-        className="flex h-7 w-full overflow-hidden rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface-elevated)]"
+        className="reveal-x flex h-7 w-full overflow-hidden rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface-elevated)]"
       >
         {segments.map((seg, idx) => {
           const pct = widths[idx] ?? 0;

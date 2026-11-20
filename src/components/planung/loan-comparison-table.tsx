@@ -310,7 +310,7 @@ export function LoanComparisonTable({
               onClick={() => onSelectLoan(row.loanId)}
               onKeyDown={(e) => handleKeyDown(idx, e)}
               className={cn(
-                "flex w-full items-center justify-between gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]",
+                "flex w-full items-center justify-between gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]",
                 isSelected
                   ? "border-[var(--accent)] bg-[var(--accent)]/10"
                   : "border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-elevated)]/60",

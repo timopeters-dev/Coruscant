@@ -1182,7 +1182,7 @@ export function ContractFormFields({
               type="button"
               onClick={() => setOptionsOpen((open) => !open)}
               aria-expanded={isOptionsExpanded}
-              className="flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              className="flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
             >
               <span>Darlehensoptionen (Sondertilgung &amp; Tilgungswechsel)</span>
               {isOptionsExpanded ? (
@@ -1647,7 +1647,7 @@ export function ContractFormFields({
                     }
                     disabled={disabled}
                     placeholder="z. B. Sondertilgung nur zum 31.12., Wechsel 2× kostenlos"
-                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
                   />
                   {errors.loanOptionsNote ? (
                     <p className="text-xs text-[var(--rose)]">

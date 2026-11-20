@@ -420,7 +420,7 @@ export function FreeMoneyPanel({
                 })
               }
               className={cn(
-                "rounded-md px-2 py-1.5 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]",
+                "rounded-md px-2 py-1.5 text-xs font-medium transition-colors outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]",
                 state.monthlyChannel === "special_repayment"
                   ? "bg-[var(--accent)] text-white"
                   : "text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)]",
@@ -439,7 +439,7 @@ export function FreeMoneyPanel({
                 })
               }
               className={cn(
-                "rounded-md px-2 py-1.5 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45",
+                "rounded-md px-2 py-1.5 text-xs font-medium transition-colors outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] disabled:cursor-not-allowed disabled:opacity-45",
                 state.monthlyChannel === "rate_increase" && rateChannelAllowed
                   ? "bg-[var(--accent)] text-white"
                   : "text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)]",

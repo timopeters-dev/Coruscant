@@ -49,10 +49,14 @@ export function ChartTooltip({
     <div
       role="status"
       aria-hidden="true"
-      style={{ left: `${left}px`, top: "8px" }}
-      className="pointer-events-none absolute z-10 w-[210px] rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs tabular-nums shadow-sm"
+      style={{
+        left: `${left}px`,
+        top: "8px",
+        transition: "left 160ms cubic-bezier(0.16, 1, 0.3, 1)",
+      }}
+      className="animate-fade pointer-events-none absolute z-10 w-[210px] rounded-xl border border-[var(--border)] bg-[var(--surface-overlay)] px-3 py-2.5 text-xs tabular-nums shadow-[var(--shadow-md)] backdrop-blur-xl"
     >
-      <p className="mb-1 font-medium text-[var(--text-primary)]">{title}</p>
+      <p className="mb-1.5 font-semibold text-[var(--text-primary)]">{title}</p>
       <ul className="flex flex-col gap-1">
         {items.map((item) => (
           <li key={item.label} className="flex items-center justify-between gap-2">

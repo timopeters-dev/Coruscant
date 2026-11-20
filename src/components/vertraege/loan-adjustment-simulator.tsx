@@ -311,7 +311,7 @@ export function LoanAdjustmentSimulator({
         type="button"
         onClick={() => setSimOpen((v) => !v)}
         aria-expanded={simOpen}
-        className="flex w-full items-center justify-between text-left text-xs font-medium text-[var(--text-primary)] hover:text-[var(--accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+        className="flex w-full items-center justify-between text-left text-xs font-medium text-[var(--text-primary)] hover:text-[var(--accent)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
       >
         <span>Anpassung simulieren</span>
         {simOpen ? (
@@ -381,7 +381,7 @@ export function LoanAdjustmentSimulator({
                     )
                   }
                   aria-label="Sondertilgung Betrag in Euro"
-                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-sm tabular-nums text-[var(--text-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
+                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-sm tabular-nums text-[var(--text-primary)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] disabled:opacity-50"
                 />
               </div>
 
@@ -488,7 +488,7 @@ export function LoanAdjustmentSimulator({
                         );
                       }}
                       aria-label="Neue Monatsrate in Euro"
-                      className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-sm tabular-nums text-[var(--text-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
+                      className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-sm tabular-nums text-[var(--text-primary)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] disabled:opacity-50"
                     />
                   </div>
                   {selectedRepaymentBps !== null ? (

@@ -25,6 +25,8 @@ export interface LineSeries {
   role: ChartRole;
   dashed: boolean;
   points: LinePoint[];
+  /** Fläche unter der Linie (Standard: nur wenn genau eine Serie gezeichnet wird). */
+  area?: boolean;
 }
 
 export interface LineChartMarker {
@@ -61,6 +63,20 @@ const PAD_RIGHT = 16;
 const PAD_BOTTOM = 28;
 const PAD_LEFT = 64;
 
+function splitSegments(points: LinePoint[]): LinePoint[][] {
+  const segments: LinePoint[][] = [];
+  let current: LinePoint[] = [];
+  points.forEach((pt, idx) => {
+    if (idx > 0 && pt.gapBefore) {
+      if (current.length >= 2) segments.push(current);
+      current = [];
+    }
+    current.push(pt);
+  });
+  if (current.length >= 2) segments.push(current);
+  return segments;
+}
+
 export function shouldCloseOnPointerLeave(pointerType: string): boolean {
   return pointerType !== "touch";
 }
@@ -87,6 +103,7 @@ export function LineChart({
     [measureRef],
   );
   const liveId = React.useId();
+  const gradientBaseId = `lc-${liveId.replace(/[^A-Za-z0-9_-]/g, "")}`;
   const [activeIndex, setActiveIndex] = React.useState<number | null>(null);
 
   React.useEffect(() => {
@@ -108,7 +125,7 @@ export function LineChart({
   const hasEnoughPoints = series.some((s) => s.points.length >= 2);
   if (!hasEnoughPoints) {
     return (
-      <div className="rounded-lg border border-dashed border-[var(--border)] px-4 py-8 text-center text-xs text-[var(--text-secondary)]">
+      <div className="rounded-xl border border-dashed border-[var(--border-sub)] bg-[var(--surface-elevated)]/30 px-4 py-10 text-center text-xs text-[var(--text-secondary)]">
         {emptyText}
       </div>
     );
@@ -133,6 +150,11 @@ export function LineChart({
   const yScale = linearScale(yDomain, [PAD_TOP + plotH, PAD_TOP]);
 
   const primaryXs = series.find((s) => s.points.length >= 2)?.points.map((p) => p.x) ?? [];
+
+  const drawnSeries = series.filter((s) => s.points.length >= 2);
+  const areaSeries = drawnSeries.filter((s) =>
+    s.area !== undefined ? s.area : drawnSeries.length === 1,
+  );
 
   const visibleXTicks =
     width < 480 && xTicks.length > 3
@@ -230,7 +252,7 @@ export function LineChart({
         width={width}
         height={height}
         style={{ touchAction: "pan-y" }}
-        className="block overflow-visible focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2"
+        className="block overflow-visible rounded-md outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
         onKeyDown={handleKeyDown}
         onBlur={() => setActiveIndex(null)}
         onPointerLeave={(e) => {
@@ -239,6 +261,39 @@ export function LineChart({
           }
         }}
       >
+        <defs>
+          <clipPath id={`${gradientBaseId}-reveal`}>
+            <rect
+              x={0}
+              y={0}
+              width={width}
+              height={height}
+              className="chart-reveal"
+            />
+          </clipPath>
+          {areaSeries.map((s) => (
+            <linearGradient
+              key={s.id}
+              id={`${gradientBaseId}-area-${s.id}`}
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="1"
+            >
+              <stop
+                offset="0%"
+                stopColor={CHART_ROLE_COLOR[s.role]}
+                stopOpacity={s.dashed ? 0.1 : 0.18}
+              />
+              <stop
+                offset="100%"
+                stopColor={CHART_ROLE_COLOR[s.role]}
+                stopOpacity={0}
+              />
+            </linearGradient>
+          ))}
+        </defs>
+
         {/* Horizontal Y grid lines & labels */}
         {yTicks.map((tick) => {
           const y = yScale(tick);
@@ -251,7 +306,8 @@ export function LineChart({
                 x2={PAD_LEFT + plotW}
                 y2={y}
                 stroke={isZero ? "var(--border-sub)" : CHART_ROLE_COLOR.grid}
-                strokeWidth={isZero ? 1.5 : 1}
+                strokeWidth={1}
+                shapeRendering="crispEdges"
               />
               <text
                 x={PAD_LEFT - 8}
@@ -298,7 +354,28 @@ export function LineChart({
           );
         })}
 
-        {/* Series paths */}
+        {/* Area washes + series paths (revealed left → right on mount) */}
+        <g clipPath={`url(#${gradientBaseId}-reveal)`}>
+        {areaSeries.map((s) =>
+          splitSegments(s.points).map((segment, segIdx) => {
+            const baseY = yScale(Math.max(yDomain[0], Math.min(yDomain[1], 0)));
+            const pts = [
+              `${xScale(segment[0]!.x).toFixed(1)},${baseY.toFixed(1)}`,
+              ...segment.map(
+                (pt) => `${xScale(pt.x).toFixed(1)},${yScale(pt.y).toFixed(1)}`,
+              ),
+              `${xScale(segment[segment.length - 1]!.x).toFixed(1)},${baseY.toFixed(1)}`,
+            ].join(" ");
+            return (
+              <polygon
+                key={`${s.id}-area-${segIdx}`}
+                points={pts}
+                fill={`url(#${gradientBaseId}-area-${s.id})`}
+                stroke="none"
+              />
+            );
+          }),
+        )}
         {series.map((s) => {
           if (s.points.length < 2) return null;
           const d = s.points
@@ -336,6 +413,8 @@ export function LineChart({
             </g>
           );
         })}
+
+        </g>
 
         {/* Solid calibration anchors */}
         {anchors.map((anchor) => {
@@ -381,24 +460,32 @@ export function LineChart({
 
         {/* Active crosshair & dots */}
         {activeXPx !== null ? (
-          <g>
+          <g className="pointer-events-none">
             <line
-              x1={activeXPx}
+              x1={0}
               y1={PAD_TOP}
-              x2={activeXPx}
+              x2={0}
               y2={PAD_TOP + plotH}
               stroke="var(--border-sub)"
               strokeWidth={1}
+              style={{
+                transform: `translateX(${activeXPx}px)`,
+                transition: "transform 140ms cubic-bezier(0.16, 1, 0.3, 1)",
+              }}
             />
             {tooltipItems.map((item) => (
               <circle
                 key={item.id}
                 cx={xScale(item.x)}
                 cy={yScale(item.y)}
-                r={4}
-                fill="var(--surface)"
-                stroke={CHART_ROLE_COLOR[item.role]}
+                r={4.5}
+                fill={CHART_ROLE_COLOR[item.role]}
+                stroke="var(--surface)"
                 strokeWidth={2}
+                style={{
+                  transition:
+                    "cx 140ms cubic-bezier(0.16, 1, 0.3, 1), cy 140ms cubic-bezier(0.16, 1, 0.3, 1)",
+                }}
               />
             ))}
           </g>
