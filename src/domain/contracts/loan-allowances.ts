@@ -8,9 +8,6 @@ import { BPS_DENOMINATOR, DEFAULT_RATE_CHANGE_MAX_REPAYMENT_BPS, DEFAULT_RATE_CH
 /**
  * Resolves a contract's special repayment configuration into a serializable SpecialRepaymentRule.
  */
-/**
- * Resolves a contract's special repayment configuration into a serializable SpecialRepaymentRule.
- */
 export function specialRepaymentRule(
   contract: DomainContract,
 ): SpecialRepaymentRule {
