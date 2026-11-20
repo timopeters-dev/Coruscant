@@ -61,17 +61,19 @@ Read-only-Simulationen, die nichts in der Datenbank ändern:
 ### 🧾 Berater-Bericht (`/bericht`)
 Ein druckbarer Bericht für Gespräche mit Beratern. Personenbezogene Daten werden vorher geprüft und anonymisiert.
 
-## 🎨 Design: „Quiet Galactic Precision“
+## 🎨 Design: „Eichamt“
+
+Tinte auf Kalkpapier, Barlow als Schrift, Farbe nur dort, wo sie finanzielle Bedeutung trägt (Aktiva, Passiva, gebundenes Vermögen, KI). Details in [`docs/DESIGN-SYSTEM.md`](docs/DESIGN-SYSTEM.md).
 
 Die Oberfläche trennt Datenqualität auf einen Blick:
 
 | Darstellung | Bedeutung |
 | --- | --- |
-| **Solide** Fläche oder Linie | ✅ *Geeicht / Ist*: belegte Werte |
-| **Gestrichelt** (`border-dashed`) | 📐 *Modelliert / Schätzung*: berechnete Werte |
-| **Amber** | 🤖 *KI-Vorschlag*: wartet auf deine Bestätigung |
+| **Solide** Linie + Eichmarke | ✅ *Geeicht / Ist*: belegte Werte |
+| **Gestrichelt** (`border-dashed`) + gestrichelter Ring | 📐 *Modelliert / Schätzung*: berechnete Werte |
+| **Signalocker** + Raute | 🤖 *KI-Vorschlag*: wartet auf deine Bestätigung |
 
-Alle Beträge und Daten nutzen `tabular-nums`. Light und Dark Mode laufen über `next-themes`.
+Alle Beträge nutzen Tabellenziffern; Daten erscheinen einheitlich als `TT.MM.JJJJ` bzw. `MM.JJJJ`. Light und Dark Mode laufen über `next-themes`.
 
 ## 🏗️ Architektur
 

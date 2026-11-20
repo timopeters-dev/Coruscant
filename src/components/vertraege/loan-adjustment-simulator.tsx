@@ -1,5 +1,6 @@
 "use client";
 
+import { rangeFillStyle } from "@/components/ui/range-fill";
 import * as React from "react";
 import Link from "next/link";
 import { ArrowRight, RotateCcw } from "lucide-react";
@@ -360,8 +361,9 @@ export function LoanAdjustmentSimulator({
                   step={100}
                   disabled={specialDisabled}
                   value={Math.min(specialEuros, specialMaxEuros)}
+                  style={rangeFillStyle(specialEuros, 0, specialMaxEuros)}
                   onChange={(e) => setSpecialEuros(Number(e.target.value))}
-                  className="w-full accent-[var(--accent)] disabled:opacity-50"
+                  className="w-full disabled:opacity-50"
                 />
                 <input
                   type="number"
@@ -467,8 +469,9 @@ export function LoanAdjustmentSimulator({
                     step={10}
                     disabled={rateDisabled}
                     value={clampedRateSliderEuros}
+                    style={rangeFillStyle(clampedRateSliderEuros, rateMinEuros, rateMaxEuros)}
                     onChange={(e) => setRateCents(Number(e.target.value) * 100)}
-                    className="w-full accent-[var(--accent)] disabled:opacity-50"
+                    className="w-full disabled:opacity-50"
                   />
                   <div className="flex items-center gap-2">
                     <input
