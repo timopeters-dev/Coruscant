@@ -40,10 +40,8 @@ import { ContractModal } from "./contract-modal";
 import {
   getContractTypeLabel,
 } from "./labels";
-import {
-  type MaintenancePotSummary,
-  PropertyDetailDrawer,
-} from "./property-detail-drawer";
+import { PropertyDetailDrawer } from "./property-detail-drawer";
+import type { MaintenancePotSummary } from "./property-detail/use-property-detail";
 import { PropertyModal } from "./property-modal";
 import { ContractCard } from "./contract-card";
 import { PropertyRegisterCard } from "./property-register-card";
