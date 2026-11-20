@@ -1,3 +1,4 @@
+import { formatDateDE } from "@/lib/domain/date-format";
 import Link from "next/link";
 import { ExternalLink, FileCheck2 } from "lucide-react";
 import { DokumenteViewSwitch } from "@/components/dokumente/dokumente-view-switch";
@@ -152,7 +153,7 @@ function ItemRow({
 }) {
   return (
     <tr className="border-t border-[var(--border)] align-top">
-      <td className="px-3 py-2 tabular-nums">{item.documentDate ?? "–"}</td>
+      <td className="px-3 py-2 tabular-nums">{item.documentDate ? formatDateDE(item.documentDate) : "–"}</td>
       <td className="px-3 py-2">
         <div className="font-medium text-[var(--text-primary)]">{item.issuer ?? "–"}</div>
         <div className="text-xs text-[var(--text-secondary)]">{item.filename}</div>
@@ -211,7 +212,7 @@ export function TaxYearOverview({ data, todayIsoDate }: TaxYearOverviewProps) {
               Verifizierte, steuerrelevante Belege des Jahres – als Übersicht, Druck und ZIP-Mappe.
             </p>
             <p className="hidden text-xs tabular-nums text-[var(--text-secondary)] print:block">
-              Erstellt am {todayIsoDate}
+              Erstellt am {formatDateDE(todayIsoDate)}
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-3">

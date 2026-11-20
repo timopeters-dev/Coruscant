@@ -1,3 +1,4 @@
+import { formatMonthDE } from "./date-format";
 import { formatBpsDE, formatEuroDE } from "@/lib/domain/money";
 import type {
   RecommendationAssumptions,
@@ -14,9 +15,7 @@ export interface RecommendationLabels {
 }
 
 function formatYearMonthDE(ym: string): string {
-  const [year, month] = ym.split("-");
-  if (!year || !month) return ym;
-  return `${month}.${year}`;
+  return formatMonthDE(ym);
 }
 
 function formatIsoDateMonthYearDE(iso: string): string {

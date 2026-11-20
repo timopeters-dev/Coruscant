@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateDE, formatDateTimeDE, formatMonthDE } from "@/lib/domain/date-format";
 import {
   useCallback,
   useEffect,
@@ -64,26 +65,8 @@ interface SyncBannerState {
   message: string;
 }
 
-function formatIsoDateDE(isoDate: string): string {
-  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
-  if (!parts) return isoDate;
-  return `${parts[3]}.${parts[2]}.${parts[1]}`;
-}
-
-function formatTimestampDE(isoTimestamp: string): string {
-  const parsed = new Date(isoTimestamp);
-  if (Number.isNaN(parsed.getTime())) {
-    return isoTimestamp;
-  }
-  return new Intl.DateTimeFormat("de-DE", {
-    timeZone: "Europe/Berlin",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(parsed);
-}
+const formatIsoDateDE = formatDateDE;
+const formatTimestampDE = (isoTimestamp: string) => formatDateTimeDE(isoTimestamp);
 
 function formatDaysRemaining(daysRemaining: number): string {
   if (daysRemaining === 0) return "heute";
@@ -617,7 +600,7 @@ export function CockpitWorkspace({
                   <StatusBadge variant="modeled" />
                   <span className="tabular-nums">
                     Topf „{potDeadlines.worst.potName}“: Termin{" "}
-                    {`${potDeadlines.worst.targetMonth.slice(5, 7)}/${potDeadlines.worst.targetMonth.slice(0, 4)}`}{" "}
+                    {formatMonthDE(potDeadlines.worst.targetMonth)}{" "}
                     {potDeadlines.worst.status === "overdue"
                       ? "verstrichen"
                       : "voraussichtlich nicht erreichbar"}{" "}

@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateDE } from "@/lib/domain/date-format";
 import * as React from "react";
 import Link from "next/link";
 import {
@@ -296,7 +297,7 @@ function PropertyDetailDrawerInner({
       subtitle={
         <>
           {PROPERTY_USAGE_LABELS[property.usage]} · Stand{" "}
-          <span className="tabular-nums">{asOfDate}</span>
+          <span className="tabular-nums">{formatDateDE(asOfDate)}</span>
         </>
       }
     >
@@ -395,7 +396,7 @@ function PropertyDetailDrawerInner({
             </p>
             <p className="mt-1 tabular-nums text-xs text-[var(--text-secondary)]">
               {property.estimatedValueAsOf
-                ? `Stand ${property.estimatedValueAsOf}`
+                ? `Stand ${formatDateDE(property.estimatedValueAsOf)}`
                 : "Stand unbekannt"}
             </p>
           </div>

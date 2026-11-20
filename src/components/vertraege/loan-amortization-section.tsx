@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateDE } from "@/lib/domain/date-format";
 import * as React from "react";
 import { ChartDataTable } from "@/components/charts/chart-data-table";
 import {
@@ -134,7 +135,7 @@ export function LoanAmortizationSection({
       {
         x: firstDay,
         y: firstPoint.balanceCents,
-        label: `Geeicht ${baseline.startDate}`,
+        label: `Geeicht ${formatDateDE(baseline.startDate)}`,
         role: "liabilities",
       },
     ],

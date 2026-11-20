@@ -39,7 +39,7 @@ describe("LineChart", () => {
         series={sampleSeries}
         xTicks={[
           { x: 0, label: "heute" },
-          { x: 24, label: "01/2029" },
+          { x: 24, label: "01.2029" },
         ]}
         xTooltipLabel={(x) => `Monat ${x}`}
         ariaLabel="Vergleich Sondertilgung und ETF"
@@ -129,7 +129,7 @@ describe("LineChart", () => {
         series={sampleSeries}
         xTicks={[
           { x: 0, label: "heute" },
-          { x: 24, label: "01/2029" },
+          { x: 24, label: "01.2029" },
         ]}
         xTooltipLabel={(x) => `Monat ${x}`}
         anchors={[

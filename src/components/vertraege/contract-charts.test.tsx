@@ -82,14 +82,14 @@ function makeSavingsRow(
 }
 
 describe("Contract projection charts X-axis", () => {
-  it("LoanAmortizationSection ends X-axis with projection end date (MM/JJJJ), not 'heute'", () => {
+  it("LoanAmortizationSection ends X-axis with projection end date (MM.JJJJ), not 'heute'", () => {
     const html = renderToStaticMarkup(
       <LoanAmortizationSection
         contract={makeLoanRow()}
         asOfDate="2026-11-19"
       />,
     );
-    expect(html).toContain(">01/2026</text>");
+    expect(html).toContain(">01.2026</text>");
     expect(html).not.toContain(">heute</text>");
     // "Heute" remains as marker
     expect(html).toContain("Heute");
@@ -150,7 +150,7 @@ describe("Contract projection charts X-axis", () => {
     expect(html).toContain("Tilgungssatzwechsel laut Vertrag nicht möglich.");
   });
 
-  it("SavingsProgressSection ends X-axis with projection end date (MM/JJJJ), not 'heute'", () => {
+  it("SavingsProgressSection ends X-axis with projection end date (MM.JJJJ), not 'heute'", () => {
     const row = makeSavingsRow();
     const projection = projectContractBalance(
       {
@@ -179,7 +179,7 @@ describe("Contract projection charts X-axis", () => {
         asOfDate="2026-11-19"
       />,
     );
-    expect(html).toContain(">01/2026</text>");
+    expect(html).toContain(">01.2026</text>");
     expect(html).not.toContain(">heute</text>");
   });
 });

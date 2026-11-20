@@ -203,9 +203,9 @@ describe("advisor-report-anonymize", () => {
     expect(view.contracts[0]!.projectedBalanceCents).toBe(
       report.contracts[0]!.projectedBalanceCents,
     );
-    expect(view.contracts[0]!.calibratedAsOfDisplay).toBe("06/2026");
-    expect(view.contracts[0]!.fixedInterestUntilDisplay).toBe("05/2030");
-    expect(view.contracts[0]!.milestone?.text).toBe("Meilenstein 05/2029");
+    expect(view.contracts[0]!.calibratedAsOfDisplay).toBe("06.2026");
+    expect(view.contracts[0]!.fixedInterestUntilDisplay).toBe("05.2030");
+    expect(view.contracts[0]!.milestone?.text).toBe("Meilenstein 05.2029");
 
     expect(view.contracts[1]!.ref).toBe("BAUSPAR-1");
     expect(view.properties[0]!.ref).toBe("IMMOBILIE-1");
@@ -474,7 +474,7 @@ describe("advisor-report-anonymize", () => {
     });
   });
 
-  it("includes loan options in full mode and strips note + formats MM/JJJJ in anonymized mode while passing PII guard", () => {
+  it("includes loan options in full mode and strips note + formats MM.JJJJ in anonymized mode while passing PII guard", () => {
     const asOfDate = "2026-11-19";
     const contracts = [
       {
@@ -570,13 +570,13 @@ describe("advisor-report-anonymize", () => {
     expect(fullLoan1.loanOptions!.hasNote).toBe(true);
     expect(fullLoan1.loanOptions!.note).toContain("Erika Musterfrau");
 
-    // Anonymized mode: note is null even with PII inside, hasNote is true, dates MM/JJJJ, PII guard passes
+    // Anonymized mode: note is null even with PII inside, hasNote is true, dates MM.JJJJ, PII guard passes
     const anonView = buildAdvisorReportView(report, "anonymized");
     const anonLoan1 = anonView.contracts.find((c) => c.ref === "KREDIT-1")!;
     expect(anonLoan1.loanOptions!.hasNote).toBe(true);
     expect(anonLoan1.loanOptions!.note).toBeNull();
     expect(anonLoan1.loanOptions!.rateChange.latestChangeDateDisplay).toBe(
-      "06/2036",
+      "06.2036",
     );
     const anonLoan2 = anonView.contracts.find((c) => c.ref === "KREDIT-2")!;
     expect(anonLoan2.loanOptions!.specialRepayment.status).toBe("unknown");

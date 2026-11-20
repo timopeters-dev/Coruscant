@@ -1,3 +1,4 @@
+import { formatDateDE } from "@/lib/domain/date-format";
 import {
   type BalanceSnapshotTrigger,
   upsertBalanceSnapshot,
@@ -6,11 +7,6 @@ import { loadHouseholdBalance } from "@/db/queries/cockpit";
 import { buildBalanceSnapshotRecord } from "@/lib/domain/balance-history";
 import { getBerlinClockSnapshot } from "./berlin-clock";
 import type { JobRunSummary } from "./property-valuation-job";
-
-function formatDateDE(isoDate: string): string {
-  const [y, m, d] = isoDate.split("-");
-  return `${d}.${m}.${y}`;
-}
 
 export async function runBalanceSnapshotJob(opts: {
   now?: Date;

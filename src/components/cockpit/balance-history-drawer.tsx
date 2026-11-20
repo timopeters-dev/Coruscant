@@ -1,5 +1,6 @@
 "use client";
 
+import { formatMonthDE } from "@/lib/domain/date-format";
 import * as React from "react";
 import { ChartDataTable } from "@/components/charts/chart-data-table";
 import { ChartLegend } from "@/components/charts/chart-legend";
@@ -33,8 +34,7 @@ interface BalanceHistoryDrawerProps {
 }
 
 function formatYearMonthDE(ym: string): string {
-  const [y, m] = ym.split("-");
-  return `${m}/${y}`;
+  return formatMonthDE(ym);
 }
 
 export function BalanceHistoryDrawer({

@@ -1,3 +1,4 @@
+import { formatDateTimeDE } from "./date-format";
 import { TAX_BUCKET_LABELS, TAX_DISCLAIMER, TAX_ISSUE_LABELS } from "./tax-labels";
 import {
   TAX_BUCKETS,
@@ -129,7 +130,7 @@ export function buildReadmeText(
 ): string {
   const lines = [
     `Steuer-Belegmappe ${summary.taxYear}`,
-    `Erstellt am: ${options.generatedAt}`,
+    `Erstellt am: ${formatDateTimeDE(options.generatedAt)}`,
     "",
     "Inhalt:",
     "- uebersicht.csv  (Excel/LibreOffice, Semikolon, UTF-8)",

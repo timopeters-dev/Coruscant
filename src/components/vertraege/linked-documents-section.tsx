@@ -1,3 +1,4 @@
+import { formatDateDE } from "@/lib/domain/date-format";
 import Link from "next/link";
 import { ExternalLink, FileText } from "lucide-react";
 import { TAX_CATEGORY_LABELS } from "@/components/dokumente/labels";
@@ -62,7 +63,7 @@ export function LinkedDocumentsSection({
                     {doc.issuer ? `${doc.issuer} – ${doc.filename}` : doc.filename}
                   </p>
                   <p className="tabular-nums text-xs text-[var(--text-secondary)]">
-                    {doc.documentDate ?? doc.createdAt.slice(0, 10)}
+                    {formatDateDE(doc.documentDate ?? doc.createdAt)}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">

@@ -1,3 +1,4 @@
+import { formatMonthDE, formatMonthPartsDE } from "./date-format";
 import type {
   AdvisorDataQualityHint,
   AdvisorEntityKey,
@@ -324,18 +325,16 @@ const VIEW_VOCABULARY_TERMS: ReadonlySet<string> = new Set([
 
 function formatIsoDateDE(isoDate: string): string {
   const { year, month, day } = parseIsoDate(isoDate, "isoDate");
-  return `${String(day).padStart(2, "0")}.${String(month).padStart(2, "0")}.${String(year).padStart(4, "0")}`;
+  return `${String(day).padStart(2, "0")}.${formatMonthPartsDE(year, month)}`;
 }
 
 function formatIsoDateMonthYearSlash(isoDate: string): string {
   const { year, month } = parseIsoDate(isoDate, "isoDate");
-  return `${String(month).padStart(2, "0")}/${String(year).padStart(4, "0")}`;
+  return formatMonthPartsDE(year, month);
 }
 
 function formatYearMonthSlash(ym: string): string {
-  const [year, month] = ym.split("-");
-  if (!year || !month) return ym;
-  return `${month}/${year}`;
+  return formatMonthDE(ym);
 }
 
 function extractDateDisplayFromIsoTimestamp(timestamp: string): string {

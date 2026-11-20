@@ -1,3 +1,4 @@
+import { formatMonthDE } from "./date-format";
 import {
   recommendationExplanationSchema,
   type RecommendationExplanation,
@@ -265,9 +266,7 @@ export interface RecommendationLlmView {
 }
 
 function formatMonthYearDE(ym: string): string {
-  const [year, month] = ym.split("-");
-  if (!year || !month) return ym;
-  return `${month}.${year}`;
+  return formatMonthDE(ym);
 }
 
 function formatIsoDateMonthYearDE(isoDate: string): string {

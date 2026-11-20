@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateDE } from "@/lib/domain/date-format";
 import * as React from "react";
 import {
   CalendarClock,
@@ -192,13 +193,13 @@ function ContractDetailDrawerInner({
             <StatusBadge
               variant="modeled"
               label="Projiziert"
-              detail={`ab ${contract.balanceAsOfDate}`}
+              detail={`ab ${formatDateDE(contract.balanceAsOfDate)}`}
             />
           ) : (
             <StatusBadge
               variant="calibrated"
               label="Geeicht"
-              detail={contract.balanceAsOfDate}
+              detail={formatDateDE(contract.balanceAsOfDate)}
             />
           )}
         </div>
@@ -219,12 +220,12 @@ function ContractDetailDrawerInner({
               {projection.isProjected ? (
                 <>
                   Projiziert per{" "}
-                  <span className="tabular-nums">{asOfDate}</span>
+                  <span className="tabular-nums">{formatDateDE(asOfDate)}</span>
                 </>
               ) : (
                 <>
                   Aktueller Stand (
-                  <span className="tabular-nums">{asOfDate}</span>)
+                  <span className="tabular-nums">{formatDateDE(asOfDate)}</span>)
                 </>
               )}
             </p>
@@ -253,7 +254,7 @@ function ContractDetailDrawerInner({
               {formatCentsDE(projection.startingBalanceCents)}
             </p>
             <p className="mt-0.5 tabular-nums text-xs text-[var(--text-secondary)]">
-              Stichtag: {contract.balanceAsOfDate}
+              Stichtag: {formatDateDE(contract.balanceAsOfDate)}
             </p>
           </div>
         </div>
@@ -323,7 +324,7 @@ function ContractDetailDrawerInner({
                   Zinsbindung bis
                 </span>
                 <span className="tabular-nums font-medium text-[var(--amber)]">
-                  {contract.fixedInterestUntil}
+                  {formatDateDE(contract.fixedInterestUntil)}
                 </span>
               </div>
             ) : null}
@@ -542,7 +543,7 @@ function ContractDetailDrawerInner({
               </span>
             </div>
             <span className="tabular-nums font-semibold text-[var(--amber)]">
-              {contract.milestoneDate}
+              {formatDateDE(contract.milestoneDate)}
             </span>
           </div>
         ) : null}

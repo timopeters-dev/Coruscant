@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateDE } from "@/lib/domain/date-format";
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -281,7 +282,7 @@ export function VertraegeWorkspace({
             Generisches Register für Kredite, Darlehen, Bausparverträge
             und Immobilien ·{" "}
             <span className="tabular-nums font-medium text-[var(--text-primary)]">
-              Stand: {asOfDate}
+              Stand: {formatDateDE(asOfDate)}
             </span>
           </p>
         </div>
@@ -708,13 +709,13 @@ export function VertraegeWorkspace({
                                   <StatusBadge
                                     variant="modeled"
                                     label="Projiziert"
-                                    detail={`Geeicht ${contract.balanceAsOfDate}`}
+                                    detail={`Geeicht ${formatDateDE(contract.balanceAsOfDate)}`}
                                   />
                                 ) : (
                                   <StatusBadge
                                     variant="calibrated"
                                     label="Geeicht"
-                                    detail={contract.balanceAsOfDate}
+                                    detail={formatDateDE(contract.balanceAsOfDate)}
                                   />
                                 )}
                                 {overview?.isCalibrationStale ? (
@@ -751,7 +752,7 @@ export function VertraegeWorkspace({
                                     <CalendarClock className="h-3.5 w-3.5" />
                                     <span>{nextLabel}:</span>
                                     <span className="tabular-nums font-medium">
-                                      {nextDate}
+                                      {formatDateDE(nextDate)}
                                     </span>
                                   </span>
                                 ) : null}
@@ -898,13 +899,13 @@ export function VertraegeWorkspace({
                                   <StatusBadge
                                     variant="modeled"
                                     label="Projiziert"
-                                    detail={`Geeicht ${contract.balanceAsOfDate}`}
+                                    detail={`Geeicht ${formatDateDE(contract.balanceAsOfDate)}`}
                                   />
                                 ) : (
                                   <StatusBadge
                                     variant="calibrated"
                                     label="Geeicht"
-                                    detail={contract.balanceAsOfDate}
+                                    detail={formatDateDE(contract.balanceAsOfDate)}
                                   />
                                 )}
                                 {overview?.isCalibrationStale ? (

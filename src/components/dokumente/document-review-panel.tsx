@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateDE } from "@/lib/domain/date-format";
 import * as React from "react";
 import {
   AlertTriangle,
@@ -638,7 +639,7 @@ function DocumentReviewSplitView({
           <div className="min-w-0">
             <CardTitle className="truncate text-base">{doc.filename}</CardTitle>
             <p className="tabular-nums text-xs text-[var(--text-secondary)]">
-              Hochgeladen am {doc.createdAt.slice(0, 10)}
+              Hochgeladen am {formatDateDE(doc.createdAt)}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -953,7 +954,7 @@ function DocumentReviewSplitView({
                   </span>
                   <span className="tabular-nums text-xs text-[var(--text-secondary)]">
                     Aktuell: {formatCentsDE(selectedContract.currentBalanceCents)}{" "}
-                    (per {selectedContract.balanceAsOfDate})
+                    (per {formatDateDE(selectedContract.balanceAsOfDate)})
                   </span>
                 </div>
 
@@ -1017,7 +1018,7 @@ function DocumentReviewSplitView({
                       <span className="text-[var(--text-secondary)]">
                         Projizierter Stand per{" "}
                         <span className="tabular-nums">
-                          {calibrationEvaluation.effectiveDate}
+                          {formatDateDE(calibrationEvaluation.effectiveDate)}
                         </span>
                       </span>
                       <span className="tabular-nums font-medium text-[var(--text-primary)]">
@@ -1057,11 +1058,11 @@ function DocumentReviewSplitView({
                       <span>
                         Vertrag ist bereits auf neueres Datum (
                         <span className="tabular-nums font-semibold">
-                          {calibrationEvaluation.previousAsOfDate}
+                          {formatDateDE(calibrationEvaluation.previousAsOfDate)}
                         </span>
                         ) geeicht als das Belegdatum (
                         <span className="tabular-nums font-semibold">
-                          {calibrationEvaluation.effectiveDate}
+                          {formatDateDE(calibrationEvaluation.effectiveDate)}
                         </span>
                         ).
                       </span>
@@ -1107,7 +1108,7 @@ function DocumentReviewSplitView({
                     </span>{" "}
                     per{" "}
                     <span className="tabular-nums">
-                      {calibrationEvaluation?.effectiveDate ?? todayIsoDate}
+                      {formatDateDE(calibrationEvaluation?.effectiveDate ?? todayIsoDate)}
                     </span>{" "}
                     eichen
                   </span>

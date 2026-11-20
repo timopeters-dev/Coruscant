@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateDE } from "@/lib/domain/date-format";
 import { CalendarClock } from "lucide-react";
 import * as React from "react";
 import { ChartLegend } from "@/components/charts/chart-legend";
@@ -39,11 +40,6 @@ interface NetWorthHistoryCardProps {
   fromIso: string | null;
   todayIso: string;
   onRangeChange: (next: HistoryRangeId) => void;
-}
-
-function formatDateDE(isoDate: string): string {
-  const [y, m, d] = isoDate.split("-");
-  return `${d}.${m}.${y}`;
 }
 
 export function NetWorthHistoryCard({

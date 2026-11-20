@@ -17,7 +17,7 @@ describe("TimelineRangeChart", () => {
         xMax={36}
         xTicks={[
           { x: 0, label: "heute" },
-          { x: 36, label: "01/2030" },
+          { x: 36, label: "01.2030" },
         ]}
         xTooltipLabel={(x) => `M${x}`}
         fromLabel="heute"

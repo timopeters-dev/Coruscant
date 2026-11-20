@@ -226,7 +226,7 @@ describe("toSavingsSeries & xLabelForMonthIndex", () => {
     });
 
     expect(xLabelForMonthIndex("2026-12", 0)).toBe("heute");
-    expect(xLabelForMonthIndex("2026-12", 1)).toBe("12/2026");
-    expect(xLabelForMonthIndex("2026-12", 2)).toBe("01/2027");
+    expect(xLabelForMonthIndex("2026-12", 1)).toBe("12.2026");
+    expect(xLabelForMonthIndex("2026-12", 2)).toBe("01.2027");
   });
 });
