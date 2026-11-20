@@ -343,7 +343,7 @@ function ContractModalInner({
                   className="h-4 w-4 text-[var(--amber)]"
                   aria-hidden="true"
                 />
-                <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)]">
+                <span className="section-label text-[var(--text-primary)]">
                   Aus PDF vorbefüllen (KI)
                 </span>
               </div>

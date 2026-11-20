@@ -11,14 +11,14 @@ import { SPRING_SNAPPY } from "./motion";
  * Aufrufer; hier kommt nur der einheitliche Look samt Animation her.
  */
 export const SEGMENT_TRACK =
-  "relative inline-flex flex-wrap items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-0.5 shadow-[inset_0_1px_2px_rgb(15_23_42/0.04)]";
+  "relative inline-flex flex-wrap items-center gap-0.5 rounded-lg border border-[var(--border-sub)] bg-transparent p-0.5";
 
 export function segmentItemClass(active: boolean, size: "sm" | "md" = "sm") {
   return cn(
-    "relative inline-flex items-center justify-center gap-1.5 rounded-md font-medium whitespace-nowrap transition-colors duration-150 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] motion-reduce:transition-none",
+    "relative inline-flex items-center justify-center gap-1.5 rounded-md font-medium whitespace-nowrap transition-colors duration-150 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)] motion-reduce:transition-none",
     size === "sm" ? "px-2.5 py-1 text-xs" : "px-3 py-1.5 text-sm",
     active
-      ? "text-[var(--text-primary)]"
+      ? "text-[var(--accent-foreground)]"
       : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
   );
 }
@@ -37,7 +37,7 @@ export function SegmentPill({ className }: { className?: string }) {
       aria-hidden="true"
       transition={SPRING_SNAPPY}
       className={cn(
-        "absolute inset-0 -z-0 rounded-md border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-xs)] dark:border-[var(--border-sub)]/60",
+        "absolute inset-0 -z-0 rounded-md bg-[var(--accent)]",
         className,
       )}
     />

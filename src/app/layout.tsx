@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Barlow, Barlow_Semi_Condensed } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppShell } from "@/components/app-shell";
@@ -8,9 +8,17 @@ import { isDevMode } from "@/lib/server/dev-mode";
 
 export const dynamic = "force-dynamic";
 
-const inter = Inter({
+const barlow = Barlow({
   subsets: ["latin"],
-  variable: "--font-inter",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-barlow",
+  display: "swap",
+});
+
+const barlowSemiCondensed = Barlow_Semi_Condensed({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-barlow-sc",
   display: "swap",
 });
 
@@ -29,7 +37,7 @@ export default function RootLayout({
   const devMode = isDevMode();
 
   return (
-    <html lang="de" suppressHydrationWarning className={inter.variable}>
+    <html lang="de" suppressHydrationWarning className={`${barlow.variable} ${barlowSemiCondensed.variable}`}>
       <body className="antialiased">
         <ThemeProvider>
           <AppShell finanzCockpitUrl={publicUrl} devMode={devMode}>

@@ -55,10 +55,10 @@ function CalendarChevron({ orientation, className }: ChevronProps) {
 }
 
 const NAV_BUTTON =
-  "inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)] disabled:pointer-events-none disabled:opacity-30 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]";
+  "inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)] disabled:pointer-events-none disabled:opacity-30 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]";
 
 const FOOTER_BUTTON =
-  "rounded-md px-2 py-1 text-xs font-medium transition-colors outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]";
+  "rounded-md px-2 py-1 text-xs font-medium transition-colors outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]";
 
 /**
  * Datumsfeld: Eingabe als `TT.MM.JJJJ` oder Auswahl im Kalender-Popover.
@@ -132,9 +132,9 @@ export function DatePicker({
               ? cn(FIELD_ERROR, "focus-within:ring-[color-mix(in_srgb,var(--rose)_22%,transparent)]")
               : cn(
                   FIELD_OK,
-                  "focus-within:border-[var(--accent)] focus-within:ring-[color-mix(in_srgb,var(--accent)_22%,transparent)]",
+                  "focus-within:border-[var(--accent)] focus-within:ring-[var(--focus)]",
                   open &&
-                    "border-[var(--accent)] ring-[3px] ring-[color-mix(in_srgb,var(--accent)_22%,transparent)]",
+                    "border-[var(--accent)] ring-[3px] ring-[var(--focus)]",
                 ),
             disabled && "cursor-not-allowed opacity-50",
             className,
@@ -268,7 +268,7 @@ const DAY_PICKER_CLASSES = {
     "inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-sm font-semibold capitalize text-[var(--text-primary)] [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:text-[var(--text-secondary)]",
   dropdowns: "flex items-center gap-0.5",
   dropdown_root:
-    "relative inline-flex items-center rounded-md transition-colors hover:bg-[var(--surface-elevated)] has-[select:focus-visible]:ring-[3px] has-[select:focus-visible]:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]",
+    "relative inline-flex items-center rounded-md transition-colors hover:bg-[var(--surface-elevated)] has-[select:focus-visible]:ring-[3px] has-[select:focus-visible]:ring-[var(--focus)]",
   dropdown:
     "absolute inset-0 z-10 w-full cursor-pointer appearance-none opacity-0",
   nav: "absolute right-0 top-0 flex items-center gap-0.5",
@@ -278,12 +278,12 @@ const DAY_PICKER_CLASSES = {
   month_grid: "border-collapse",
   weekdays: "flex",
   weekday:
-    "w-9 pb-1 text-center text-[11px] font-medium uppercase tracking-wide text-[var(--text-muted)]",
+    "w-9 pb-1 text-center text-2xs font-medium text-[var(--text-muted)]",
   weeks: "",
   week: "flex",
   day: "group/day relative h-9 w-9 p-0 text-center",
   day_button:
-    "relative m-0.5 inline-flex h-8 w-8 items-center justify-center rounded-lg text-sm tabular-nums text-[var(--text-primary)] transition-[background-color,color,box-shadow,transform] duration-150 hover:bg-[var(--surface-elevated)] active:scale-95 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] " +
+    "relative m-0.5 inline-flex h-8 w-8 items-center justify-center rounded-lg text-sm tabular-nums text-[var(--text-primary)] transition-[background-color,color,box-shadow,transform] duration-150 hover:bg-[var(--surface-elevated)] active:scale-95 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)] " +
     "group-data-[selected=true]/day:bg-[var(--accent)] group-data-[selected=true]/day:font-semibold group-data-[selected=true]/day:text-white group-data-[selected=true]/day:shadow-[var(--shadow-accent)] " +
     "group-data-[today=true]/day:font-semibold group-data-[today=true]/day:text-[var(--accent)] group-data-[today=true]/day:group-data-[selected=true]/day:text-white " +
     "group-data-[outside=true]/day:text-[var(--text-muted)] group-data-[outside=true]/day:opacity-60 " +
@@ -420,7 +420,7 @@ export function MonthPicker({
                     setOpen(false);
                   }}
                   className={cn(
-                    "h-9 rounded-lg text-sm transition-[background-color,color,transform] duration-150 active:scale-95 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] disabled:pointer-events-none disabled:opacity-30",
+                    "h-9 rounded-lg text-sm transition-[background-color,color,transform] duration-150 active:scale-95 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)] disabled:pointer-events-none disabled:opacity-30",
                     active
                       ? "bg-[var(--accent)] font-semibold text-white shadow-[var(--shadow-accent)]"
                       : "text-[var(--text-primary)] hover:bg-[var(--surface-elevated)]",

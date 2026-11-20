@@ -239,7 +239,7 @@ function ContractDetailDrawerInner({
               {formatCentsDE(projection.projectedBalanceCents)}
             </p>
             {!isLoan && projection.projectedBalanceCents < 0 ? (
-              <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
+              <p className="mt-0.5 text-2xs text-[var(--text-secondary)]">
                 Im Minus durch die Abschlussgebühr – die Sparraten gleichen das
                 zuerst aus, Guthabenzins gibt es erst ab 0 €.
               </p>
@@ -314,7 +314,7 @@ function ContractDetailDrawerInner({
 
         {isLoan && loanOptionsView ? (
           <div className="space-y-2.5 rounded-xl border border-[var(--border)] p-4 text-sm">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+            <h3 className="section-label text-[var(--text-secondary)]">
               Vertragsoptionen
             </h3>
 
@@ -378,12 +378,12 @@ function ContractDetailDrawerInner({
                 </div>
               ) : null}
               {loanOptionsView.allowance.flags.missingOriginalPrincipal ? (
-                <p className="text-[11px] text-[var(--amber)]">
+                <p className="text-2xs text-[var(--amber)]">
                   Höhe unbekannt – Ursprungsbetrag fehlt.
                 </p>
               ) : null}
               {loanOptionsView.allowance.flags.usageFromOtherYear ? (
-                <p className="text-[11px] text-[var(--text-secondary)]">
+                <p className="text-2xs text-[var(--text-secondary)]">
                   Genutzte Sondertilgung stammt aus{" "}
                   <span className="tabular-nums">
                     {loanOptionsView.allowance.usedYear}
@@ -443,13 +443,13 @@ function ContractDetailDrawerInner({
                 ) : null}
                 {loanOptionsView.corridor.status === "allowed" &&
                 loanOptionsView.corridor.flags.corridorAssumed ? (
-                  <p className="text-[11px] text-[var(--amber)]">
+                  <p className="text-2xs text-[var(--amber)]">
                     Korridor angenommen (1–10 % Tilgung).
                   </p>
                 ) : null}
                 {loanOptionsView.corridor.status === "allowed" &&
                 loanOptionsView.corridor.flags.approximatedBase ? (
-                  <p className="text-[11px] text-[var(--text-secondary)]">
+                  <p className="text-2xs text-[var(--text-secondary)]">
                     Näherung über aktuelle Restschuld.
                   </p>
                 ) : null}
@@ -459,7 +459,7 @@ function ContractDetailDrawerInner({
             {/* Notiz */}
             {loanOptionsView.options.loanOptionsNote ? (
               <div className="border-t border-[var(--border)]/60 pt-2">
-                <p className="text-[11px] text-[var(--text-secondary)]">
+                <p className="text-2xs text-[var(--text-secondary)]">
                   Notiz (nur lokal)
                 </p>
                 <p className="mt-0.5 whitespace-pre-wrap text-xs text-[var(--text-primary)]">

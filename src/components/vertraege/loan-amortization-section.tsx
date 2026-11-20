@@ -262,7 +262,7 @@ export function LoanAmortizationSection({
             {showFixedTiles ? (
               <>
                 <div className="rounded-lg border border-dashed border-[var(--border-sub)] bg-[var(--surface-elevated)]/30 p-3">
-                  <p className="text-[11px] text-[var(--text-secondary)]">
+                  <p className="text-2xs text-[var(--text-secondary)]">
                     Restschuld zum Zinsbindungsende
                   </p>
                   <p className="mt-1 tabular-nums text-sm font-semibold text-[var(--text-primary)]">
@@ -270,7 +270,7 @@ export function LoanAmortizationSection({
                   </p>
                 </div>
                 <div className="rounded-lg border border-dashed border-[var(--border-sub)] bg-[var(--surface-elevated)]/30 p-3">
-                  <p className="text-[11px] text-[var(--text-secondary)]">
+                  <p className="text-2xs text-[var(--text-secondary)]">
                     Zinsen bis Zinsbindungsende
                   </p>
                   <p className="mt-1 tabular-nums text-sm font-semibold text-[var(--text-primary)]">
@@ -281,7 +281,7 @@ export function LoanAmortizationSection({
             ) : null}
 
             <div className="rounded-lg border border-dashed border-[var(--border-sub)] bg-[var(--surface-elevated)]/30 p-3">
-              <p className="text-[11px] text-[var(--text-secondary)]">
+              <p className="text-2xs text-[var(--text-secondary)]">
                 Schuldenfrei ca.
               </p>
               <p className="mt-1 tabular-nums text-sm font-semibold text-[var(--text-primary)]">

@@ -736,7 +736,7 @@ export function AllokationWorkspace({
           </div>
 
           {householdData.household.categoriesBreakdown.length > 0 ? (
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)]">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] ">
               <button
                 type="button"
                 onClick={() => setBreakdownOpen((prev) => !prev)}
@@ -867,7 +867,7 @@ export function AllokationWorkspace({
         <div className="space-y-2 rounded-xl border border-dashed border-[var(--border-sub)] bg-[var(--surface-elevated)]/60 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+              <h3 className="section-label text-[var(--text-secondary)]">
                 Verknüpfte Coruscant-Vertragsraten
               </h3>
               <Badge variant="default">Live-Sync</Badge>
@@ -897,11 +897,11 @@ export function AllokationWorkspace({
                 href="/vertraege"
                 className="text-xs font-medium text-[var(--accent)] hover:underline"
               >
-                Verträge verwalten →
+                Verträge verwalten
               </Link>
             </div>
           </div>
-          <p className="text-[11px] text-[var(--text-secondary)]">
+          <p className="text-2xs text-[var(--text-secondary)]">
             {includeContractItems
               ? "Aktiviert: Diese Vertragsraten werden zusätzlich zu den Gemeinschaftskonto-Fixkosten abgezogen."
               : "Standardmäßig deaktiviert, um Doppelzählungen mit bereits über das Gemeinschaftskonto erkannten Fixkosten zu vermeiden."}
@@ -936,7 +936,7 @@ export function AllokationWorkspace({
           )}
 
           {excludedContractsCount > 0 ? (
-            <p className="text-[11px] text-[var(--text-secondary)]">
+            <p className="text-2xs text-[var(--text-secondary)]">
               Hinweis:{" "}
               <span className="tabular-nums">{excludedContractsCount}</span>{" "}
               pausierte, geschlossene oder ratenlose Verträge fließen nicht in
@@ -949,7 +949,7 @@ export function AllokationWorkspace({
           <div className="space-y-2.5 rounded-xl border border-dashed border-[var(--border-sub)] bg-[var(--surface-elevated)]/40 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                <h3 className="section-label text-[var(--text-secondary)]">
                   Mieten &amp; Objektkosten (Modelliert)
                 </h3>
                 <Badge variant="outline">Objekt</Badge>
@@ -979,11 +979,11 @@ export function AllokationWorkspace({
                   href="/vertraege?tab=portfolio"
                   className="text-xs font-medium text-[var(--accent)] hover:underline"
                 >
-                  Portfolio ansehen →
+                  Portfolio ansehen
                 </Link>
               </div>
             </div>
-            <p className="text-[11px] text-[var(--text-secondary)]">
+            <p className="text-2xs text-[var(--text-secondary)]">
               Abgeleitet aus vermieteten Objekten inkl. verknüpfter
               Haushalts-Kreditraten (ohne Doppelzählung bei aktiven
               Vertragsraten). Falls Miete oder Rate bereits im Gemeinschaftskonto
@@ -1115,9 +1115,12 @@ export function AllokationWorkspace({
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0 space-y-1.5">
                         <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="default" className="tabular-nums">
-                            #{pot.priority}
-                          </Badge>
+                          <span
+                            className="figure w-5 shrink-0 text-lg leading-6 text-[var(--text-muted)]"
+                            aria-label={`Priorität ${pot.priority}`}
+                          >
+                            {pot.priority}
+                          </span>
                           <span className="truncate text-base font-semibold text-[var(--text-primary)]">
                             {pot.name}
                           </span>
@@ -1372,7 +1375,7 @@ export function AllokationWorkspace({
                           </div>
                           <span
                             className={cn(
-                              "inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium",
+                              "inline-flex items-center rounded-md border px-2 py-0.5 text-2xs font-medium",
                               badge.className,
                             )}
                           >

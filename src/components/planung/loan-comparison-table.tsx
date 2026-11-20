@@ -123,7 +123,7 @@ export function LoanComparisonTable({
     return (
       <div
         data-testid="loan-comparison-single"
-        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] px-4 py-3"
+        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)]  px-4 py-3"
       >
         <div className="min-w-0">
           <p className="text-sm font-semibold text-[var(--text-primary)]">
@@ -190,22 +190,22 @@ export function LoanComparisonTable({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+        <h3 className="section-label text-[var(--text-secondary)]">
           Kredit-Ranking ({rows.length} aktive Darlehen)
         </h3>
-        <span className="text-[11px] text-[var(--text-secondary)]">
+        <span className="text-2xs text-[var(--text-secondary)]">
           Sortiert nach Break-even-Rendite · Klick oder Pfeiltasten zum Auswählen
         </span>
       </div>
 
       {/* Desktop table */}
-      <div className="hidden overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] md:block">
+      <div className="hidden overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)]  md:block">
         <table
           aria-label="Vergleich aktiver Darlehen"
           className="w-full border-collapse text-left text-xs"
         >
           <thead>
-            <tr className="border-b border-[var(--border)] text-[11px] text-[var(--text-secondary)]">
+            <tr className="border-b border-[var(--border)] text-2xs text-[var(--text-secondary)]">
               <th className="px-3 py-2.5 font-medium">Kredit</th>
               <th className="px-3 py-2.5 text-right font-medium">Zins</th>
               <th className="px-3 py-2.5 text-right font-medium">
@@ -248,7 +248,7 @@ export function LoanComparisonTable({
                     <p className="font-semibold text-[var(--text-primary)]">
                       {row.loanName}
                     </p>
-                    <p className="tabular-nums text-[11px] text-[var(--text-secondary)]">
+                    <p className="tabular-nums text-2xs text-[var(--text-secondary)]">
                       Restschuld {formatWholeEuroDE(row.projectedBalanceCents)}
                     </p>
                   </td>
@@ -268,7 +268,7 @@ export function LoanComparisonTable({
                       {corridor.primary}
                     </p>
                     {corridor.secondary ? (
-                      <p className="tabular-nums text-[11px] text-[var(--text-secondary)]">
+                      <p className="tabular-nums text-2xs text-[var(--text-secondary)]">
                         {corridor.secondary}
                       </p>
                     ) : null}
@@ -278,7 +278,7 @@ export function LoanComparisonTable({
                       {saved.primary}
                     </p>
                     {saved.secondary ? (
-                      <p className="text-[11px] text-[var(--text-secondary)]">
+                      <p className="text-2xs text-[var(--text-secondary)]">
                         {saved.secondary}
                       </p>
                     ) : null}
@@ -310,7 +310,7 @@ export function LoanComparisonTable({
               onClick={() => onSelectLoan(row.loanId)}
               onKeyDown={(e) => handleKeyDown(idx, e)}
               className={cn(
-                "flex w-full items-center justify-between gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]",
+                "flex w-full items-center justify-between gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]",
                 isSelected
                   ? "border-[var(--accent)] bg-[var(--accent)]/10"
                   : "border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-elevated)]/60",

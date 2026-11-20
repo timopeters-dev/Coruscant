@@ -20,7 +20,7 @@ const GROUP =
 
 function ItemIcon({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] shadow-[var(--shadow-xs)] transition-colors group-data-[selected=true]:border-[color-mix(in_srgb,var(--accent)_35%,var(--border))] group-data-[selected=true]:text-[var(--accent)]">
+    <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] transition-colors group-data-[selected=true]:border-[var(--text-secondary)] group-data-[selected=true]:text-[var(--text-primary)]">
       {children}
     </span>
   );
@@ -73,10 +73,10 @@ export function CommandMenu({
         onClick={() => setOpen(true)}
         aria-label="Befehlspalette öffnen"
         aria-keyshortcuts="Meta+K Control+K"
-        className="group inline-flex h-8 items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 px-2 text-xs text-[var(--text-secondary)] shadow-[var(--shadow-xs)] transition-colors outline-hidden hover:border-[var(--border-sub)] hover:text-[var(--text-primary)] focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_32%,transparent)] sm:pr-1.5 print:hidden"
+        className="group inline-flex h-8 items-center gap-2 rounded-lg border border-[var(--border-sub)] bg-[var(--surface)] px-2 text-xs text-[var(--text-secondary)] transition-colors outline-hidden hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)] focus-visible:ring-[3px] focus-visible:ring-[var(--focus)] sm:pr-1.5 print:hidden"
       >
         <Search className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        <kbd className="hidden rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-1.5 py-px font-sans text-[10px] font-medium text-[var(--text-secondary)] sm:inline">
+        <kbd className="hidden rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-1.5 py-px font-sans text-3xs font-medium text-[var(--text-secondary)] sm:inline">
           {isMac ? "⌘K" : "Strg K"}
         </kbd>
       </button>
@@ -89,7 +89,7 @@ export function CommandMenu({
         overlayClassName="fixed inset-0 z-[80] bg-[var(--backdrop)] backdrop-blur-[3px] animate-fade"
         contentClassName="fixed left-1/2 top-[12vh] z-[81] w-[min(36rem,calc(100vw-1.5rem))] -translate-x-1/2 outline-hidden"
       >
-        <div className="animate-pop overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-overlay)] shadow-[var(--shadow-lg),inset_0_1px_0_0_var(--hairline-highlight)] backdrop-blur-xl">
+        <div className="animate-pop overflow-hidden rounded-2xl border border-[var(--border-sub)] bg-[var(--surface-overlay)] shadow-[var(--shadow-lg)]">
           <div className="flex items-center gap-3 border-b border-[var(--border)] px-4">
             <Search
               className="h-4 w-4 shrink-0 text-[var(--text-secondary)]"
@@ -99,7 +99,7 @@ export function CommandMenu({
               placeholder="Seite oder Aktion suchen …"
               className="h-12 w-full bg-transparent text-sm text-[var(--text-primary)] outline-hidden placeholder:text-[var(--text-muted)]"
             />
-            <kbd className="rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-1.5 py-px text-[10px] font-medium text-[var(--text-secondary)]">
+            <kbd className="rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-1.5 py-px text-3xs font-medium text-[var(--text-secondary)]">
               Esc
             </kbd>
           </div>
@@ -167,7 +167,7 @@ export function CommandMenu({
               </Command.Group>
             ) : null}
           </Command.List>
-          <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-4 py-2 text-[11px] text-[var(--text-muted)]">
+          <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-4 py-2 text-2xs text-[var(--text-muted)]">
             <span>↑↓ navigieren · ↵ öffnen</span>
             <span>Coruscant</span>
           </div>

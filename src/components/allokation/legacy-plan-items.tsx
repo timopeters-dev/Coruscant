@@ -198,7 +198,7 @@ export function LegacyPlanItems({
                         {item.direction === "inflow" ? "+" : "−"}
                         {formatCentsDE(monthlyCents)}
                       </div>
-                      <div className="text-[11px] text-[var(--text-secondary)]">
+                      <div className="text-2xs text-[var(--text-secondary)]">
                         pro Monat
                       </div>
                     </div>

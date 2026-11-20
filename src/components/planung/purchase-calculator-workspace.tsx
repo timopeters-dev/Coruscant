@@ -438,7 +438,7 @@ export function PurchaseCalculatorWorkspace({
                 <>
                   {/* 1. Kosten */}
                   <section aria-label="Kosten" className="flex flex-col gap-2">
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                    <h3 className="section-label text-[var(--text-secondary)]">
                       Kosten
                     </h3>
                     <div className="flex justify-between text-sm">
@@ -482,7 +482,7 @@ export function PurchaseCalculatorWorkspace({
                     aria-label="Finanzierung"
                     className="flex flex-col gap-2 border-t border-[var(--border)] pt-4"
                   >
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                    <h3 className="section-label text-[var(--text-secondary)]">
                       Finanzierung
                     </h3>
                     <div className="flex justify-between text-sm font-semibold">
@@ -543,7 +543,7 @@ export function PurchaseCalculatorWorkspace({
                     aria-label="Objekt-Cashflow vor Steuern"
                     className="flex flex-col gap-3 border-t border-[var(--border)] pt-4"
                   >
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                    <h3 className="section-label text-[var(--text-secondary)]">
                       Objekt-Cashflow vor Steuern
                     </h3>
                     <div className="flex items-baseline justify-between">
@@ -627,7 +627,7 @@ export function PurchaseCalculatorWorkspace({
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[var(--text-secondary)] tabular-nums">
+                        <div className="flex flex-wrap gap-x-3 gap-y-1 text-2xs text-[var(--text-secondary)] tabular-nums">
                           <span className="inline-flex items-center gap-1">
                             <span className="h-2 w-2 rounded-full bg-[var(--rose)]" />
                             Zins: {formatCentsDE(computed.result.loan.firstMonthInterestCents)}
@@ -654,7 +654,7 @@ export function PurchaseCalculatorWorkspace({
                     aria-label="Break-even"
                     className="flex flex-col gap-2 border-t border-[var(--border)] pt-4"
                   >
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                    <h3 className="section-label text-[var(--text-secondary)]">
                       Break-even (Cashflow ≥ 0 inkl. Tilgung)
                     </h3>
                     <div className="flex justify-between text-sm">
@@ -682,7 +682,7 @@ export function PurchaseCalculatorWorkspace({
                     aria-label="Bestand"
                     className="flex flex-col gap-2.5 border-t border-[var(--border)] pt-4"
                   >
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                    <h3 className="section-label text-[var(--text-secondary)]">
                       Bestand &amp; Haushaltsauswirkung
                     </h3>
                     {equitySource ? (

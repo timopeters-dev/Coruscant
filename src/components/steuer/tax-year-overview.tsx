@@ -283,7 +283,7 @@ export function TaxYearOverview({ data, todayIsoDate }: TaxYearOverviewProps) {
             ))}
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)]">
+          <div className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] ">
             <table className="w-full text-left text-sm">
               <thead className="bg-[var(--surface-elevated)] text-xs text-[var(--text-secondary)]">
                 <tr>

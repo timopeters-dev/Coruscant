@@ -350,7 +350,7 @@ export function InvestmentCoachDrawer({
                 <p className="text-sm">{result.summary}</p>
 
                 <div className="flex flex-col gap-2">
-                  <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                  <h4 className="section-label text-[var(--text-secondary)]">
                     Stärken
                   </h4>
                   <ul className="flex flex-col gap-2 text-sm">
@@ -364,7 +364,7 @@ export function InvestmentCoachDrawer({
 
                 {result.risks.length > 0 ? (
                   <div className="flex flex-col gap-2">
-                    <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                    <h4 className="section-label text-[var(--text-secondary)]">
                       Risiken
                     </h4>
                     <ul className="flex flex-col gap-2 text-sm">
@@ -393,7 +393,7 @@ export function InvestmentCoachDrawer({
 
                 {result.horizonCheck.length > 0 ? (
                   <div className="flex flex-col gap-2">
-                    <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                    <h4 className="section-label text-[var(--text-secondary)]">
                       Zeithorizont-Check
                     </h4>
                     <ul className="flex flex-col gap-2 text-sm">
@@ -432,7 +432,7 @@ export function InvestmentCoachDrawer({
 
                 {result.glossary.length > 0 ? (
                   <div className="flex flex-col gap-2">
-                    <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                    <h4 className="section-label text-[var(--text-secondary)]">
                       Glossar
                     </h4>
                     <dl className="flex flex-col gap-1.5 text-sm">

@@ -123,7 +123,7 @@ export function DocumentArchive({
   return (
     <div className="space-y-4">
       {/* Filter bar */}
-      <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-4">
+      <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)]  p-4">
         <div className="flex flex-wrap items-end gap-3">
           <div className="w-36 space-y-1">
             <Label htmlFor="archive-year-filter">Steuerjahr</Label>
@@ -183,7 +183,7 @@ export function DocumentArchive({
       {taxOverviewYear !== null ? (
         <Link
           href={`/dokumente/steuer?jahr=${taxOverviewYear}`}
-          className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] px-4 py-3 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-elevated)]"
+          className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--surface)]  px-4 py-3 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-elevated)]"
         >
           <span>
             Steuer-Übersicht{" "}

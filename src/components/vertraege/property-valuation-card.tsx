@@ -872,12 +872,12 @@ export function PropertyValuationCard({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="space-y-0.5">
           <div className="flex items-center gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+            <p className="section-label text-[var(--text-secondary)]">
               Wertschätzung · ImmoAnalyse.Pro
             </p>
             <StatusBadge variant="modeled" />
           </div>
-          <p className="text-[11px] text-[var(--text-secondary)]">
+          <p className="text-2xs text-[var(--text-secondary)]">
             Wertindikation, kein Gutachten.
           </p>
           {adoptedNotice ? (
@@ -998,13 +998,13 @@ export function PropertyValuationCard({
         {adjustmentsOpen ? (
           <div className="mt-3 space-y-4 border-t border-[var(--border)] pt-3">
             <div className="flex flex-wrap items-start justify-between gap-2">
-              <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
+              <p className="text-2xs leading-relaxed text-[var(--text-secondary)]">
                 Der Dienst kennt nur Haustyp, PLZ/Ort, Flächen, Baujahr,
                 Energieklasse und Miete. Lage im Viertel, Bauweise, Zustand,
                 Ausstattung und Rechtliches kennt er nicht. Dafür sind diese
                 Posten. Richtwerte zur Orientierung, kein Gutachten (Katalog v1).
               </p>
-              <span className="shrink-0 tabular-nums text-[11px] font-medium text-[var(--text-secondary)]">
+              <span className="shrink-0 tabular-nums text-2xs font-medium text-[var(--text-secondary)]">
                 {draftRows.length} / {MAX_VALUATION_ADJUSTMENTS} Posten
               </span>
             </div>
@@ -1019,7 +1019,7 @@ export function PropertyValuationCard({
                 return (
                   <div key={group.id} className="space-y-1.5">
                     <p
-                      className="text-[11px] font-medium text-[var(--text-secondary)]"
+                      className="text-2xs font-medium text-[var(--text-secondary)]"
                       title={group.hint}
                     >
                       {group.label}
@@ -1079,7 +1079,7 @@ export function PropertyValuationCard({
                               }
                               setConfirmingRecompute(null);
                             }}
-                            className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] disabled:cursor-not-allowed disabled:opacity-45 ${
+                            className={`rounded-md border px-2 py-1 text-2xs font-medium transition-colors outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)] disabled:cursor-not-allowed disabled:opacity-45 ${
                               isSelected
                                 ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-foreground)]"
                                 : "border-[var(--border)] bg-[var(--surface-elevated)]/60 text-[var(--text-primary)] hover:border-[var(--accent)]"
@@ -1099,7 +1099,7 @@ export function PropertyValuationCard({
             </div>
 
             {swapNotice ? (
-              <p className="text-[11px] text-[var(--amber)]">{swapNotice}</p>
+              <p className="text-2xs text-[var(--amber)]">{swapNotice}</p>
             ) : null}
 
             {/* Gewählte Posten */}
@@ -1120,11 +1120,11 @@ export function PropertyValuationCard({
                       {catalogItem ? (
                         <div className="flex min-w-[160px] flex-1 flex-wrap items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]/40 px-2.5 py-1.5 text-xs text-[var(--text-primary)]">
                           <span>{catalogItem.label}</span>
-                          <span className="rounded bg-[var(--surface)] px-1.5 py-0.5 text-[10px] text-[var(--text-secondary)]">
+                          <span className="rounded bg-[var(--surface)] px-1.5 py-0.5 text-3xs text-[var(--text-secondary)]">
                             Katalog
                           </span>
                           {typeMismatch ? (
-                            <span className="text-[10px] text-[var(--amber)]">
+                            <span className="text-3xs text-[var(--amber)]">
                               passt nicht zum Objekttyp
                             </span>
                           ) : null}
@@ -1190,7 +1190,7 @@ export function PropertyValuationCard({
                             setSwapNotice(null);
                             setConfirmingRecompute(null);
                           }}
-                          className="text-[11px] text-[var(--accent)] underline underline-offset-2 hover:opacity-80"
+                          className="text-2xs text-[var(--accent)] underline underline-offset-2 hover:opacity-80"
                         >
                           Richtwert
                         </button>
@@ -1212,7 +1212,7 @@ export function PropertyValuationCard({
                       </Button>
                     </div>
                     {errs?.label || errs?.bps ? (
-                      <p className="text-[11px] text-[var(--rose)]">
+                      <p className="text-2xs text-[var(--rose)]">
                         {[errs.label, errs.bps].filter(Boolean).join(" · ")}
                       </p>
                     ) : null}
@@ -1222,7 +1222,7 @@ export function PropertyValuationCard({
             </div>
 
             {draftValidation.totalError ? (
-              <p className="text-[11px] font-medium text-[var(--rose)]">
+              <p className="text-2xs font-medium text-[var(--rose)]">
                 {draftValidation.isTotalOutOfRange ? (
                   <span className="tabular-nums">
                     {formatSignedBps(draftValidation.rawSumBps)} ·{" "}
@@ -1261,18 +1261,18 @@ export function PropertyValuationCard({
             ) : null}
 
             {property.estimatedValueSource === "manual" ? (
-              <p className="text-[11px] text-[var(--text-secondary)]">
+              <p className="text-2xs text-[var(--text-secondary)]">
                 Wirkt bei der nächsten Übernahme, der manuelle Wert bleibt.
               </p>
             ) : null}
 
             {adjustmentServerError ? (
-              <p className="text-[11px] text-[var(--rose)]">
+              <p className="text-2xs text-[var(--rose)]">
                 {adjustmentServerError}
               </p>
             ) : null}
             {adjustmentNotice ? (
-              <p className="text-[11px] text-[var(--emerald)]">
+              <p className="text-2xs text-[var(--emerald)]">
                 {adjustmentNotice}
               </p>
             ) : null}
@@ -1371,7 +1371,7 @@ export function PropertyValuationCard({
           </Select>
         </div>
         {planned ? (
-          <p className="text-[11px] text-[var(--text-secondary)] tabular-nums">
+          <p className="text-2xs text-[var(--text-secondary)] tabular-nums">
             ≈ {estimateMonthlyCalls(property.autoValuationInterval)}{" "}
             Abfragen/Monat für dieses Objekt · alle Objekte zusammen bis zu{" "}
             {planned.peakMonthly} von {planned.autoBudget} (3 Reserve)
@@ -1399,7 +1399,7 @@ export function PropertyValuationCard({
           {previewLoading ? (
             <p className="text-xs text-[var(--text-secondary)]">Lädt…</p>
           ) : previewJson ? (
-            <pre className="max-h-56 overflow-auto rounded-md bg-[var(--surface-elevated)] p-2.5 text-[11px] leading-relaxed text-[var(--text-primary)] tabular-nums">
+            <pre className="max-h-56 overflow-auto rounded-md bg-[var(--surface-elevated)] p-2.5 text-2xs leading-relaxed text-[var(--text-primary)] tabular-nums">
               {previewJson}
             </pre>
           ) : (
@@ -1458,7 +1458,7 @@ export function PropertyValuationCard({
                 : ""}
             </p>
             {suggestion.adjustmentBps !== 0 ? (
-              <p className="mt-0.5 text-[11px] text-[var(--text-secondary)] tabular-nums">
+              <p className="mt-0.5 text-2xs text-[var(--text-secondary)] tabular-nums">
                 Basis ImmoAnalyse: {formatCentsDE(suggestion.lowerCents)} –{" "}
                 {formatCentsDE(suggestion.medianCents)} –{" "}
                 {formatCentsDE(suggestion.upperCents)} (
@@ -1507,7 +1507,7 @@ export function PropertyValuationCard({
                 {suggestion.factors.map((f, idx) => (
                   <span
                     key={idx}
-                    className="rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-0.5 text-[11px]"
+                    className="rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-0.5 text-2xs"
                   >
                     {f.label}{" "}
                     {f.effect === "up"

@@ -22,7 +22,7 @@ function ModeledBadge() {
   return (
     <Badge
       variant="outline"
-      className="border-dashed border-[var(--border-sub)] text-[10px] uppercase tracking-wide text-[var(--text-secondary)]"
+      className="border-dashed border-[var(--border-sub)] text-3xs text-[var(--text-secondary)]"
     >
       Modelliert
     </Badge>
@@ -143,7 +143,7 @@ export function AdvisorReportDocument({
   return (
     <article className="advisor-report mx-auto max-w-4xl space-y-6 text-[var(--text-primary)]">
       {/* Kopf */}
-      <header className="print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5 sm:p-6">
+      <header className="print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)]  p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-2xl">
@@ -171,7 +171,7 @@ export function AdvisorReportDocument({
       </header>
 
       {/* Datenqualität */}
-      <section className="print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5">
+      <section className="print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)]  p-5">
         <h2 className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">
           Datenqualität & Aktualität
         </h2>
@@ -194,7 +194,7 @@ export function AdvisorReportDocument({
       </section>
 
       {/* 1. Kurzprofil */}
-      <section className="print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5">
+      <section className="print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)]  p-5">
         <h2 className="text-base font-semibold tracking-tight">
           1. Kurzprofil
         </h2>
@@ -259,7 +259,7 @@ export function AdvisorReportDocument({
                 <dd className="mt-1 text-lg font-semibold tabular-nums">
                   {formatEuroDE(view.balance.totalAssetsCents)}
                 </dd>
-                <p className="mt-0.5 text-[11px] text-[var(--text-secondary)] tabular-nums">
+                <p className="mt-0.5 text-2xs text-[var(--text-secondary)] tabular-nums">
                   Frei: {formatEuroDE(view.balance.freeAssetsCents)} · Gebunden:{" "}
                   {formatEuroDE(view.balance.boundAssetsCents)}
                 </p>
@@ -388,7 +388,7 @@ export function AdvisorReportDocument({
                       <td className="py-1.5 pr-3">
                         {row.monthDisplay}
                         {row.hasModeledValues ? (
-                          <span className="ml-1.5 text-[10px] text-[var(--text-secondary)]">
+                          <span className="ml-1.5 text-3xs text-[var(--text-secondary)]">
                             (Modelliert)
                           </span>
                         ) : null}
@@ -415,7 +415,7 @@ export function AdvisorReportDocument({
       </section>
 
       {/* 4. Verträge & Kredite */}
-      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5">
+      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)]  p-5">
         <h2 className="text-base font-semibold tracking-tight">
           4. Verträge & Kredite
         </h2>
@@ -445,18 +445,18 @@ export function AdvisorReportDocument({
                       <div className="font-medium text-[var(--text-primary)]">
                         {c.displayName}
                         {isFull ? (
-                          <span className="ml-1.5 text-[11px] font-normal text-[var(--text-secondary)]">
+                          <span className="ml-1.5 text-2xs font-normal text-[var(--text-secondary)]">
                             ({c.ref})
                           </span>
                         ) : null}
                       </div>
                       {c.provider ? (
-                        <div className="text-[11px] text-[var(--text-secondary)]">
+                        <div className="text-2xs text-[var(--text-secondary)]">
                           {c.provider}
                         </div>
                       ) : null}
                       {c.status === "paused" ? (
-                        <Badge variant="secondary" className="mt-1 text-[10px]">
+                        <Badge variant="secondary" className="mt-1 text-3xs">
                           Pausiert
                         </Badge>
                       ) : null}
@@ -468,7 +468,7 @@ export function AdvisorReportDocument({
                       <div className="mt-0.5 flex items-center justify-end gap-1">
                         {c.isProjected ? <ModeledBadge /> : null}
                       </div>
-                      <div className="mt-0.5 text-[10px] text-[var(--text-secondary)]">
+                      <div className="mt-0.5 text-3xs text-[var(--text-secondary)]">
                         Eichung: {c.calibratedAsOfDisplay}
                       </div>
                     </td>
@@ -478,7 +478,7 @@ export function AdvisorReportDocument({
                     <td className="py-2 px-3 text-right">
                       {formatBpsDE(c.interestRateBps)}
                     </td>
-                    <td className="py-2 pl-3 text-[11px] text-[var(--text-secondary)]">
+                    <td className="py-2 pl-3 text-2xs text-[var(--text-secondary)]">
                       <div className="space-y-0.5">
                         {c.fixedInterestUntilDisplay ? (
                           <div>
@@ -494,7 +494,7 @@ export function AdvisorReportDocument({
                               {formatLoanRateChangeLineDE(c.loanOptions)}
                             </div>
                             {isFull && c.loanOptions.note ? (
-                              <div className="pt-0.5 text-[10px] italic text-[var(--text-secondary)]">
+                              <div className="pt-0.5 text-3xs italic text-[var(--text-secondary)]">
                                 Notiz: {c.loanOptions.note}
                               </div>
                             ) : null}
@@ -525,7 +525,7 @@ export function AdvisorReportDocument({
       </section>
 
       {/* 5. Immobilien */}
-      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5">
+      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)]  p-5">
         <h2 className="text-base font-semibold tracking-tight">
           5. Immobilien
         </h2>
@@ -632,7 +632,7 @@ export function AdvisorReportDocument({
       </section>
 
       {/* 6. Töpfe & Ziele */}
-      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5">
+      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)]  p-5">
         <h2 className="text-base font-semibold tracking-tight">
           6. Töpfe & Ziele
         </h2>
@@ -663,12 +663,12 @@ export function AdvisorReportDocument({
                     <td className="py-2 pr-3 font-medium">
                       {pot.displayName}
                       {isFull ? (
-                        <span className="ml-1.5 text-[11px] font-normal text-[var(--text-secondary)]">
+                        <span className="ml-1.5 text-2xs font-normal text-[var(--text-secondary)]">
                           ({pot.ref})
                         </span>
                       ) : null}
                       {pot.liquidityExclusion ? (
-                        <div className="text-[10px] font-normal text-[var(--amber)]">
+                        <div className="text-3xs font-normal text-[var(--amber)]">
                           Aus Haushalts-Liquidität ausgeschlossen
                         </div>
                       ) : null}
@@ -771,7 +771,7 @@ export function AdvisorReportDocument({
       </section>
 
       {/* 8. Empfehlungen */}
-      <section className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5">
+      <section className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--surface)]  p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold tracking-tight">
             8. Empfehlungen
@@ -794,7 +794,7 @@ export function AdvisorReportDocument({
       {questionSlot ?? null}
 
       {/* 10. Anhang: Annahmen & Methodik */}
-      <section className="print-break-before print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5">
+      <section className="print-break-before print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)]  p-5">
         <h2 className="text-base font-semibold tracking-tight">
           Anhang: Annahmen & Methodik
         </h2>

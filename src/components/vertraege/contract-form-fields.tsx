@@ -1143,7 +1143,7 @@ export function ContractFormFields({
 
       {values.category === "loan" ? (
         <div className="space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]/50 p-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+          <h3 className="section-label text-[var(--text-secondary)]">
             Kredit-Konditionen
           </h3>
           <div className="grid gap-4 @md:grid-cols-2">
@@ -1203,7 +1203,7 @@ export function ContractFormFields({
               type="button"
               onClick={() => setOptionsOpen((open) => !open)}
               aria-expanded={isOptionsExpanded}
-              className="flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wide text-[var(--text-primary)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
+              className="flex w-full items-center justify-between text-left section-label text-[var(--text-primary)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]"
             >
               <span>Darlehensoptionen (Sondertilgung &amp; Tilgungswechsel)</span>
               <CollapseChevron open={isOptionsExpanded} className="h-4 w-4 text-[var(--text-secondary)]" />
@@ -1662,14 +1662,14 @@ export function ContractFormFields({
                     }
                     disabled={disabled}
                     placeholder="z. B. Sondertilgung nur zum 31.12., Wechsel 2× kostenlos"
-                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]"
                   />
                   {errors.loanOptionsNote ? (
                     <p className="text-xs text-[var(--rose)]">
                       {errors.loanOptionsNote}
                     </p>
                   ) : null}
-                  <p className="text-[11px] text-[var(--text-secondary)]">
+                  <p className="text-2xs text-[var(--text-secondary)]">
                     Bleibt lokal, nicht im anonymisierten Bericht.
                   </p>
                 </div>
@@ -1679,7 +1679,7 @@ export function ContractFormFields({
         </div>
       ) : (
         <div className="space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]/50 p-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+          <h3 className="section-label text-[var(--text-secondary)]">
             Bauspar-Konditionen
           </h3>
           <div className="grid gap-4 @lg:grid-cols-3">

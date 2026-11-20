@@ -97,7 +97,7 @@ export function BalanceBar({
                 <button
                   type="button"
                   onClick={onShowDetails}
-                  className="text-xs font-medium text-[var(--accent)] hover:underline"
+                  className="text-xs font-medium text-[var(--text-primary)] underline decoration-[var(--border-sub)] underline-offset-4 hover:decoration-[var(--text-primary)]"
                 >
                   Details
                 </button>
@@ -108,8 +108,9 @@ export function BalanceBar({
       </CardHeader>
       <CardContent className="space-y-4">
         {breakdown.hasData ? (
+          <div className="space-y-1">
           <div
-            className="meter flex h-3.5 w-full gap-[2px] overflow-hidden rounded-full bg-[var(--surface-elevated)]"
+            className="meter flex h-4 w-full overflow-hidden"
             role="img"
             aria-label="Vermögensstruktur Frei, Gebunden und Schulden"
           >
@@ -126,8 +127,18 @@ export function BalanceBar({
               );
             })}
           </div>
+            <div className="scale-ticks" aria-hidden="true" />
+            <div
+              className="flex justify-between text-3xs text-[var(--text-muted)]"
+              aria-hidden="true"
+            >
+              <span>0 %</span>
+              <span>50 %</span>
+              <span>100 %</span>
+            </div>
+          </div>
         ) : (
-          <div className="flex h-3.5 w-full items-center justify-center rounded-full bg-[var(--surface-elevated)]">
+          <div className="flex h-4 w-full items-center justify-center rounded-sm border border-dashed border-[var(--border-sub)]">
             <span className="sr-only">Noch keine Vermögensdaten vorhanden</span>
           </div>
         )}
@@ -139,18 +150,18 @@ export function BalanceBar({
           </p>
         ) : null}
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-4 border-t border-[var(--border)] pt-4 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-[var(--border)]">
           {SEGMENT_META.map((seg) => {
             const segData = values[seg.key];
             return (
               <div
                 key={seg.key}
-                className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]/45 shadow-[inset_0_1px_0_0_var(--hairline-highlight)] px-3 py-2.5"
+                className="sm:px-4 sm:first:pl-0 sm:last:pr-0"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--text-primary)]">
                     <span
-                      className={`h-2 w-2 rounded-full ${seg.dotClass}`}
+                      className={`h-2.5 w-[3px] ${seg.dotClass}`}
                       aria-hidden="true"
                     />
                     {seg.label}
@@ -159,18 +170,18 @@ export function BalanceBar({
                     {formatBpsDE(segData.shareBps)}
                   </span>
                 </div>
-                <div className="mt-1 tabular-nums text-sm font-semibold text-[var(--text-primary)]">
+                <div className="figure mt-1 text-xl text-[var(--text-primary)]">
                   {formatCentsDE(segData.amountCents)}
                 </div>
                 {segData.deltaCents !== null && deltas ? (
                   <p
-                    className={`mt-0.5 tabular-nums text-[11px] font-medium ${deltaToneClass(seg.key, segData.deltaCents)}`}
+                    className={`mt-0.5 tabular-nums text-2xs font-medium ${deltaToneClass(seg.key, segData.deltaCents)}`}
                   >
                     {formatCentsDE(segData.deltaCents, { showPlusSign: true })}{" "}
                     seit {formatDateDE(deltas.sinceDate)}
                   </p>
                 ) : null}
-                <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
+                <p className="mt-0.5 text-2xs text-[var(--text-secondary)]">
                   {seg.description}
                 </p>
               </div>

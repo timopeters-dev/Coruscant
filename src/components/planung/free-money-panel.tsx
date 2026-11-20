@@ -467,7 +467,7 @@ export function FreeMoneyPanel({
             </div>
           </SegmentGroup>
           {rateDisabledReason ? (
-            <p className="text-[11px] text-[var(--text-secondary)]">
+            <p className="text-2xs text-[var(--text-secondary)]">
               Höhere Rate nicht verfügbar: {rateDisabledReason}
             </p>
           ) : null}

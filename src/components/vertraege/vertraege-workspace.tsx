@@ -353,7 +353,7 @@ export function VertraegeWorkspace({
                   href="/planung/kaufrechner"
                   className="inline-flex shrink-0 items-center rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--surface-elevated)]"
                 >
-                  Zum Kaufrechner →
+                  Zum Kaufrechner
                 </Link>
               </div>
             </Card>
@@ -460,7 +460,7 @@ export function VertraegeWorkspace({
 
               <Card className="overflow-x-auto border-dashed border-[var(--border-sub)]">
                 <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-2.5">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                  <span className="section-label text-[var(--text-secondary)]">
                     Objekt-Übersicht (vor Steuern)
                   </span>
                   <StatusBadge variant="modeled" />
@@ -674,7 +674,7 @@ export function VertraegeWorkspace({
                               setSelectedContractId(contract.id);
                             }
                           }}
-                          className={`cursor-pointer p-5 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] ${
+                          className={`cursor-pointer p-5 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)] ${
                             isProjected
                               ? "border-dashed border-[var(--border-sub)]"
                               : "border-[var(--border)]"
@@ -774,7 +774,7 @@ export function VertraegeWorkspace({
                                     values={overview.sparklineCents}
                                     role="liabilities"
                                   />
-                                  <span className="mt-0.5 tabular-nums text-[11px] text-[var(--text-secondary)]">
+                                  <span className="mt-0.5 tabular-nums text-2xs text-[var(--text-secondary)]">
                                     {overview.notProjected
                                       ? "Pausiert"
                                       : overview.paidOffDate
@@ -864,7 +864,7 @@ export function VertraegeWorkspace({
                               setSelectedContractId(contract.id);
                             }
                           }}
-                          className={`cursor-pointer p-5 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] ${
+                          className={`cursor-pointer p-5 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)] ${
                             isProjected
                               ? "border-dashed border-[var(--border-sub)]"
                               : "border-[var(--border)]"
@@ -955,7 +955,7 @@ export function VertraegeWorkspace({
                                   {formatCentsDE(balanceCents)}
                                 </p>
                                 {balanceCents < 0 ? (
-                                  <p className="text-[11px] text-[var(--text-secondary)]">
+                                  <p className="text-2xs text-[var(--text-secondary)]">
                                     im Minus durch Abschlussgebühr
                                   </p>
                                 ) : null}
@@ -974,7 +974,7 @@ export function VertraegeWorkspace({
                                       />
                                     ) : null}
                                   </div>
-                                  <p className="tabular-nums text-[11px] text-[var(--text-secondary)]">
+                                  <p className="tabular-nums text-2xs text-[var(--text-secondary)]">
                                     {progressPct} % vom Ziel
                                   </p>
                                 </div>
@@ -1048,7 +1048,7 @@ export function VertraegeWorkspace({
                               setSelectedPropertyId(property.id);
                             }
                           }}
-                          className="cursor-pointer p-5 transition-colors hover:border-[var(--border-sub)] hover:bg-[var(--surface-elevated)]/30 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
+                          className="cursor-pointer p-5 transition-colors hover:border-[var(--border-sub)] hover:bg-[var(--surface-elevated)]/30 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]"
                         >
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="flex min-w-0 items-start gap-3">
@@ -1166,7 +1166,7 @@ export function VertraegeWorkspace({
                                   style={{ width: `${ltvPct}%` }}
                                 />
                               </div>
-                              <span className="tabular-nums text-[11px] text-[var(--text-secondary)]">
+                              <span className="tabular-nums text-2xs text-[var(--text-secondary)]">
                                 Beleihung {ltvPct} %
                               </span>
                             </div>

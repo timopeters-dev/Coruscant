@@ -16,10 +16,7 @@ import {
   ArrowRight,
   CalendarClock,
   FileText,
-  Landmark,
   RefreshCw,
-  Sparkle,
-  Wallet,
 } from "lucide-react";
 import { AdvisorReportDialog } from "@/components/bericht/advisor-report-dialog";
 import { BalanceBar } from "@/components/cockpit/balance-bar";
@@ -28,9 +25,9 @@ import { cockpitHistoryRangeStore } from "@/components/cockpit/history-range-sto
 import { NetWorthHistoryCard } from "@/components/cockpit/net-worth-history-card";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
-import { KpiCard } from "@/components/ui/kpi-card";
 import { Button } from "@/components/ui/button";
 import {
+  CARD_SURFACE,
   Card,
   CardContent,
   CardDescription,
@@ -38,6 +35,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { CockpitPageData } from "@/db/queries/cockpit";
+import { cn } from "@/lib/utils";
 import {
   computeComponentDeltas,
   filterHistoryByRange,
@@ -76,6 +74,66 @@ function formatDaysRemaining(daysRemaining: number): string {
   return overdueDays === 1
     ? "seit 1 Tag überfällig"
     : `seit ${overdueDays} Tagen überfällig`;
+}
+
+/** Ein Glied der Bilanzgleichung: Bezeichnung, Betrag, optionale Details. */
+function BalanceTerm({
+  label,
+  valueCents,
+  valueClassName,
+  modeled,
+  emphasis = false,
+  children,
+}: {
+  label: string;
+  valueCents: number;
+  valueClassName?: string;
+  modeled: boolean;
+  emphasis?: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-sm font-medium text-[var(--text-secondary)] [font-family:var(--font-sans)]">
+          {label}
+        </h2>
+        {modeled ? <StatusBadge variant="modeled" /> : null}
+      </div>
+      <p
+        className={cn(
+          "figure mt-1.5 text-[var(--text-primary)]",
+          emphasis
+            ? "text-[2.5rem] leading-[2.875rem] sm:text-[2.75rem] sm:leading-[3.125rem]"
+            : "text-[2rem] leading-10",
+          valueClassName,
+        )}
+      >
+        {formatCentsDE(valueCents)}
+      </p>
+      {children ? <div className="mt-2.5 space-y-1.5">{children}</div> : null}
+    </div>
+  );
+}
+
+/** Rechenzeichen zwischen den Gliedern – auf schmalen Schirmen als Trennlinie. */
+function BalanceOperator({ symbol, label }: { symbol: string; label: string }) {
+  return (
+    <div
+      className="flex items-center gap-3 md:flex-col md:items-center md:pt-5"
+      aria-label={label}
+      role="img"
+    >
+      <span className="h-px flex-1 bg-[var(--border)] md:hidden" aria-hidden="true" />
+      <span
+        aria-hidden="true"
+        className="font-[family-name:var(--font-display)] text-xl font-medium leading-6 text-[var(--text-muted)] md:text-[2rem] md:leading-10"
+      >
+        {symbol}
+      </span>
+      <span className="h-px flex-1 bg-[var(--border)] md:hidden" aria-hidden="true" />
+    </div>
+  );
 }
 
 export function CockpitWorkspace({
@@ -340,8 +398,8 @@ export function CockpitWorkspace({
               {formatIsoDateDE(data.asOfDate)}
             </span>
             {data.projectedContractsCount > 0 ? (
-              <span className="ml-2 text-xs">
-                · {data.projectedContractsCount}{" "}
+              <span className="ml-2 border-l border-[var(--border-sub)] pl-2 text-xs">
+                {data.projectedContractsCount}{" "}
                 {data.projectedContractsCount === 1
                   ? "Vertrag fortgeschrieben"
                   : "Verträge fortgeschrieben"}
@@ -408,82 +466,81 @@ export function CockpitWorkspace({
         </div>
       ) : null}
 
-      <div className="stagger grid gap-4 md:grid-cols-3">
-        <KpiCard
+      <section
+        aria-label="Bilanz"
+        className={cn(
+          CARD_SURFACE,
+          "grid gap-y-3 p-5 sm:p-6 md:gap-y-5 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1.15fr)] md:gap-x-6",
+          hasModeledNetWorth && "border-dashed border-[var(--border-sub)]",
+        )}
+      >
+        <BalanceTerm
           label="Aktiva"
-          icon={Wallet}
-          tone="positive"
-          value={balance.totalAssetsCents}
-          format={formatCentsDE}
+          valueCents={balance.totalAssetsCents}
           modeled={hasModeledAssets}
-          badge={hasModeledAssets ? <StatusBadge variant="modeled" /> : null}
         >
             <p className="tabular-nums text-xs text-[var(--text-secondary)]">
-              Frei: {formatCentsDE(balance.freeAssetsCents)} · Gebunden:{" "}
-              {formatCentsDE(balance.boundAssetsCents)}
+            Frei: {formatCentsDE(balance.freeAssetsCents)} · Gebunden:{" "}
+            {formatCentsDE(balance.boundAssetsCents)}
+          </p>
+          {data.rentalPortfolioHint ? (
+            <p className="mt-1.5 tabular-nums text-xs text-[var(--text-secondary)]">
+              <Link
+                href="/vertraege?tab=portfolio"
+                className="underline decoration-[var(--border-sub)] underline-offset-4 hover:text-[var(--text-primary)] hover:decoration-[var(--text-primary)]"
+              >
+                Portfolio: {data.rentalPortfolioHint.propertyCount}{" "}
+                {data.rentalPortfolioHint.propertyCount === 1
+                  ? "Mietobjekt"
+                  : "Mietobjekte"}{" "}
+                · Cashflow{" "}
+                {formatCentsDE(
+                  data.rentalPortfolioHint.netCashflowBeforeReserveCents,
+                  { showPlusSign: true },
+                )}
+                /Monat (Modelliert)
+              </Link>
             </p>
-            {data.rentalPortfolioHint ? (
-              <p className="mt-1.5 tabular-nums text-xs text-[var(--text-secondary)]">
-                <Link
-                  href="/vertraege?tab=portfolio"
-                  className="hover:text-[var(--accent)] hover:underline"
-                >
-                  Portfolio: {data.rentalPortfolioHint.propertyCount}{" "}
-                  {data.rentalPortfolioHint.propertyCount === 1
-                    ? "Mietobjekt"
-                    : "Mietobjekte"}{" "}
-                  · Cashflow{" "}
-                  {formatCentsDE(
-                    data.rentalPortfolioHint.netCashflowBeforeReserveCents,
-                    { showPlusSign: true },
-                  )}
-                  /Monat (Modelliert) →
-                </Link>
-              </p>
-            ) : null}
-            {balance.conflictingLinkedPotsCents > 0 ? (
-              <div className="mt-1.5 space-y-1">
-                <StatusBadge
-                  variant="calibration_warning"
-                  label="Verknüpfung überschneidet sich"
-                  detail={`${formatCentsDE(balance.conflictingLinkedPotsCents)} nicht mitgezählt`}
-                />
-              </div>
-            ) : null}
-            {balance.outOfScopeLinkedPotsCents > 0 ? (
-              <div className="mt-1.5 space-y-1">
-                <StatusBadge
-                  variant="calibration_warning"
-                  label="Kopplung außerhalb des Haushalts"
-                  detail={`${formatCentsDE(balance.outOfScopeLinkedPotsCents)} nicht mitgezählt`}
-                />
-              </div>
-            ) : null}
-        </KpiCard>
+          ) : null}
+          {balance.conflictingLinkedPotsCents > 0 ? (
+            <div className="mt-1.5 space-y-1">
+              <StatusBadge
+                variant="calibration_warning"
+                label="Verknüpfung überschneidet sich"
+                detail={`${formatCentsDE(balance.conflictingLinkedPotsCents)} nicht mitgezählt`}
+              />
+            </div>
+          ) : null}
+          {balance.outOfScopeLinkedPotsCents > 0 ? (
+            <div className="mt-1.5 space-y-1">
+              <StatusBadge
+                variant="calibration_warning"
+                label="Kopplung außerhalb des Haushalts"
+                detail={`${formatCentsDE(balance.outOfScopeLinkedPotsCents)} nicht mitgezählt`}
+              />
+            </div>
+          ) : null}
+        </BalanceTerm>
 
-        <KpiCard
+        <BalanceOperator symbol="−" label="minus" />
+
+        <BalanceTerm
           label="Passiva"
-          icon={Landmark}
-          tone="negative"
-          value={balance.liabilitiesCents}
-          format={formatCentsDE}
+          valueCents={balance.liabilitiesCents}
           valueClassName={liabilitiesClass}
           modeled={hasModeledLiabilities}
-          badge={hasModeledLiabilities ? <StatusBadge variant="modeled" /> : null}
         />
 
-        <KpiCard
+        <BalanceOperator symbol="=" label="ergibt" />
+
+        <BalanceTerm
           label="Nettovermögen"
-          icon={Sparkle}
-          tone={balance.netWorthCents >= 0 ? "accent" : "negative"}
-          hero
-          value={balance.netWorthCents}
-          format={formatCentsDE}
+          valueCents={balance.netWorthCents}
           valueClassName={netWorthClass}
           modeled={hasModeledNetWorth}
-          badge={hasModeledNetWorth ? <StatusBadge variant="modeled" /> : null}
+          emphasis
         />
-      </div>
+      </section>
 
       <NetWorthHistoryCard
         totalCount={history.length}
@@ -528,7 +585,7 @@ export function CockpitWorkspace({
             </div>
             <Link
               href="/vertraege"
-              className="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:underline"
+              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-medium text-[var(--text-primary)] underline decoration-[var(--border-sub)] underline-offset-4 hover:decoration-[var(--text-primary)]"
             >
               <span>Alle Verträge</span>
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -544,25 +601,31 @@ export function CockpitWorkspace({
                 </span>
               </div>
             ) : (
-              <ul className="space-y-2.5">
+              <ul className="divide-y divide-[var(--border)] border-y border-[var(--border)]">
                 {milestones.items.map((item) => (
                   <li
                     key={`${item.contractId}-${item.kind}-${item.date}`}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]/45 shadow-[inset_0_1px_0_0_var(--hairline-highlight)] px-3.5 py-2.5"
+                    className="flex items-center justify-between gap-3 py-3"
                   >
                     <div className="min-w-0 space-y-0.5">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="truncate text-sm font-medium text-[var(--text-primary)]">
                           {item.label}
                         </span>
-                        <Badge
-                          variant="outline"
-                          className="border-[var(--border-sub)] text-[10px] text-[var(--text-secondary)]"
-                        >
-                          {item.kind === "fixed_interest_end"
-                            ? "Zinsbindungsende"
-                            : "Meilenstein"}
-                        </Badge>
+                        {(() => {
+                          const kindLabel =
+                            item.kind === "fixed_interest_end"
+                              ? "Zinsbindungsende"
+                              : "Meilenstein";
+                          return kindLabel === item.label ? null : (
+                            <Badge
+                              variant="outline"
+                              className="border-[var(--border-sub)] text-3xs text-[var(--text-secondary)]"
+                            >
+                              {kindLabel}
+                            </Badge>
+                          );
+                        })()}
                       </div>
                       <p className="truncate text-xs text-[var(--text-secondary)]">
                         {item.contractName}
@@ -576,12 +639,12 @@ export function CockpitWorkspace({
                       {item.isOverdue ? (
                         <Badge
                           variant="outline"
-                          className="mt-1 border-[var(--amber)]/40 bg-[var(--amber)]/10 tabular-nums text-[10px] text-[var(--amber)]"
+                          className="mt-1 border-[var(--amber)]/40 bg-[var(--amber)]/10 tabular-nums text-3xs text-[var(--amber)]"
                         >
                           Überfällig
                         </Badge>
                       ) : (
-                        <div className="mt-0.5 tabular-nums text-[11px] text-[var(--text-secondary)]">
+                        <div className="mt-0.5 tabular-nums text-2xs text-[var(--text-secondary)]">
                           {formatDaysRemaining(item.daysRemaining)}
                         </div>
                       )}
@@ -634,7 +697,7 @@ export function CockpitWorkspace({
             </div>
             <Link
               href="/allokation"
-              className="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:underline"
+              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-medium text-[var(--text-primary)] underline decoration-[var(--border-sub)] underline-offset-4 hover:decoration-[var(--text-primary)]"
             >
               <span>Wasserfall &amp; Töpfe</span>
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -647,20 +710,20 @@ export function CockpitWorkspace({
                 Wasserfall“ priorisierte Rücklagen-Töpfe an.
               </div>
             ) : (
-              <ul className="space-y-3">
+              <ol className="divide-y divide-[var(--border)] border-y border-[var(--border)]">
                 {topPots.map((pot, index) => (
                   <li
                     key={pot.id}
-                    className="space-y-2 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]/45 shadow-[inset_0_1px_0_0_var(--hairline-highlight)] px-3.5 py-2.5"
+                    className="space-y-2 py-3"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-2">
-                        <Badge
-                          variant="outline"
-                          className="tabular-nums border-[var(--border-sub)] text-[10px] text-[var(--text-secondary)]"
+                        <span
+                          className="figure w-4 shrink-0 text-base text-[var(--text-muted)]"
+                          aria-label={`Priorität ${index + 1}`}
                         >
-                          #{index + 1}
-                        </Badge>
+                          {index + 1}
+                        </span>
                         <span className="truncate text-sm font-medium text-[var(--text-primary)]">
                           {pot.name}
                         </span>
@@ -673,7 +736,7 @@ export function CockpitWorkspace({
                     </div>
 
                     {pot.cappedProgressBps !== null ? (
-                      <div className="h-2 w-full meter overflow-hidden rounded-full bg-[var(--surface-elevated)]">
+                      <div className="meter h-2 w-full overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-all ${
                             pot.isTargetReached
@@ -685,7 +748,7 @@ export function CockpitWorkspace({
                       </div>
                     ) : null}
 
-                    <div className="flex items-center justify-between text-[11px] text-[var(--text-secondary)]">
+                    <div className="flex items-center justify-between text-2xs text-[var(--text-secondary)]">
                       <span className="tabular-nums">
                         Stand: {formatCentsDE(pot.currentCents)}
                       </span>
@@ -697,7 +760,7 @@ export function CockpitWorkspace({
                     </div>
                   </li>
                 ))}
-              </ul>
+              </ol>
             )}
           </CardContent>
         </Card>

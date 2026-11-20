@@ -538,7 +538,7 @@ function PropertyModalInner({
 
         {/* Gruppe 1: Basis & Bewertung */}
         <div className="space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+          <p className="section-label text-[var(--text-secondary)]">
             Basis &amp; Bewertung
           </p>
 
@@ -592,7 +592,7 @@ function PropertyModalInner({
                   </option>
                 ))}
               </Select>
-              <p className="text-[11px] text-[var(--text-secondary)]">
+              <p className="text-2xs text-[var(--text-secondary)]">
                 Nötig für die automatische Wertschätzung.
               </p>
             </div>
@@ -659,7 +659,7 @@ function PropertyModalInner({
                   {errors.estimatedValueEuro}
                 </p>
               ) : (
-                <p className="text-[11px] text-[var(--text-secondary)]">
+                <p className="text-2xs text-[var(--text-secondary)]">
                   Manuell gesetzte Werte überschreibt die Auto-Schätzung nicht.
                 </p>
               )}
@@ -705,7 +705,7 @@ function PropertyModalInner({
         {usage === "rented" ? (
           <div className="space-y-4 border-t border-[var(--border)] pt-4">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+              <p className="section-label text-[var(--text-secondary)]">
                 Vermietung
               </p>
               <StatusBadge variant="modeled" />
@@ -795,7 +795,7 @@ function PropertyModalInner({
                   disabled={isSubmitting}
                   className="tabular-nums"
                 />
-                <p className="text-[11px] text-[var(--text-secondary)]">
+                <p className="text-2xs text-[var(--text-secondary)]">
                   nur Datenfeld, keine Steuerberechnung
                 </p>
                 {errors.depreciationBasisEuro ? (
@@ -811,10 +811,10 @@ function PropertyModalInner({
         {/* Gruppe 2: Adresse (rein lokal, optional) */}
         <div className="space-y-4 border-t border-[var(--border)] pt-4">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+            <p className="section-label text-[var(--text-secondary)]">
               Adresse (optional)
             </p>
-            <span className="text-[11px] text-[var(--text-secondary)]">
+            <span className="text-2xs text-[var(--text-secondary)]">
               Rein lokal gespeichert
             </span>
           </div>
@@ -892,7 +892,7 @@ function PropertyModalInner({
 
         {/* Gruppe 3: Gebäudedaten & Besonderheiten (optional) */}
         <div className="space-y-4 border-t border-[var(--border)] pt-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+          <p className="section-label text-[var(--text-secondary)]">
             Gebäudedaten &amp; Besonderheiten (optional)
           </p>
 
@@ -1085,7 +1085,7 @@ function PropertyModalInner({
                   >
                     Sanierung hinzufügen
                   </Button>
-                  <span className="text-[11px] text-[var(--text-secondary)]">
+                  <span className="text-2xs text-[var(--text-secondary)]">
                     Max. {MAX_RENOVATIONS} Einträge, kein Freitext
                   </span>
                 </div>
@@ -1109,7 +1109,7 @@ function PropertyModalInner({
               onChange={(e) => setFeatures(e.target.value)}
               placeholder="z. B. Kamin, Sauna, Photovoltaik, Doppelgarage"
               disabled={isSubmitting}
-              className="flex w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/70 transition-colors outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)] disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/70 transition-colors outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)] disabled:cursor-not-allowed disabled:opacity-50"
             />
             {errors.features ? (
               <p className="text-xs text-[var(--rose)]">{errors.features}</p>

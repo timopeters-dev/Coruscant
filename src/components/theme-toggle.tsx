@@ -25,7 +25,7 @@ export function ThemeToggle() {
       <div
         role="group"
         aria-label="Farbschema wählen"
-        className="inline-flex shrink-0 items-center whitespace-nowrap rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]/70 p-0.5 print:hidden"
+        className="inline-flex shrink-0 items-center whitespace-nowrap rounded-lg border border-[var(--border-sub)] p-0.5 print:hidden"
       >
         {THEME_OPTIONS.map(({ value, label, Icon }) => {
           const isActive = active === value;
@@ -38,7 +38,7 @@ export function ThemeToggle() {
               aria-label={label}
               title={label}
               className={cn(
-                "relative inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_32%,transparent)] motion-reduce:transition-none",
+                "relative inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)] motion-reduce:transition-none",
                 isActive
                   ? "text-[var(--text-primary)]"
                   : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
@@ -49,7 +49,7 @@ export function ThemeToggle() {
                   layoutId="segment-pill"
                   aria-hidden="true"
                   transition={SPRING_SNAPPY}
-                  className="absolute inset-0 rounded-md bg-[var(--surface)] shadow-[var(--shadow-xs)]"
+                  className="absolute inset-0 rounded-md bg-[var(--surface-elevated)]"
                 />
               ) : null}
               <Icon className="relative h-3.5 w-3.5" aria-hidden="true" />

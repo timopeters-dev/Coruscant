@@ -141,7 +141,7 @@ export function AdvisorReportToolbar({
   const trimmedQuestion = question.trim();
   const printQuestionSlot =
     isAnonymized && check.status !== "ok" ? (
-      <section className="hidden print:block print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5">
+      <section className="hidden print:block print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)]  p-5">
         <h2 className="text-base font-semibold tracking-tight">
           9. Wobei brauche ich Rat?
         </h2>
@@ -150,7 +150,7 @@ export function AdvisorReportToolbar({
         </p>
       </section>
     ) : trimmedQuestion.length > 0 ? (
-      <section className="hidden print:block print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-5">
+      <section className="hidden print:block print-avoid-break rounded-xl border border-[var(--border)] bg-[var(--surface)]  p-5">
         <h2 className="text-base font-semibold tracking-tight">
           9. Wobei brauche ich Rat?
         </h2>
@@ -165,7 +165,7 @@ export function AdvisorReportToolbar({
       {/* Werkzeugleiste (nur Bildschirm) */}
       <section
         aria-label="Berichtswerkzeuge"
-        className="print:hidden mx-auto max-w-4xl space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm),inset_0_1px_0_0_var(--hairline-highlight)] p-4 sm:p-5"
+        className="print:hidden mx-auto max-w-4xl space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)]  p-4 sm:p-5"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           {/* Modus-Umschalter */}
@@ -278,7 +278,7 @@ export function AdvisorReportToolbar({
             <Label htmlFor="advisor-question-textarea" className="text-xs">
               Wobei brauche ich Rat? (optional, wird nicht gespeichert)
             </Label>
-            <span className="text-[11px] text-[var(--text-secondary)] tabular-nums">
+            <span className="text-2xs text-[var(--text-secondary)] tabular-nums">
               {question.length} / {MAX_QUESTION_LENGTH.toLocaleString("de-DE")}
             </span>
           </div>
@@ -292,7 +292,7 @@ export function AdvisorReportToolbar({
               setCopiedMessage(null);
             }}
             placeholder="z. B. Kontext (Alter, Zeithorizont, Pläne) oder konkrete Frage an Berater:in bzw. KI…"
-            className="w-full rounded-lg border border-[var(--border-sub)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/70 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[color-mix(in_srgb,var(--accent)_30%,transparent)]"
+            className="w-full rounded-lg border border-[var(--border-sub)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/70 outline-hidden focus-visible:ring-[3px] focus-visible:ring-[var(--focus)]"
           />
 
           {/* Live-Status der Freitext-Prüfung */}
@@ -346,7 +346,7 @@ export function AdvisorReportToolbar({
               rows={8}
               value={fallbackText}
               aria-label="Anonymisierter Berichtstext zum Kopieren"
-              className="mt-2 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-2.5 font-mono text-[11px] text-[var(--text-primary)]"
+              className="mt-2 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-2.5 font-mono text-2xs text-[var(--text-primary)]"
             />
           </details>
         ) : null}

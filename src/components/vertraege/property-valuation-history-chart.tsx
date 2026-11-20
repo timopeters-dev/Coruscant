@@ -322,7 +322,7 @@ function HistoryList({
         Verlaufstabelle anzeigen ({entries.length})
       </summary>
       {deleteError ? (
-        <p className="mt-2 text-[11px] text-[var(--rose)]">{deleteError}</p>
+        <p className="mt-2 text-2xs text-[var(--rose)]">{deleteError}</p>
       ) : null}
       <ul className="mt-2 divide-y divide-[var(--border)] rounded-lg border border-[var(--border)]">
         {[...entries].reverse().map((entry) => {
@@ -361,7 +361,7 @@ function HistoryList({
                       {formatCentsDE(pointCents)}
                     </span>
                   </div>
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-[11px] text-[var(--text-secondary)]">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-2xs text-[var(--text-secondary)]">
                     <span className="min-w-0">{meta.join(" · ")}</span>
                     {entry.source !== "manual" ? (
                       <span>
@@ -370,7 +370,7 @@ function HistoryList({
                       </span>
                     ) : null}
                   </div>
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-[11px] text-[var(--text-secondary)]">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-2xs text-[var(--text-secondary)]">
                     <span className="min-w-0">{describeStatus(entry)}</span>
                     {entry.adjustmentBps !== 0 ? (
                       <span title={adjTooltip || undefined}>
@@ -400,7 +400,7 @@ function HistoryList({
               </div>
               {isConfirming ? (
                 <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-[var(--rose)]/40 bg-[var(--rose)]/10 px-2.5 py-1.5">
-                  <span className="text-[11px] text-[var(--text-primary)]">
+                  <span className="text-2xs text-[var(--text-primary)]">
                     Eintrag löschen? Der aktuelle Objektwert bleibt unverändert.
                   </span>
                   <div className="flex items-center gap-2">
