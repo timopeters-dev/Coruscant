@@ -1,4 +1,4 @@
-import { getPropertyById } from "@/backend/db/queries/contracts";
+import { getPropertyById } from "@/backend/db/queries/properties";
 import {
   getLatestPendingSuggestion,
   listValuationHistory,

@@ -3,7 +3,8 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/frontend/ui/badge";
-import type { FinancialContractRow, PropertyRow } from "@/backend/db/queries/contracts";
+import type { FinancialContractRow } from "@/backend/db/queries/contracts";
+import type { PropertyRow } from "@/backend/db/queries/properties";
 import type { DocumentRow } from "@/backend/db/queries/documents";
 import { DokumenteViewSwitch } from "./dokumente-view-switch";
 import { DocumentArchive } from "./document-archive";

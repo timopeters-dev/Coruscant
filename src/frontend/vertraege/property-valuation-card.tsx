@@ -5,10 +5,7 @@ import { formatIsoDateDE } from "@/frontend/planung/format";
 import { StatusBadge } from "@/frontend/ui/status-badge";
 import { Button } from "@/frontend/ui/button";
 import { Select } from "@/frontend/ui/select";
-import type {
-  PropertyApiRecord,
-  PropertyRow,
-} from "@/backend/db/queries/contracts";
+import type { PropertyApiRecord, PropertyRow } from "@/backend/db/queries/properties";
 import type { PropertyValuationHistoryRow } from "@/backend/db/schema";
 import {
   AUTO_VALUATION_INTERVALS,

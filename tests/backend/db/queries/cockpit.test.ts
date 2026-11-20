@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { withTempDatabase } from "@tests/helpers/temp-db";
-import { createPot } from "@/backend/db/queries/allocation";
+import { createPot } from "@/backend/db/queries/pots";
 import { insertExternalSnapshot, loadCockpitData } from "@/backend/db/queries/cockpit";
-import { createContract, createProperty } from "@/backend/db/queries/contracts";
+import { createContract } from "@/backend/db/queries/contracts";
+import { createProperty } from "@/backend/db/queries/properties";
 import { potCreateSchema } from "@/validation/allocation";
 import { contractCreateSchema } from "@/validation/contracts";
 
@@ -276,9 +277,8 @@ describe("loadCockpitData integration", () => {
 
   it("keeps Immobilie #0 (owner_occupied) balance, barBreakdown, potDeadlines, and consolidated surplus identical and returns rentalPortfolioHint = null", async () => {
     const { loadPlanningBase } = await import("@/backend/db/queries/planning-base");
-    const { createManualCashflowItem, saveAllocationSettings } = await import(
-      "@/backend/db/queries/allocation"
-    );
+    const { createManualCashflowItem } = await import("@/backend/db/queries/cashflow-items");
+    const { saveAllocationSettings } = await import("@/backend/db/queries/allocation-settings");
 
     const prop0 = createProperty({
       name: "Immobilie #0 (Musterstraße 1)",

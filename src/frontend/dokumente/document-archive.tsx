@@ -12,7 +12,8 @@ import { Dialog } from "@/frontend/ui/dialog";
 import { Input } from "@/frontend/ui/input";
 import { Label } from "@/frontend/ui/label";
 import { Select } from "@/frontend/ui/select";
-import type { FinancialContractRow, PropertyRow } from "@/backend/db/queries/contracts";
+import type { FinancialContractRow } from "@/backend/db/queries/contracts";
+import type { PropertyRow } from "@/backend/db/queries/properties";
 import type { DocumentRow } from "@/backend/db/queries/documents";
 import {
   type DocumentType,

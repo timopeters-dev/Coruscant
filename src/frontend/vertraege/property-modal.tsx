@@ -7,7 +7,7 @@ import { Input } from "@/frontend/ui/input";
 import { Label } from "@/frontend/ui/label";
 import { Select } from "@/frontend/ui/select";
 import { StatusBadge } from "@/frontend/ui/status-badge";
-import type { PropertyRow } from "@/backend/db/queries/contracts";
+import type { PropertyRow } from "@/backend/db/queries/properties";
 import {
   centsToEuroInputString,
   parseEuroInputToCents,

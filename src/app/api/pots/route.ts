@@ -1,9 +1,5 @@
-import {
-  assertPotTargetDateInWindow,
-  createPot,
-  listPots,
-  listRecentPotAllocations,
-} from "@/backend/db/queries/allocation";
+import { assertPotTargetDateInWindow, createPot, listPots } from "@/backend/db/queries/pots";
+import { listRecentPotAllocations } from "@/backend/db/queries/pot-allocations";
 import { json, readJson, route } from "@/backend/http";
 import { potCreateSchema } from "@/validation/allocation";
 

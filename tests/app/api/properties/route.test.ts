@@ -635,7 +635,7 @@ describe("/api/properties CRUD & integrity", () => {
     const {
       createProperty: createPropertyQuery,
       updateProperty: updatePropertyQuery,
-    } = await import("@/backend/db/queries/contracts");
+    } = await import("@/backend/db/queries/properties");
     const { propertyCreateSchema, propertyUpdateSchema } = await import(
       "@/validation/contracts"
     );

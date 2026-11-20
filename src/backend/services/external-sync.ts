@@ -1,4 +1,4 @@
-import { storeSnapshotAndSyncPots } from "@/backend/db/queries/allocation";
+import { storeSnapshotAndSyncPots } from "@/backend/db/queries/external-pot-sync";
 import { getLatestExternalSnapshot } from "@/backend/db/queries/cockpit";
 import { fetchFinanzCockpitSummary, getFinanzCockpitBridgeConfig } from "@/backend/integrations/finanz-cockpit-client";
 import { runBalanceSnapshotJob } from "@/backend/jobs/balance-snapshot-job";

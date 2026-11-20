@@ -1,12 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { withTempDatabase } from "@tests/helpers/temp-db";
 import * as dbModule from "@/backend/db/connection";
-import {
-  applyPotSyncFromSnapshot,
-  getPendingTransferCentsByPotId,
-  getPotById as getPotRow,
-  listPots as listPotRows,
-} from "@/backend/db/queries/allocation";
+import { applyPotSyncFromSnapshot } from "@/backend/db/queries/external-pot-sync";
+import { getPendingTransferCentsByPotId } from "@/backend/db/queries/pot-allocations";
+import { getPotById as getPotRow, listPots as listPotRows } from "@/backend/db/queries/pots";
 import { getLatestExternalSnapshot, insertExternalSnapshot } from "@/backend/db/queries/cockpit";
 import { potAllocations, pots } from "@/backend/db/schema";
 import { eq } from "drizzle-orm";

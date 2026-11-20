@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { withTempDatabase } from "@tests/helpers/temp-db";
 import * as dbModule from "@/backend/db/connection";
-import { createPot } from "@/backend/db/queries/allocation";
+import { createPot } from "@/backend/db/queries/pots";
 import {
   loadAdvisorReport,
   loadAdvisorReportOutline,
   loadAdvisorSensitiveStrings,
 } from "@/backend/db/queries/advisor-report";
-import { createContract, createProperty } from "@/backend/db/queries/contracts";
+import { createContract } from "@/backend/db/queries/contracts";
+import { createProperty } from "@/backend/db/queries/properties";
 import { potCreateSchema } from "@/validation/allocation";
 import { contractCreateSchema } from "@/validation/contracts";
 

@@ -1,4 +1,4 @@
-import { serializePropertyForApi } from "@/backend/db/queries/contracts";
+import { serializePropertyForApi } from "@/backend/db/queries/properties";
 import { adoptValuationHistoryEntry } from "@/backend/db/queries/property-valuations";
 import { json, readJson, route, type RouteContext } from "@/backend/http";
 import { valuationAdoptBodySchema } from "@/validation/immoanalyse";

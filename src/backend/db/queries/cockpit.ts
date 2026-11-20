@@ -6,8 +6,9 @@ import {
   parseSnapshotPositions,
 } from "./external-snapshots";
 import { listBalanceSnapshots } from "./balance-history";
-import { listPots } from "./allocation";
-import { listContracts, listProperties } from "./contracts";
+import { listPots } from "./pots";
+import { listContracts } from "./contracts";
+import { listProperties } from "./properties";
 import { loadPlanningBase } from "./planning-base";
 import {
   type BalanceBarBreakdown,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { withTempDatabase } from "@tests/helpers/temp-db";
-import { createPot } from "@/backend/db/queries/allocation";
+import { createPot } from "@/backend/db/queries/pots";
 import { listBalanceSnapshots } from "@/backend/db/queries/balance-history";
 import { insertExternalSnapshot, loadCockpitData } from "@/backend/db/queries/cockpit";
 import { getTodayIsoDate } from "@/domain/core/date";

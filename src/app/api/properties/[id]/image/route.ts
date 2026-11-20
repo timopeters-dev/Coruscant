@@ -1,4 +1,4 @@
-import { getPropertyById, updatePropertyImagePath } from "@/backend/db/queries/contracts";
+import { getPropertyById, updatePropertyImagePath } from "@/backend/db/queries/properties";
 import { PropertyNotFoundError } from "@/backend/db/queries/property-valuations";
 import { NotFoundError } from "@/backend/errors";
 import { fileResponse, json, readUploadedFile, route, type RouteContext } from "@/backend/http";

@@ -14,7 +14,8 @@ import { StatusBadge } from "@/frontend/ui/status-badge";
 import { Badge } from "@/frontend/ui/badge";
 import { Button } from "@/frontend/ui/button";
 import { Sheet } from "@/frontend/ui/sheet";
-import type { FinancialContractRow, PropertyRow } from "@/backend/db/queries/contracts";
+import type { FinancialContractRow } from "@/backend/db/queries/contracts";
+import type { PropertyRow } from "@/backend/db/queries/properties";
 import type { DocumentRow } from "@/backend/db/queries/documents";
 import { formatWholeEuroDE } from "@/frontend/charts/chart-scale";
 import {

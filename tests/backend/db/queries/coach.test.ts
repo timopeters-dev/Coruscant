@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { withTempDatabase } from "@tests/helpers/temp-db";
-import { createManualCashflowItem } from "@/backend/db/queries/allocation";
+import { createManualCashflowItem } from "@/backend/db/queries/cashflow-items";
 import { insertExternalSnapshot } from "@/backend/db/queries/external-snapshots";
 import {
   buildInvestmentContext,

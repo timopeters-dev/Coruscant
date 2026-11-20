@@ -1,4 +1,4 @@
-import { createProperty, listProperties, serializePropertyForApi } from "@/backend/db/queries/contracts";
+import { createProperty, listProperties, serializePropertyForApi } from "@/backend/db/queries/properties";
 import { json, readJson, route } from "@/backend/http";
 import { propertyCreateSchema } from "@/validation/contracts";
 

@@ -2,11 +2,8 @@ import { describe, expect, it } from "vitest";
 import { withTempDatabase } from "@tests/helpers/temp-db";
 import { ZodError } from "zod";
 import { createContract, updateContract } from "@/backend/db/queries/contracts";
-import {
-  createDocumentRecord,
-  DocumentValidationError,
-  verifyDocumentAndOptionallyCalibrate,
-} from "@/backend/db/queries/documents";
+import { createDocumentRecord, DocumentValidationError } from "@/backend/db/queries/documents";
+import { verifyDocumentAndOptionallyCalibrate } from "@/backend/db/queries/document-review";
 import { contractCreateSchema } from "@/validation/contracts";
 import { documentVerifySchema } from "@/validation/documents";
 

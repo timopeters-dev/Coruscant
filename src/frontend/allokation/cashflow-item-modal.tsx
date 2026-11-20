@@ -7,7 +7,7 @@ import { Input } from "@/frontend/ui/input";
 import { Label } from "@/frontend/ui/label";
 import { Select } from "@/frontend/ui/select";
 import { InfoTip } from "@/frontend/ui/info-tip";
-import type { CashflowItemRow } from "@/backend/db/queries/allocation";
+import type { CashflowItemRow } from "@/backend/db/queries/cashflow-items";
 import {
   type CashflowDirection,
   type CashflowFrequency,

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { withTempDatabase } from "@tests/helpers/temp-db";
 import { apiRequest } from "@tests/helpers/http";
 import * as dbModule from "@/backend/db/connection";
-import { createPot, getPotById, listPots } from "@/backend/db/queries/allocation";
+import { createPot, getPotById, listPots } from "@/backend/db/queries/pots";
 import { listBalanceSnapshots } from "@/backend/db/queries/balance-history";
 import { eq, sql } from "drizzle-orm";
 import { pots } from "@/backend/db/schema";
@@ -14,7 +14,7 @@ import {
   parseSnapshotHousehold,
   parseSnapshotPositions,
 } from "@/backend/db/queries/cockpit";
-import * as allocationQueries from "@/backend/db/queries/allocation";
+import * as potSyncQueries from "@/backend/db/queries/external-pot-sync";
 import { getTodayIsoDate } from "@/domain/core/date";
 import * as bridgeClient from "@/backend/integrations/finanz-cockpit-client";
 import * as balanceSnapshotJob from "@/backend/jobs/balance-snapshot-job";
@@ -156,7 +156,7 @@ describe("POST /api/external/sync", () => {
         fetchedAt: "2026-11-16T14:00:00.000Z",
       },
     });
-    vi.spyOn(allocationQueries, "storeSnapshotAndSyncPots").mockImplementation(() => {
+    vi.spyOn(potSyncQueries, "storeSnapshotAndSyncPots").mockImplementation(() => {
       throw new Error("SQLITE_BUSY");
     });
 

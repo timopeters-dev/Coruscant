@@ -6,7 +6,7 @@ import {
   historyRoute,
 } from "@tests/helpers/valuation-routes";
 import { withTempDatabase } from "@tests/helpers/temp-db";
-import { createProperty, getPropertyById } from "@/backend/db/queries/contracts";
+import { createProperty, getPropertyById } from "@/backend/db/queries/properties";
 import { listValuationHistory } from "@/backend/db/queries/property-valuations";
 import { PATCH as patchProperty } from "@/app/api/properties/[id]/route";
 

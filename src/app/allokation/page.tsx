@@ -1,19 +1,17 @@
 import { AllokationWorkspace } from "@/frontend/allokation/allokation-workspace";
 import { parseAllocationPrefill } from "@/frontend/allokation/allocation-prefill";
-import {
-  getAllocationSettings,
-  getPendingTransferCentsByPotId,
-  listManualCashflowItems,
-  listPots,
-  listRecentPotAllocations,
-} from "@/backend/db/queries/allocation";
+import { getAllocationSettings } from "@/backend/db/queries/allocation-settings";
+import { getPendingTransferCentsByPotId, listRecentPotAllocations } from "@/backend/db/queries/pot-allocations";
+import { listManualCashflowItems } from "@/backend/db/queries/cashflow-items";
+import { listPots } from "@/backend/db/queries/pots";
 import {
   getLatestExternalSnapshot,
   parseSnapshotAccounts,
   parseSnapshotHousehold,
   parseSnapshotPositions,
 } from "@/backend/db/queries/cockpit";
-import { listContracts, listProperties } from "@/backend/db/queries/contracts";
+import { listContracts } from "@/backend/db/queries/contracts";
+import { listProperties } from "@/backend/db/queries/properties";
 import {
   deriveContractCashflowItems,
   derivePropertyCashflowItems,

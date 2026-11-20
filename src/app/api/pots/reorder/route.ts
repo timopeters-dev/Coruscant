@@ -1,4 +1,4 @@
-import { reorderPots } from "@/backend/db/queries/allocation";
+import { reorderPots } from "@/backend/db/queries/pots";
 import { json, readJson, route } from "@/backend/http";
 import { potReorderSchema } from "@/validation/allocation";
 

@@ -3,11 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import * as dbModule from "@/backend/db/connection";
 import { withTempDatabase } from "@tests/helpers/temp-db";
 import { properties } from "@/backend/db/schema";
-import {
-  createProperty,
-  getPropertyById,
-  updateProperty,
-} from "@/backend/db/queries/contracts";
+import { createProperty, getPropertyById, updateProperty } from "@/backend/db/queries/properties";
 import {
   getLatestPendingSuggestion,
   getQuotaSnapshot,
