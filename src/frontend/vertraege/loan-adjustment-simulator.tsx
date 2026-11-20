@@ -13,13 +13,8 @@ import { buildPlanningHref } from "@/frontend/planung/planning-state";
 import { StatusBadge } from "@/frontend/ui/status-badge";
 import { Button } from "@/frontend/ui/button";
 import type { DomainContract } from "@/domain/contracts/contract";
-import {
-  buildRateChangeTimingSeries,
-  compareLoanAdjustments,
-  type LoanAdjustmentEffect,
-  type RateChangeOption,
-  type SpecialRepaymentOption,
-} from "@/domain/contracts/series";
+import { buildRateChangeTimingSeries, compareLoanAdjustments } from "@/domain/contracts/loan-adjustments";
+import type { LoanAdjustmentEffect, RateChangeOption, SpecialRepaymentOption } from "@/domain/contracts/amortization-types";
 import {
   addMonthsToYearMonth,
   dayNumberToIsoDate,

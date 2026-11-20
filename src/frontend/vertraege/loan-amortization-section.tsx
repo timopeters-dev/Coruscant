@@ -16,11 +16,8 @@ import {
 import { StatusBadge } from "@/frontend/ui/status-badge";
 import type { FinancialContractRow } from "@/backend/db/queries/contracts";
 import { contractRecordToDomain } from "@/domain/contracts/contract";
-import {
-  buildAmortizationSeries,
-  effectiveAsOf,
-  type LoanAdjustmentEffect,
-} from "@/domain/contracts/series";
+import { buildAmortizationSeries, effectiveAsOf } from "@/domain/contracts/amortization";
+import type { LoanAdjustmentEffect } from "@/domain/contracts/amortization-types";
 import { dayNumberToIsoDate, isoDateToDayNumber } from "@/domain/core/date";
 import { formatCentsDE } from "@/domain/core/money";
 import { AMORTIZATION_MARKER_LABELS, formatMonthYearDE } from "./labels";

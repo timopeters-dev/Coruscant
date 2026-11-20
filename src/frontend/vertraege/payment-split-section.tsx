@@ -11,10 +11,8 @@ import {
   type LineChartMarker,
   type LineSeries,
 } from "@/frontend/charts/line-chart";
-import {
-  type AmortizationSeriesResult,
-  summarizeYearlyPaymentSplit,
-} from "@/domain/contracts/series";
+import type { AmortizationSeriesResult } from "@/domain/contracts/amortization-types";
+import { summarizeYearlyPaymentSplit } from "@/domain/contracts/loan-adjustments";
 import { dayNumberToIsoDate, isoDateToDayNumber } from "@/domain/core/date";
 import { AMORTIZATION_MARKER_LABELS, formatMonthYearDE } from "./labels";
 import { Collapse, CollapseChevron } from "@/frontend/ui/collapse";
