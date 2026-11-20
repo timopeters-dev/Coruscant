@@ -3,10 +3,16 @@ import { addMonthsToIsoDate, parseIsoDate } from "@/domain/core/date";
 import { resolveYearlyCapCents } from "@/domain/contracts/loan-allowances";
 import { countRemainingMonths } from "@/domain/allocation/pot-deadline";
 import { DEFAULT_ESTIMATED_HORIZON_MONTHS } from "@/domain/planning/etf";
-import { findBreakEvenReturnBps, simulatePrepaymentVsEtf } from "@/domain/planning/prepayment-vs-etf";
+import {
+  findBreakEvenReturnBps, simulatePrepaymentVsEtf,
+} from "@/domain/planning/prepayment-vs-etf";
 import { type DraftItem, addOrMergeItem, hasPotHeadroom } from "./draft-items";
 import { isFixedInterestEndingSoon, resolveLoanSpecialRule } from "./loan-ranking";
-import { RATE_INCREASE_STEP_CENTS, type RecommendationAssumptions, type RecommendationLoan, type RecommendationNote, type RecommendationPot, type RecommendationReason, type RecommendationState, type RecommendationTarget } from "./types";
+import {
+  RATE_INCREASE_STEP_CENTS, type RecommendationAssumptions, type RecommendationLoan,
+  type RecommendationNote, type RecommendationPot, type RecommendationReason,
+  type RecommendationState, type RecommendationTarget,
+} from "./types";
 
 export function allocateRemainder(
   mode: "one_time" | "monthly",

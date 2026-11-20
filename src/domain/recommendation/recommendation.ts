@@ -1,10 +1,21 @@
 import { parseIsoDate } from "@/domain/core/date";
 import { assertNonNegativeInteger, assertSafeInteger } from "@/domain/core/money";
-import { calculateRequiredMonthlyCents, evaluatePotDeadlines } from "@/domain/allocation/pot-deadline";
+import {
+  calculateRequiredMonthlyCents, evaluatePotDeadlines,
+} from "@/domain/allocation/pot-deadline";
 import { allocateRemainder } from "./allocate-remainder";
-import { type DraftItem, addOrMergeItem, finalizeItems, getPotAllocatedCents, pickEmergencyPotForRule } from "./draft-items";
-import { collectRateDecreaseNotes, computeLoanOptionsDigest, sortLoansForRecommendation, sortPotsByPriority } from "./loan-ranking";
-import { type RecommendationAssumptions, type RecommendationNote, type RecommendationPot, type RecommendationReason, type RecommendationResult, type RecommendationState, validateRecommendationAssumptions } from "./types";
+import {
+  type DraftItem, addOrMergeItem, finalizeItems, getPotAllocatedCents, pickEmergencyPotForRule,
+} from "./draft-items";
+import {
+  collectRateDecreaseNotes, computeLoanOptionsDigest, sortLoansForRecommendation,
+  sortPotsByPriority,
+} from "./loan-ranking";
+import {
+  type RecommendationAssumptions, type RecommendationNote, type RecommendationPot,
+  type RecommendationReason, type RecommendationResult, type RecommendationState,
+  validateRecommendationAssumptions,
+} from "./types";
 
 function computeEmergencyFundStatus(
   state: RecommendationState,

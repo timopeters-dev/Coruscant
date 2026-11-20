@@ -7,8 +7,12 @@ import { AllocationBar, type AllocationBarSegment } from "@/frontend/charts/allo
 import { Button } from "@/frontend/ui/button";
 import { formatEuroDE } from "@/domain/core/money";
 import { computeRecommendationFingerprint } from "@/domain/recommendation/recommendation";
-import type { RecommendationAssumptions, RecommendationLoan, RecommendationResult } from "@/domain/recommendation/types";
-import { ALLOWED_CHURCH_TAX_BPS, MAX_ETF_RETURN_BPS, MAX_SAVER_ALLOWANCE_CENTS, MIN_ETF_RETURN_BPS } from "@/domain/planning/etf";
+import type {
+  RecommendationAssumptions, RecommendationLoan, RecommendationResult,
+} from "@/domain/recommendation/types";
+import {
+  ALLOWED_CHURCH_TAX_BPS, MAX_ETF_RETURN_BPS, MAX_SAVER_ALLOWANCE_CENTS, MIN_ETF_RETURN_BPS,
+} from "@/domain/planning/etf";
 import { SliderField } from "./euro-slider-field";
 import type { RecommendationUiAction } from "./planning-state";
 import {

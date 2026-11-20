@@ -3,7 +3,9 @@ import {
   diffCalendarDays,
   parseIsoDate,
 } from "@/domain/core/date";
-import { getLoanOptions, type OptionRight, type RateChangeScope, type SpecialRepaymentBasis } from "./loan-options";
+import {
+  getLoanOptions, type OptionRight, type RateChangeScope, type SpecialRepaymentBasis,
+} from "./loan-options";
 import { validateLoanOptions } from "./loan-options-validation";
 import {
   assertNonNegativeInteger,

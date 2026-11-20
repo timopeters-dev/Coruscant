@@ -1,6 +1,8 @@
 import { and, asc, eq, isNotNull, ne } from "drizzle-orm";
 import { getDb } from "@/backend/db/connection";
-import { firstRow, isUniqueConstraintError, mergePatch, newId, nowIso, type DbOrTx, type DbTx } from "@/backend/db/helpers";
+import {
+  firstRow, isUniqueConstraintError, mergePatch, newId, nowIso, type DbOrTx, type DbTx,
+} from "@/backend/db/helpers";
 import { financialContracts, pots, properties } from "@/backend/db/schema";
 import {
   ApiError,
@@ -18,7 +20,9 @@ import {
   type PotCreateInput,
   type PotUpdateInput,
 } from "@/validation/allocation";
-import { getLatestExternalSnapshot, parseSnapshotAccounts, parseSnapshotPositions } from "./external-snapshots";
+import {
+  getLatestExternalSnapshot, parseSnapshotAccounts, parseSnapshotPositions,
+} from "./external-snapshots";
 
 export type PotRow = typeof pots.$inferSelect;
 
@@ -144,7 +148,9 @@ function resolveLink(
 ): LinkColumns & { currentCents: number } {
   if (!link) return { ...NO_LINK, currentCents: fallbackCents };
   if (existing && existing.externalLinkKind === link.kind && existing.externalLinkRef === link.ref) {
-    const { externalLinkKind, externalLinkRef, externalLinkScope, externalSyncedAt, externalLinkedAt } = existing;
+    const {
+      externalLinkKind, externalLinkRef, externalLinkScope, externalSyncedAt, externalLinkedAt,
+    } = existing;
     return { externalLinkKind, externalLinkRef, externalLinkScope, externalSyncedAt, externalLinkedAt, currentCents: fallbackCents };
   }
 

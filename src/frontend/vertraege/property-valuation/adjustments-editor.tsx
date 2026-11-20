@@ -3,7 +3,9 @@
 import * as React from "react";
 import type { PropertyApiRecord, PropertyRow } from "@/backend/db/queries/properties";
 import type { PropertyValuationHistoryRow } from "@/backend/db/schema";
-import { bpsToPercentInputString, formatCentsDE, parsePercentInputToBps } from "@/domain/core/money";
+import {
+  bpsToPercentInputString, formatCentsDE, parsePercentInputToBps,
+} from "@/domain/core/money";
 import { planAdjustmentRecompute } from "@/domain/properties/valuation/adjustment-recompute";
 import {
   formatAdjustmentSummary,

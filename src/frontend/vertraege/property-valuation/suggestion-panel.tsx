@@ -7,7 +7,9 @@ import {
   type ValuationAdoptionState,
   type ValuationChoice,
 } from "@/domain/properties/valuation/adoption";
-import { computeValuationDeviationBps, isDeviationAboveThreshold } from "@/domain/properties/valuation/valuation";
+import {
+  computeValuationDeviationBps, isDeviationAboveThreshold,
+} from "@/domain/properties/valuation/valuation";
 import { formatDateDE } from "@/domain/core/date-format";
 import { Button } from "@/frontend/ui/button";
 import { StatusBadge } from "@/frontend/ui/status-badge";

@@ -1,12 +1,20 @@
 /** Struktur des Berater-Berichts (vollständig, vor der Anonymisierung). */
 import { type BalanceSummary } from "@/domain/cockpit/balance";
 import { type BalanceHistoryPoint } from "@/domain/cockpit/balance-history";
-import type { ConsolidatedCashflowSummary, VariableExpenseBasis } from "@/domain/allocation/cashflow";
+import type {
+  ConsolidatedCashflowSummary, VariableExpenseBasis,
+} from "@/domain/allocation/cashflow";
 import { type ContractCategory, type RepaymentType } from "@/domain/contracts/contract";
-import type { OptionRight, RateChangeScope, RateCorridor, SpecialRepaymentAllowance, SpecialRepaymentBasis } from "@/domain/contracts/loan-options";
+import type {
+  OptionRight, RateChangeScope, RateCorridor, SpecialRepaymentAllowance, SpecialRepaymentBasis,
+} from "@/domain/contracts/loan-options";
 import { type PotDeadlineStatus } from "@/domain/allocation/pot-deadline";
-import { type DomainLinkedContract, type DomainPropertyDetail, type PropertyUsage } from "@/domain/properties/properties";
-import { type RecommendationPot, type RecommendationResult, type RecommendationState } from "@/domain/recommendation/types";
+import {
+  type DomainLinkedContract, type DomainPropertyDetail, type PropertyUsage,
+} from "@/domain/properties/properties";
+import {
+  type RecommendationPot, type RecommendationResult, type RecommendationState,
+} from "@/domain/recommendation/types";
 import { type DomainRentalProfile } from "@/domain/properties/rental";
 import type { PotRuleType } from "@/domain/allocation/waterfall";
 

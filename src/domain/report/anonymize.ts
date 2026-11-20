@@ -1,11 +1,20 @@
 import { formatMonthDE, formatMonthPartsDE } from "@/domain/core/date-format";
-import type { AdvisorDataQualityHint, AdvisorEntityKey, AdvisorReport, AdvisorReportMode } from "./types";
+import type {
+  AdvisorDataQualityHint, AdvisorEntityKey, AdvisorReport, AdvisorReportMode,
+} from "./types";
 import type { ContractCategory, RepaymentType } from "@/domain/contracts/contract";
 import { getTodayIsoDate, parseIsoDate } from "@/domain/core/date";
 import type { PropertyUsage } from "@/domain/properties/properties";
 import type { RecommendationResult } from "@/domain/recommendation/types";
-import { formatAssumptionsSummary, formatRecommendationHeadline, formatRecommendationNote, formatRecommendationReason, type RecommendationLabels, resolveItemLabel } from "@/domain/recommendation/text";
-import type { AdvisorReportView, AdvisorReportViewContract, AdvisorReportViewHistoryRow, AdvisorReportViewLoanOptions, AdvisorReportViewPot, AdvisorReportViewProperty, AdvisorReportViewRecommendation, AdvisorReportViewRecommendationItem } from "./view-types";
+import {
+  formatAssumptionsSummary, formatRecommendationHeadline, formatRecommendationNote,
+  formatRecommendationReason, type RecommendationLabels, resolveItemLabel,
+} from "@/domain/recommendation/text";
+import type {
+  AdvisorReportView, AdvisorReportViewContract, AdvisorReportViewHistoryRow,
+  AdvisorReportViewLoanOptions, AdvisorReportViewPot, AdvisorReportViewProperty,
+  AdvisorReportViewRecommendation, AdvisorReportViewRecommendationItem,
+} from "./view-types";
 
 function formatIsoDateDE(isoDate: string): string {
   const { year, month, day } = parseIsoDate(isoDate, "isoDate");

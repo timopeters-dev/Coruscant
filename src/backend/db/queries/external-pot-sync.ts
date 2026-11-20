@@ -4,7 +4,9 @@ import { nowIso, type DbTx } from "@/backend/db/helpers";
 import { pots, type ExternalSnapshotRow } from "@/backend/db/schema";
 import { computePotSyncPlan, type PotSyncOutcome } from "@/domain/allocation/pot-sync";
 import type { FinanzCockpitSummary } from "@/validation/external";
-import { insertExternalSnapshot, parseSnapshotAccounts, parseSnapshotPositions } from "./external-snapshots";
+import {
+  insertExternalSnapshot, parseSnapshotAccounts, parseSnapshotPositions,
+} from "./external-snapshots";
 
 /**
  * Überträgt einen frisch gespeicherten Bespin-Snapshot auf alle gekoppelten

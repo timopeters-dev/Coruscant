@@ -4,7 +4,9 @@ import * as React from "react";
 import type { PropertyApiRecord, PropertyRow } from "@/backend/db/queries/properties";
 import type { PropertyValuation, ValuationWarning } from "@/domain/properties/valuation/valuation";
 import { formatCentsDE } from "@/domain/core/money";
-import { applyValuationAdjustment, sumAdjustmentBps } from "@/domain/properties/valuation/adjustments";
+import {
+  applyValuationAdjustment, sumAdjustmentBps,
+} from "@/domain/properties/valuation/adjustments";
 import {
   AUTO_VALUATION_INTERVALS,
   estimateMonthlyCalls,
@@ -22,7 +24,10 @@ import { PropertyValuationHistoryChart } from "../property-valuation-history-cha
 import { readPropertyAdjustments, ValuationAdjustmentsEditor } from "./adjustments-editor";
 import { ValuationSuggestionPanel } from "./suggestion-panel";
 import { useValuationData } from "./use-valuation-data";
-import { formatSignedBps, mapApiErrorToState, toBerlinDateKeyClient, type CardErrorState, type PendingSuggestionView } from "./view";
+import {
+  formatSignedBps, mapApiErrorToState, toBerlinDateKeyClient, type CardErrorState,
+  type PendingSuggestionView,
+} from "./view";
 
 /**
  * Wertschätzung einer Immobilie über ImmoAnalyse.Pro: Status, eigene
@@ -39,7 +44,10 @@ export function PropertyValuationCard({
   onMutated: () => void;
 }) {
   const data = useValuationData(property.id, property.updatedAt);
-  const { previewJson, contextUnavailable, historyEntries, statusData, suggestion, adoptionState, dispatch } = data;
+  const {
+    previewJson, contextUnavailable, historyEntries, statusData, suggestion, adoptionState,
+    dispatch,
+  } = data;
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [previewLoading, setPreviewLoading] = React.useState(false);
   const [isEstimating, setIsEstimating] = React.useState(false);

@@ -6,7 +6,9 @@ import { FieldValidationError, type FieldErrors } from "@/backend/errors";
 import { getTodayIsoDate } from "@/domain/core/date";
 import { validateRentalProfile } from "@/domain/properties/rental";
 import { parseRenovations, serializeRenovations } from "@/domain/properties/renovations";
-import { parseValuationAdjustments, type ValuationAdjustment } from "@/domain/properties/valuation/adjustments";
+import {
+  parseValuationAdjustments, type ValuationAdjustment,
+} from "@/domain/properties/valuation/adjustments";
 import type { PropertyValuationContextInput } from "@/domain/properties/valuation/context";
 import type { PropertyCreateInput, PropertyUpdateInput } from "@/validation/contracts";
 

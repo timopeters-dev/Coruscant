@@ -1,7 +1,10 @@
 /** Kredite und Töpfe für die Empfehlung ordnen und bewerten. */
 import type { SpecialRepaymentRule } from "@/domain/contracts/loan-options";
 import { countRemainingMonths } from "@/domain/allocation/pot-deadline";
-import { FIXED_INTEREST_SOON_MONTHS, type RecommendationLoan, type RecommendationNote, type RecommendationPot } from "./types";
+import {
+  FIXED_INTEREST_SOON_MONTHS, type RecommendationLoan, type RecommendationNote,
+  type RecommendationPot,
+} from "./types";
 
 export function resolveLoanSpecialRule(loan: RecommendationLoan): SpecialRepaymentRule {
   if (loan.specialRepaymentRule !== undefined) {

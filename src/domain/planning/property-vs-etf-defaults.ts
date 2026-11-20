@@ -4,7 +4,10 @@ import {
   PROPERTY_PURCHASE_LIMITS,
   type PurchaseCostRuleSet,
 } from "./purchase-defaults";
-import { DEFAULT_SAVER_ALLOWANCE_CENTS, MAX_ETF_RETURN_BPS, MAX_SAVER_ALLOWANCE_CENTS, MIN_ETF_RETURN_BPS, PARTIAL_EXEMPTION_EQUITY_ETF_BPS } from "./etf";
+import {
+  DEFAULT_SAVER_ALLOWANCE_CENTS, MAX_ETF_RETURN_BPS, MAX_SAVER_ALLOWANCE_CENTS, MIN_ETF_RETURN_BPS,
+  PARTIAL_EXEMPTION_EQUITY_ETF_BPS,
+} from "./etf";
 
 /** Summe aller Nebenkosten-Posten eines Regelwerks in Basispunkten. */
 export function sumPurchaseCostRuleSetBps(ruleSet: PurchaseCostRuleSet): number {

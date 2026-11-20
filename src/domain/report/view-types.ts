@@ -2,7 +2,9 @@
 import type { AdvisorDataQualityHint, AdvisorReportMode } from "./types";
 import type { VariableExpenseBasis } from "@/domain/allocation/cashflow";
 import type { ContractCategory, RepaymentType } from "@/domain/contracts/contract";
-import type { OptionRight, RateChangeScope, RateCorridor, SpecialRepaymentAllowance, SpecialRepaymentBasis } from "@/domain/contracts/loan-options";
+import type {
+  OptionRight, RateChangeScope, RateCorridor, SpecialRepaymentAllowance, SpecialRepaymentBasis,
+} from "@/domain/contracts/loan-options";
 import type { PotDeadlineStatus } from "@/domain/allocation/pot-deadline";
 import type { PropertyUsage } from "@/domain/properties/properties";
 import type { RecommendationItemKind } from "@/domain/recommendation/types";

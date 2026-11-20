@@ -3,7 +3,11 @@ import { type DomainContract, validateContract } from "./contract";
 import { addMonthsToIsoDate, countCompletedMonths, parseIsoDate } from "@/domain/core/date";
 import { resolveRateCorridor } from "./loan-allowances";
 import { assertNonNegativeInteger, assertSafeInteger } from "@/domain/core/money";
-import { type AmortizationOptions, type AmortizationPoint, type LoanAdjustmentEffect, MAX_SERIES_MONTHS, type RateChangeTimingPoint, type RateChangeTimingResult, type SpecialRepaymentEffect, type SpecialRepaymentOption, type YearlyPaymentSplitRow, type YearlyPaymentSplitSummary } from "./amortization-types";
+import {
+  type AmortizationOptions, type AmortizationPoint, type LoanAdjustmentEffect, MAX_SERIES_MONTHS,
+  type RateChangeTimingPoint, type RateChangeTimingResult, type SpecialRepaymentEffect,
+  type SpecialRepaymentOption, type YearlyPaymentSplitRow, type YearlyPaymentSplitSummary,
+} from "./amortization-types";
 import { buildAmortizationSeries } from "./amortization";
 
 /**

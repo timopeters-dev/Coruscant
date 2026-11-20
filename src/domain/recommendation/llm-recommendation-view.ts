@@ -2,7 +2,9 @@
 import { formatMonthDE } from "@/domain/core/date-format";
 import { selectContextGoalPots } from "./investment-context";
 import { formatBpsDE, formatEuroDE } from "@/domain/core/money";
-import type { RecommendationItemKind, RecommendationReason, RecommendationResult, RecommendationState } from "./types";
+import type {
+  RecommendationItemKind, RecommendationReason, RecommendationResult, RecommendationState,
+} from "./types";
 
 export type RecommendationLlmArt =
   | "notgroschen"

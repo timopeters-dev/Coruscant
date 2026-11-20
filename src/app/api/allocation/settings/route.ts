@@ -1,5 +1,7 @@
 import { z } from "zod";
-import { getAllocationSettings, saveAllocationSettings } from "@/backend/db/queries/allocation-settings";
+import {
+  getAllocationSettings, saveAllocationSettings,
+} from "@/backend/db/queries/allocation-settings";
 import { json, readJson, route } from "@/backend/http";
 import { allocationSettingsSchema } from "@/validation/external";
 

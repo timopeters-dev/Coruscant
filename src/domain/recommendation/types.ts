@@ -1,9 +1,14 @@
 /** Eingaben, Annahmen und Ergebnis-Typen der Empfehlungslogik (Topf-, Kredit- und ETF-Verwendung). */
 import { type RepaymentType } from "@/domain/contracts/contract";
-import type { RateChangeScope, RateCorridor, SpecialRepaymentRule } from "@/domain/contracts/loan-options";
+import type {
+  RateChangeScope, RateCorridor, SpecialRepaymentRule,
+} from "@/domain/contracts/loan-options";
 import { assertNonNegativeInteger, assertSafeInteger } from "@/domain/core/money";
 import { type PotDeadlineStatus } from "@/domain/allocation/pot-deadline";
-import { ALLOWED_CHURCH_TAX_BPS, DEFAULT_SAVER_ALLOWANCE_CENTS, MAX_ETF_RETURN_BPS, MAX_SAVER_ALLOWANCE_CENTS, MIN_ETF_RETURN_BPS } from "@/domain/planning/etf";
+import {
+  ALLOWED_CHURCH_TAX_BPS, DEFAULT_SAVER_ALLOWANCE_CENTS, MAX_ETF_RETURN_BPS,
+  MAX_SAVER_ALLOWANCE_CENTS, MIN_ETF_RETURN_BPS,
+} from "@/domain/planning/etf";
 import { type PotRuleType } from "@/domain/allocation/waterfall";
 
 export const FIXED_INTEREST_SOON_MONTHS = 12;

@@ -5,7 +5,9 @@ import { listContracts } from "./contracts";
 import { listProperties } from "./properties";
 import { loadPlanningBase } from "./planning-base";
 import { loadRecommendationState } from "./recommendation";
-import type { AdvisorReport, AdvisorReportMode, AdvisorReportOutlineItem } from "@/domain/report/types";
+import type {
+  AdvisorReport, AdvisorReportMode, AdvisorReportOutlineItem,
+} from "@/domain/report/types";
 import { buildAdvisorReport, parseAdvisorOneTimeAmount } from "@/domain/report/report";
 import { buildAdvisorReportOutline } from "@/domain/report/outline";
 import type { AdvisorReportView } from "@/domain/report/view-types";

@@ -1,4 +1,6 @@
-import { divRoundHalfUpSigned, assertNonNegativeInteger, assertSafeInteger, roundHalfUpBigInt } from "@/domain/core/money";
+import {
+  divRoundHalfUpSigned, assertNonNegativeInteger, assertSafeInteger, roundHalfUpBigInt,
+} from "@/domain/core/money";
 import {
   PROPERTY_VS_ETF_TAX_LIMITS,
 } from "./property-vs-etf-defaults";
