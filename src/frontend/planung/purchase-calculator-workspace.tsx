@@ -21,7 +21,7 @@ import { buildPurchaseDraftSearchParams } from "@/validation/property-draft";
 import { validatePropertyPurchaseForm } from "@/validation/property-purchase";
 import { cn } from "@/frontend/ui/cn";
 import { SliderField } from "./euro-slider-field";
-import { formatIsoDateDE } from "./format";
+import { formatDateDE } from "@/domain/core/date-format";
 import {
   buildBreakdownSegments,
   buildInitialFormState,
@@ -406,7 +406,7 @@ export function PurchaseCalculatorWorkspace({
               <p className="text-xs text-[var(--text-secondary)]">
                 Richtwerte, Stand{" "}
                 <span className="tabular-nums">
-                  {formatIsoDateDE(CURRENT_PURCHASE_COST_RULE_SET.reviewedAt)}
+                  {formatDateDE(CURRENT_PURCHASE_COST_RULE_SET.reviewedAt)}
                 </span>
                 , regional abhängig – bitte mit Exposé und Notar prüfen.
               </p>

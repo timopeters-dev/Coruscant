@@ -2,14 +2,9 @@ import { describe, expect, it } from "vitest";
 import { calculateHouseholdBalance } from "@/domain/cockpit/balance";
 import type { BalanceHistoryPoint } from "@/domain/cockpit/balance-history";
 import { calculateConsolidatedCashflow } from "@/domain/allocation/cashflow";
-import {
-  ADVISOR_REPORT_SCHEMA_VERSION,
-  type AdvisorReportInput,
-  buildAdvisorReport,
-  buildAdvisorReportOutline,
-  parseAdvisorOneTimeAmount,
-  parseAdvisorReportMode,
-} from "@/domain/report/report";
+import { ADVISOR_REPORT_SCHEMA_VERSION, type AdvisorReportInput } from "@/domain/report/types";
+import { buildAdvisorReport, parseAdvisorOneTimeAmount, parseAdvisorReportMode } from "@/domain/report/report";
+import { buildAdvisorReportOutline } from "@/domain/report/outline";
 
 function makeBaseInput(
   overrides: Partial<AdvisorReportInput> = {},

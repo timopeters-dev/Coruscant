@@ -20,14 +20,10 @@ import {
   SegmentPill,
   segmentItemClass,
 } from "@/frontend/ui/segmented";
-import {
-  type AdvisorReportMode,
-  parseAdvisorOneTimeAmount,
-} from "@/domain/report/report";
-import type {
-  AdvisorQuestionIssue,
-  AdvisorReportView,
-} from "@/domain/report/anonymize";
+import type { AdvisorReportMode } from "@/domain/report/types";
+import { parseAdvisorOneTimeAmount } from "@/domain/report/report";
+import type { AdvisorQuestionIssue } from "@/domain/report/pii-check";
+import type { AdvisorReportView } from "@/domain/report/view-types";
 import { renderAdvisorReportText } from "@/domain/report/text";
 
 interface AdvisorReportToolbarProps {

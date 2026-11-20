@@ -1,7 +1,7 @@
 import { CockpitWorkspace } from "@/frontend/cockpit/cockpit-workspace";
 import { loadAdvisorReportOutline } from "@/backend/db/queries/advisor-report";
 import { loadCockpitData } from "@/backend/db/queries/cockpit";
-import type { AdvisorReportOutlineItem } from "@/domain/report/report";
+import type { AdvisorReportOutlineItem } from "@/domain/report/types";
 
 export const dynamic = "force-dynamic";
 

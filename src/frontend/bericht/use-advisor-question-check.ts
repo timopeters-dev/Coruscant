@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import type { AdvisorReportMode } from "@/domain/report/report";
-import type { AdvisorQuestionIssue } from "@/domain/report/anonymize";
+import type { AdvisorReportMode } from "@/domain/report/types";
+import type { AdvisorQuestionIssue } from "@/domain/report/pii-check";
 
 export type QuestionCheckStatus = "ok" | "checking" | "blocked" | "error";
 

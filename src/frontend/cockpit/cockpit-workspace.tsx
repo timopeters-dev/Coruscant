@@ -51,7 +51,7 @@ import {
   resolveSkippedFreshReschedule,
   shouldRunAutoSyncOnVisibility,
 } from "@/domain/cockpit/external-sync";
-import type { AdvisorReportOutlineItem } from "@/domain/report/report";
+import type { AdvisorReportOutlineItem } from "@/domain/report/types";
 import { formatBpsDE, formatCentsDE } from "@/domain/core/money";
 
 interface CockpitWorkspaceProps {

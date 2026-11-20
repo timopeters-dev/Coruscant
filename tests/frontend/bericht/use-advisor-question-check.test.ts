@@ -35,7 +35,7 @@ vi.mock("react", () => ({
   },
 }));
 
-import type { AdvisorReportMode } from "@/domain/report/report";
+import type { AdvisorReportMode } from "@/domain/report/types";
 import {
   useAdvisorQuestionCheck,
   type UseAdvisorQuestionCheckResult,

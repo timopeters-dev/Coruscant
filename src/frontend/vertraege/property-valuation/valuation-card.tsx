@@ -13,7 +13,7 @@ import {
 } from "@/domain/properties/valuation/auto-schedule";
 import { buildAdoptionRequest } from "@/domain/properties/valuation/adoption";
 import { api } from "@/frontend/lib/api";
-import { formatIsoDateDE } from "@/frontend/planung/format";
+import { formatDateDE } from "@/domain/core/date-format";
 import { Button } from "@/frontend/ui/button";
 import { Select } from "@/frontend/ui/select";
 import { StatusBadge } from "@/frontend/ui/status-badge";
@@ -165,10 +165,10 @@ export function PropertyValuationCard({
   else if (schedulerJob && !schedulerJob.enabled) nextRunText = "pausiert: Dev ohne ENABLE_VALUATION_SCHEDULER";
   else if (quotaEval && !quotaEval.allowed) {
     nextRunText = quotaEval.resetAt
-      ? `pausiert: Reserve geschützt bis ${formatIsoDateDE(toBerlinDateKeyClient(quotaEval.resetAt))}`
+      ? `pausiert: Reserve geschützt bis ${formatDateDE(toBerlinDateKeyClient(quotaEval.resetAt))}`
       : "pausiert: Reserve geschützt";
   } else if (nextDue !== null) {
-    nextRunText = "dueNow" in nextDue ? "bei nächstem Lauf" : `ab ${formatIsoDateDE(nextDue.dueOn)}, 04:30`;
+    nextRunText = "dueNow" in nextDue ? "bei nächstem Lauf" : `ab ${formatDateDE(nextDue.dueOn)}, 04:30`;
   }
 
   return (
@@ -221,7 +221,7 @@ export function PropertyValuationCard({
           {property.estimatedValueSource === "manual"
             ? "manuell"
             : property.estimatedValueAsOf
-              ? `aus ImmoAnalyse, Stand ${formatIsoDateDE(property.estimatedValueAsOf)}${savedTotalBps !== 0 ? `, inkl. ${formatSignedBps(savedTotalBps)} eigene Korrektur` : ""}`
+              ? `aus ImmoAnalyse, Stand ${formatDateDE(property.estimatedValueAsOf)}${savedTotalBps !== 0 ? `, inkl. ${formatSignedBps(savedTotalBps)} eigene Korrektur` : ""}`
               : `aus ImmoAnalyse${savedTotalBps !== 0 ? `, inkl. ${formatSignedBps(savedTotalBps)} eigene Korrektur` : ""}`}
         </p>
         <p>
@@ -229,7 +229,7 @@ export function PropertyValuationCard({
             Letzte Schätzung:
           </span>{" "}
           {latestHistory
-            ? `${formatIsoDateDE(toBerlinDateKeyClient(latestHistory.valuedAt))} · ${formatCentsDE(applyValuationAdjustment(latestHistory.medianCents, latestHistory.adjustmentBps))}`
+            ? `${formatDateDE(toBerlinDateKeyClient(latestHistory.valuedAt))} · ${formatCentsDE(applyValuationAdjustment(latestHistory.medianCents, latestHistory.adjustmentBps))}`
             : "noch keine"}
           {property.lastAutoValuationOutcome
             ? ` (${AUTO_VALUATION_OUTCOME_LABELS[property.lastAutoValuationOutcome]})`
@@ -248,7 +248,7 @@ export function PropertyValuationCard({
           {quotaSnapshot
             ? `${quotaSnapshot.remaining} von ${quotaSnapshot.limit} frei${
                 quotaSnapshot.resetAt
-                  ? ` · Reset ${formatIsoDateDE(quotaSnapshot.resetAt.slice(0, 10))}`
+                  ? ` · Reset ${formatDateDE(quotaSnapshot.resetAt.slice(0, 10))}`
                   : ""
               }`
             : "unbekannt (noch keine Abfrage)"}

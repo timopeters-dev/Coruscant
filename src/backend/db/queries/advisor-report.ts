@@ -5,20 +5,12 @@ import { listContracts } from "./contracts";
 import { listProperties } from "./properties";
 import { loadPlanningBase } from "./planning-base";
 import { loadRecommendationState } from "./recommendation";
-import {
-  type AdvisorReport,
-  type AdvisorReportMode,
-  type AdvisorReportOutlineItem,
-  buildAdvisorReport,
-  buildAdvisorReportOutline,
-  parseAdvisorOneTimeAmount,
-} from "@/domain/report/report";
-import {
-  type AdvisorReportView,
-  assertAnonymizedViewClean,
-  buildAdvisorReportView,
-  collectSensitiveStrings,
-} from "@/domain/report/anonymize";
+import type { AdvisorReport, AdvisorReportMode, AdvisorReportOutlineItem } from "@/domain/report/types";
+import { buildAdvisorReport, parseAdvisorOneTimeAmount } from "@/domain/report/report";
+import { buildAdvisorReportOutline } from "@/domain/report/outline";
+import type { AdvisorReportView } from "@/domain/report/view-types";
+import { assertAnonymizedViewClean, collectSensitiveStrings } from "@/domain/report/pii-check";
+import { buildAdvisorReportView } from "@/domain/report/anonymize";
 import { getTodayIsoDate } from "@/domain/core/date";
 
 export interface LoadAdvisorReportOptions {

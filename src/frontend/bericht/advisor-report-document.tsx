@@ -1,10 +1,7 @@
 import type * as React from "react";
 import { PrintLineChart } from "./print-line-chart";
 import { Badge } from "@/frontend/ui/badge";
-import type {
-  AdvisorReportView,
-  AdvisorReportViewRecommendation,
-} from "@/domain/report/anonymize";
+import type { AdvisorReportView, AdvisorReportViewRecommendation } from "@/domain/report/view-types";
 import {
   formatDataQualityHintDE,
   formatLoanRateChangeLineDE,
