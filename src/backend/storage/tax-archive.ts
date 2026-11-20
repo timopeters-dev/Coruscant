@@ -1,4 +1,5 @@
 import { type Zippable, zipSync } from "fflate";
+import { ApiError } from "@/backend/errors";
 import {
   buildReadmeText,
   buildReceiptArchivePath,
@@ -10,12 +11,9 @@ import { getPdfFileSize, readPdfFile } from "./pdf-storage";
 
 export const MAX_TAX_EXPORT_BYTES = 250 * 1024 * 1024;
 
-export class TaxExportTooLargeError extends Error {
+export class TaxExportTooLargeError extends ApiError {
   constructor(maxBytes: number = MAX_TAX_EXPORT_BYTES) {
-    super(
-      `Die Belegmappe überschreitet das Limit von ${Math.floor(maxBytes / (1024 * 1024))} MB.`,
-    );
-    this.name = "TaxExportTooLargeError";
+    super(413, `Die Belegmappe überschreitet das Limit von ${Math.floor(maxBytes / (1024 * 1024))} MB.`);
   }
 }
 

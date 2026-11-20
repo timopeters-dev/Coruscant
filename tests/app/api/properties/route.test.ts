@@ -1,7 +1,8 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import { withTempDatabase } from "@tests/helpers/temp-db";
+import { apiRequest } from "@tests/helpers/http";
 import * as dbModule from "@/backend/db/connection";
 import {
   GET as listContracts,
@@ -21,41 +22,15 @@ import {
 } from "@/app/api/properties/[id]/route";
 import { GET as listProperties, POST as createProperty } from "@/app/api/properties/route";
 
-const tempDirs: string[] = [];
-const originalDbUrl = process.env.DATABASE_URL;
-const originalImagesDir = process.env.PROPERTY_IMAGES_DIR;
 
 const PNG_BYTES = Buffer.from([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x01, 0x02,
 ]);
 const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 
-beforeEach(() => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coruscant-properties-"));
-  tempDirs.push(dir);
-  process.env.DATABASE_URL = path.join(dir, "test.db");
-  process.env.PROPERTY_IMAGES_DIR = path.join(dir, "images");
-});
 
-afterEach(() => {
-  dbModule.closeDb();
-  if (originalDbUrl === undefined) {
-    delete process.env.DATABASE_URL;
-  } else {
-    process.env.DATABASE_URL = originalDbUrl;
-  }
-  if (originalImagesDir === undefined) {
-    delete process.env.PROPERTY_IMAGES_DIR;
-  } else {
-    process.env.PROPERTY_IMAGES_DIR = originalImagesDir;
-  }
-  while (tempDirs.length > 0) {
-    const dir = tempDirs.pop();
-    if (dir && fs.existsSync(dir)) {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  }
-});
+
+withTempDatabase({ dirs: { PROPERTY_IMAGES_DIR: "images" } });
 
 describe("/api/properties CRUD & integrity", () => {
   it("supports POST -> GET list -> GET [id] -> PATCH [id] -> DELETE [id]", async () => {
@@ -80,7 +55,7 @@ describe("/api/properties CRUD & integrity", () => {
     expect(createdBody.property.name).toBe("Immobilie #0 (Musterstraße 1)");
     expect(createdBody.property.estimatedValueCents).toBe(48000000);
 
-    const listRes = await listProperties();
+    const listRes = await listProperties(apiRequest("/api/properties"));
     expect(listRes.status).toBe(200);
     const listBody = (await listRes.json()) as {
       properties: Array<{ id: string }>;
@@ -180,7 +155,7 @@ describe("/api/properties CRUD & integrity", () => {
     });
     expect(delRes.status).toBe(200);
 
-    const contractsRes = await listContracts();
+    const contractsRes = await listContracts(apiRequest("/api/contracts"));
     const { contracts } = (await contractsRes.json()) as {
       contracts: Array<{ id: string; linkedPropertyId: string | null }>;
     };

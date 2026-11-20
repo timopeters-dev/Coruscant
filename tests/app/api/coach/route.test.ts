@@ -1,49 +1,33 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import * as dbModule from "@/backend/db/connection";
+import { describe, expect, it, vi } from "vitest";
+import { POST as assessmentPOST } from "@/app/api/coach/assessment/route";
+import { POST as chatPOST } from "@/app/api/coach/chat/route";
+import { POST as explainPOST } from "@/app/api/coach/explain/route";
+import { getDb } from "@/backend/db/connection";
 import { createPot } from "@/backend/db/queries/allocation";
 import { createContract } from "@/backend/db/queries/contracts";
-import { contractCreateSchema } from "@/validation/contracts";
 import { insertExternalSnapshot } from "@/backend/db/queries/external-snapshots";
-import { financialContracts, externalSnapshots, pots } from "@/backend/db/schema";
-import type {
-  CoachResult,
-  InvestmentCoach,
-} from "@/backend/integrations/investment-coach";
-import type { CoachAssessment, CoachChatReply } from "@/validation/coach";
-import type { RecommendationExplanation } from "@/validation/recommendation";
 import { loadRecommendationState } from "@/backend/db/queries/recommendation";
+import { externalSnapshots, financialContracts, pots } from "@/backend/db/schema";
+import { createDefaultInvestmentCoach } from "@/backend/integrations/gemini-investment-coach";
+import type { CoachResult, InvestmentCoach } from "@/backend/integrations/investment-coach";
 import { getTodayIsoDate } from "@/domain/core/date";
-import {
-  computeRecommendationFingerprint,
-  recommendUse,
-} from "@/domain/recommendation/recommendation";
-import {
-  createAssessmentHandler,
-  createChatHandler,
-  createExplainHandler,
-} from "@/app/api/coach/handlers";
+import { computeRecommendationFingerprint, recommendUse } from "@/domain/recommendation/recommendation";
+import type { CoachAssessment, CoachChatReply } from "@/validation/coach";
+import { contractCreateSchema } from "@/validation/contracts";
+import type { RecommendationExplanation } from "@/validation/recommendation";
+import { apiRequest } from "@tests/helpers/http";
+import { withTempDatabase } from "@tests/helpers/temp-db";
 
-const tempDirs: string[] = [];
-const originalDbUrl = process.env.DATABASE_URL;
+vi.mock("@/backend/integrations/gemini-investment-coach", () => ({ createDefaultInvestmentCoach: vi.fn() }));
 
-beforeEach(() => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coruscant-coach-"));
-  tempDirs.push(dir);
-  process.env.DATABASE_URL = path.join(dir, "test.db");
-});
+withTempDatabase();
 
-afterEach(() => {
-  dbModule.closeDb();
-  if (originalDbUrl === undefined) delete process.env.DATABASE_URL;
-  else process.env.DATABASE_URL = originalDbUrl;
-  while (tempDirs.length > 0) {
-    const dir = tempDirs.pop();
-    if (dir && fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
+/** Die Coach-Routen mit einem Fake-Coach; `devMode` steuert die Kontext-Ausgabe. */
+function coachRoute(coach: InvestmentCoach, devMode = true) {
+  vi.mocked(createDefaultInvestmentCoach).mockReturnValue(coach);
+  vi.stubEnv("CORUSCANT_DEV_MODE", String(devMode));
+  return { assessment: assessmentPOST, chat: chatPOST, explain: explainPOST };
+}
 
 const ASSESSMENT: CoachAssessment = {
   summary: "Ruhiger Überblick.",
@@ -191,16 +175,10 @@ function seed(options: { withPositions?: boolean } = {}) {
   });
 }
 
-function post(body: unknown): Request {
-  return new Request("http://localhost/api/coach", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-}
+const post = (body: unknown) => apiRequest("/api/coach", "POST", body);
 
 function snapshotOfTables() {
-  const db = dbModule.getDb();
+  const db = getDb();
   return JSON.stringify({
     pots: db.select().from(pots).all(),
     contracts: db.select().from(financialContracts).all(),
@@ -212,7 +190,7 @@ describe("POST /api/coach/assessment", () => {
   it("liefert 200 mit bereinigten Refs, Rebalancing-Plan und anonymem Kontext", async () => {
     seed();
     const { coach, assess } = fakeCoach();
-    const res = await createAssessmentHandler(() => coach)(
+    const res = await coachRoute(coach).assessment(
       post({ monthlySavingsRateCents: 50_000 }),
     );
     expect(res.status).toBe(200);
@@ -252,7 +230,7 @@ describe("POST /api/coach/assessment", () => {
         model: "m",
       }),
     });
-    const res = await createAssessmentHandler(() => coach)(post({}));
+    const res = await coachRoute(coach).assessment(post({}));
     const json = (await res.json()) as { rebalancingPlan: unknown };
     expect(res.status).toBe(200);
     expect(json.rebalancingPlan).toBeNull();
@@ -260,7 +238,7 @@ describe("POST /api/coach/assessment", () => {
 
   it("antwortet mit 422 ohne Snapshot oder ohne Positionen", async () => {
     const { coach, assess } = fakeCoach();
-    const handler = createAssessmentHandler(() => coach);
+    const handler = coachRoute(coach).assessment;
     const noSnapshot = await handler(post({}));
     expect(noSnapshot.status).toBe(422);
     expect(((await noSnapshot.json()) as { code: string }).code).toBe(
@@ -289,7 +267,7 @@ describe("POST /api/coach/assessment", () => {
       ],
     });
     const { coach, assess, chat } = fakeCoach();
-    const response = await createAssessmentHandler(() => coach)(post({}));
+    const response = await coachRoute(coach).assessment(post({}));
     expect(response.status).toBe(422);
     const json = (await response.json()) as { code: string; error: string };
     expect(json.code).toBe("coach_context_unavailable");
@@ -300,7 +278,7 @@ describe("POST /api/coach/assessment", () => {
 
   it("antwortet mit 400 bei ungültigem Body, unbekanntem Schlüssel und ungültigem JSON", async () => {
     seed();
-    const handler = createAssessmentHandler(() => fakeCoach().coach);
+    const handler = coachRoute(fakeCoach().coach).assessment;
     expect((await handler(post({ monthlySavingsRateCents: -5 }))).status).toBe(400);
     expect((await handler(post({ context: "{}" }))).status).toBe(400);
     expect(
@@ -323,7 +301,7 @@ describe("POST /api/coach/assessment", () => {
     const { coach } = fakeCoach({
       assess: async () => ({ ok: false, code, message: "KI-Fehler." }),
     });
-    const res = await createAssessmentHandler(() => coach)(post({}));
+    const res = await coachRoute(coach).assessment(post({}));
     expect(res.status).toBe(status);
     const text = JSON.stringify(await res.json());
     expect(text).not.toContain("Muster");
@@ -333,9 +311,9 @@ describe("POST /api/coach/assessment", () => {
   it("verändert keine Tabellen (pots, financial_contracts, external_snapshots)", async () => {
     seed();
     const before = snapshotOfTables();
-    const handler = createAssessmentHandler(() => fakeCoach().coach);
+    const handler = coachRoute(fakeCoach().coach).assessment;
     await handler(post({}));
-    await createChatHandler(() => fakeCoach().coach)(
+    await coachRoute(fakeCoach().coach).chat(
       post({ messages: [{ role: "user", text: "Hallo" }] }),
     );
     expect(snapshotOfTables()).toBe(before);
@@ -346,7 +324,7 @@ describe("POST /api/coach/chat", () => {
   it("liefert 200 mit Antwort", async () => {
     seed();
     const { coach, chat } = fakeCoach();
-    const res = await createChatHandler(() => coach)(
+    const res = await coachRoute(coach).chat(
       post({ messages: [{ role: "user", text: "Was ist ein ETF?" }] }),
     );
     expect(res.status).toBe(200);
@@ -363,7 +341,7 @@ describe("POST /api/coach/chat", () => {
   it("akzeptiert Verläufe mit Coach-Nachricht über 1.000 Zeichen (Roundtrip)", async () => {
     seed();
     const { coach, chat } = fakeCoach();
-    const res = await createChatHandler(() => coach)(
+    const res = await coachRoute(coach).chat(
       post({
         messages: [
           { role: "user", text: "Erste Frage" },
@@ -374,7 +352,7 @@ describe("POST /api/coach/chat", () => {
     );
     expect(res.status).toBe(200);
     expect(chat).toHaveBeenCalledTimes(1);
-    const tooLong = await createChatHandler(() => coach)(
+    const tooLong = await coachRoute(coach).chat(
       post({ messages: [{ role: "user", text: "a".repeat(1_001) }] }),
     );
     expect(tooLong.status).toBe(400);
@@ -382,7 +360,7 @@ describe("POST /api/coach/chat", () => {
 
   it("antwortet mit 400, wenn die letzte Rolle coach ist oder ein context mitgesendet wird", async () => {
     seed();
-    const handler = createChatHandler(() => fakeCoach().coach);
+    const handler = coachRoute(fakeCoach().coach).chat;
     expect(
       (
         await handler(
@@ -405,18 +383,15 @@ describe("POST /api/coach/chat", () => {
   });
 
   it("antwortet mit 422 ohne Positionen und mappt Coach-Fehler", async () => {
-    const handler = createChatHandler(() => fakeCoach().coach);
+    const handler = coachRoute(fakeCoach().coach).chat;
     expect(
       (await handler(post({ messages: [{ role: "user", text: "Hi" }] }))).status,
     ).toBe(422);
 
     seed();
-    const failing = createChatHandler(
-      () =>
-        fakeCoach({
+    const failing = coachRoute(fakeCoach({
           chat: async () => ({ ok: false, code: "timeout", message: "Zeit." }),
-        }).coach,
-    );
+        }).coach).chat;
     expect(
       (await failing(post({ messages: [{ role: "user", text: "Hi" }] }))).status,
     ).toBe(504);
@@ -428,37 +403,27 @@ describe("Dev-Gating & POST /api/coach/explain", () => {
     seed();
     const { coach, assess, explain } = fakeCoach();
 
-    const assessDev = await createAssessmentHandler(() => coach, {
-      getDevMode: () => true,
-    })(post({}));
+    const assessDev = await coachRoute(coach, true).assessment(post({}));
     const assessDevJson = (await assessDev.json()) as Record<string, unknown>;
     expect(assessDevJson.contextJson).toBe(
       (assess.mock.calls[0] as unknown as [string])[0],
     );
 
-    const assessProd = await createAssessmentHandler(() => coach, {
-      getDevMode: () => false,
-    })(post({}));
+    const assessProd = await coachRoute(coach, false).assessment(post({}));
     const assessProdJson = (await assessProd.json()) as Record<string, unknown>;
     expect("contextJson" in assessProdJson).toBe(false);
 
-    const chatProd = await createChatHandler(() => coach, {
-      getDevMode: () => false,
-    })(post({ messages: [{ role: "user", text: "Hi" }] }));
+    const chatProd = await coachRoute(coach, false).chat(post({ messages: [{ role: "user", text: "Hi" }] }));
     const chatProdJson = (await chatProd.json()) as Record<string, unknown>;
     expect("contextJson" in chatProdJson).toBe(false);
 
-    const explainDev = await createExplainHandler(() => coach, {
-      getDevMode: () => true,
-    })(post({ mode: "one_time", amountCents: 500_000 }));
+    const explainDev = await coachRoute(coach, true).explain(post({ mode: "one_time", amountCents: 500_000 }));
     const explainDevJson = (await explainDev.json()) as Record<string, unknown>;
     expect(explainDevJson.contextJson).toBe(
       (explain.mock.calls[0] as unknown as [string])[0],
     );
 
-    const explainProd = await createExplainHandler(() => coach, {
-      getDevMode: () => false,
-    })(post({ mode: "one_time", amountCents: 500_000 }));
+    const explainProd = await coachRoute(coach, false).explain(post({ mode: "one_time", amountCents: 500_000 }));
     const explainProdJson = (await explainProd.json()) as Record<string, unknown>;
     expect("contextJson" in explainProdJson).toBe(false);
   });
@@ -494,9 +459,7 @@ describe("Dev-Gating & POST /api/coach/explain", () => {
     });
 
     const { coach, explain } = fakeCoach();
-    const handler = createExplainHandler(() => coach, {
-      getDevMode: () => true,
-    });
+    const handler = coachRoute(coach, true).explain;
 
     // X = 0 -> 422 recommendation_empty
     const emptyRes = await handler(post({ mode: "one_time", amountCents: 0 }));
@@ -529,16 +492,13 @@ describe("Dev-Gating & POST /api/coach/explain", () => {
     expect(okJson.fingerprint).toBe(expectedFp);
 
     // not_configured -> 503
-    const unconfigured = createExplainHandler(
-      () =>
-        fakeCoach({
+    const unconfigured = coachRoute(fakeCoach({
           explain: async () => ({
             ok: false,
             code: "not_configured",
             message: "Kein Key",
           }),
-        }).coach,
-    );
+        }).coach).explain;
     expect(
       (await unconfigured(post({ mode: "one_time", amountCents: 500_000 })))
         .status,

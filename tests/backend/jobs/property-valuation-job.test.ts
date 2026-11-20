@@ -1,9 +1,7 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { eq } from "drizzle-orm";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import * as dbModule from "@/backend/db/connection";
+import { withTempDatabase } from "@tests/helpers/temp-db";
 import { properties } from "@/backend/db/schema";
 import {
   createProperty,
@@ -23,29 +21,10 @@ import type {
 } from "@/backend/integrations/property-valuator";
 import { runAutoValuationJob } from "@/backend/jobs/property-valuation-job";
 
-const tempDirs: string[] = [];
-const originalDbUrl = process.env.DATABASE_URL;
-
-beforeEach(() => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coruscant-val-job-"));
-  tempDirs.push(dir);
-  process.env.DATABASE_URL = path.join(dir, "test.db");
-});
+withTempDatabase();
 
 afterEach(() => {
   vi.useRealTimers();
-  dbModule.closeDb();
-  if (originalDbUrl === undefined) {
-    delete process.env.DATABASE_URL;
-  } else {
-    process.env.DATABASE_URL = originalDbUrl;
-  }
-  while (tempDirs.length > 0) {
-    const dir = tempDirs.pop();
-    if (dir && fs.existsSync(dir)) {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  }
 });
 
 function createTestProperty(

@@ -1,79 +1,41 @@
-import { NextResponse } from "next/server";
 import {
   createManualCashflowItem,
   getAllocationSettings,
   listManualCashflowItems,
 } from "@/backend/db/queries/allocation";
-import {
-  getLatestExternalSnapshot,
-  parseSnapshotHousehold,
-} from "@/backend/db/queries/cockpit";
+import { getLatestExternalSnapshot, parseSnapshotHousehold } from "@/backend/db/queries/cockpit";
 import { listContracts, listProperties } from "@/backend/db/queries/contracts";
-import {
-  internalErrorResponse,
-  parseJsonBody,
-  validationErrorResponse,
-} from "@/backend/http";
+import { json, readJson, route } from "@/backend/http";
+import { resolveHouseholdDataForWorkspace } from "@/backend/integrations/household-dummy";
 import {
   calculateConsolidatedCashflow,
   deriveContractCashflowItems,
   derivePropertyCashflowItems,
 } from "@/domain/allocation/cashflow";
-import { resolveHouseholdDataForWorkspace } from "@/backend/integrations/household-dummy";
 import { cashflowCreateSchema } from "@/validation/allocation";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(): Promise<NextResponse> {
-  try {
-    const items = listManualCashflowItems();
-    const contracts = listContracts();
-    const properties = listProperties();
-    const settings = getAllocationSettings();
-    const latestSnapshot = getLatestExternalSnapshot();
-    const snapshotHousehold = parseSnapshotHousehold(latestSnapshot);
-    const resolvedHousehold =
-      resolveHouseholdDataForWorkspace(snapshotHousehold);
+export const GET = route(() => {
+  const items = listManualCashflowItems();
+  const contracts = listContracts();
+  const settings = getAllocationSettings();
+  const { household } = resolveHouseholdDataForWorkspace(parseSnapshotHousehold(getLatestExternalSnapshot()));
+  const derivedContractItems = deriveContractCashflowItems(contracts);
+  const derivedPropertyItems = derivePropertyCashflowItems(listProperties(), contracts);
+  const summary = calculateConsolidatedCashflow({
+    household,
+    variableBasis: settings.variableBasis,
+    manualItems: items,
+    contractItems: derivedContractItems,
+    includeContractItems: settings.includeContractItems,
+    propertyItems: derivedPropertyItems,
+    includePropertyItems: settings.includePropertyItems,
+  });
+  return json({ items, derivedContractItems, derivedPropertyItems, summary });
+});
 
-    const derivedContractItems = deriveContractCashflowItems(contracts);
-    const derivedPropertyItems = derivePropertyCashflowItems(
-      properties,
-      contracts,
-    );
-    const summary = calculateConsolidatedCashflow({
-      household: resolvedHousehold.household,
-      variableBasis: settings.variableBasis,
-      manualItems: items,
-      contractItems: derivedContractItems,
-      includeContractItems: settings.includeContractItems,
-      propertyItems: derivedPropertyItems,
-      includePropertyItems: settings.includePropertyItems,
-    });
-
-    return NextResponse.json(
-      { items, derivedContractItems, derivedPropertyItems, summary },
-      { status: 200 },
-    );
-  } catch {
-    return internalErrorResponse();
-  }
-}
-
-export async function POST(request: Request): Promise<NextResponse> {
-  const body = await parseJsonBody(request);
-  if (!body.ok) {
-    return body.response;
-  }
-
-  const parsed = cashflowCreateSchema.safeParse(body.data);
-  if (!parsed.success) {
-    return validationErrorResponse(parsed.error);
-  }
-
-  try {
-    const item = createManualCashflowItem(parsed.data);
-    return NextResponse.json({ item }, { status: 201 });
-  } catch {
-    return internalErrorResponse();
-  }
-}
+export const POST = route(async (request) => {
+  const item = createManualCashflowItem(await readJson(request, cashflowCreateSchema));
+  return json({ item }, 201);
+});

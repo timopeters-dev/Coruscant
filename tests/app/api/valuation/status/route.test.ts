@@ -1,56 +1,22 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import * as dbModule from "@/backend/db/connection";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { GET } from "@/app/api/valuation/status/route";
 import { createProperty } from "@/backend/db/queries/contracts";
-import { createValuationStatusHandler } from "@/app/api/valuation/status/handlers";
+import { apiRequest } from "@tests/helpers/http";
+import { withTempDatabase } from "@tests/helpers/temp-db";
 
-const tempDirs: string[] = [];
-const originalDbUrl = process.env.DATABASE_URL;
-
-beforeEach(() => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coruscant-val-status-"));
-  tempDirs.push(dir);
-  process.env.DATABASE_URL = path.join(dir, "test.db");
-});
-
-afterEach(() => {
-  dbModule.closeDb();
-  if (originalDbUrl === undefined) {
-    delete process.env.DATABASE_URL;
-  } else {
-    process.env.DATABASE_URL = originalDbUrl;
-  }
-  while (tempDirs.length > 0) {
-    const dir = tempDirs.pop();
-    if (dir && fs.existsSync(dir)) {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  }
-});
+withTempDatabase();
+afterEach(() => vi.useRealTimers());
 
 describe("GET /api/valuation/status", () => {
   it("reports configured: false without key, never leaks key, and aggregates plannedConsumption", async () => {
-    createProperty({
-      name: "Objekt 1",
-      usage: "owner_occupied",
-      estimatedValueCents: 30_000_000,
-      autoValuationInterval: "weekly",
-    });
-    createProperty({
-      name: "Objekt 2",
-      usage: "owner_occupied",
-      estimatedValueCents: 20_000_000,
-      autoValuationInterval: "weekly",
-    });
+    for (const name of ["Objekt 1", "Objekt 2"]) {
+      createProperty({ name, usage: "owner_occupied", estimatedValueCents: 30_000_000, autoValuationInterval: "weekly" });
+    }
+    vi.useFakeTimers({ now: new Date("2026-11-18T02:00:00Z"), toFake: ["Date"] });
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("IMMOANALYSE_API_KEY", "");
 
-    const GET = createValuationStatusHandler({
-      nowFn: () => new Date("2026-11-18T02:00:00Z"),
-      env: { NODE_ENV: "development", IMMOANALYSE_API_KEY: "" },
-    });
-
-    const res = await GET();
+    const res = await GET(apiRequest("/api/valuation/status"));
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       configured: boolean;

@@ -2,6 +2,12 @@ import crypto from "node:crypto";
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, ne, or } from "drizzle-orm";
 import { getDb } from "@/backend/db/connection";
 import {
+  ApiError,
+  FieldValidationError,
+  LinkedContractNotFoundError,
+  LinkedPropertyNotFoundError,
+} from "@/backend/errors";
+import {
   appMeta,
   type ExternalSnapshotRow,
   cashflowItems,
@@ -36,7 +42,9 @@ import {
   type PotCreateInput,
   potCreateSchema,
   type PotUpdateInput,
+  validatePotTargetDateWindow,
 } from "@/validation/allocation";
+import { getTodayIsoDate } from "@/domain/core/date";
 
 export type CashflowItemRow = typeof cashflowItems.$inferSelect;
 export type PotRow = typeof pots.$inferSelect;
@@ -51,89 +59,76 @@ export interface RecentPotAllocationRow {
   allocatedAt: string;
 }
 
-export class NonManualCashflowItemError extends Error {
-  constructor(id: string) {
-    super(`Cashflow item is not manual: ${id}`);
-    this.name = "NonManualCashflowItemError";
+export class NonManualCashflowItemError extends ApiError {
+  constructor(action: "bearbeitet" | "gelöscht") {
+    super(400, `Nur manuelle Cashflow-Positionen können ${action} werden.`);
   }
 }
 
-export class LinkedPropertyNotFoundError extends Error {
-  constructor(propertyId: string) {
-    super(`Linked property not found: ${propertyId}`);
-    this.name = "LinkedPropertyNotFoundError";
-  }
-}
-
-export class LinkedContractNotFoundError extends Error {
-  constructor(contractId: string) {
-    super(`Linked contract not found: ${contractId}`);
-    this.name = "LinkedContractNotFoundError";
-  }
-}
-
-export class RemainderPercentageExceededError extends Error {
-  readonly availablePercentage: number;
-
-  constructor(availablePercentage: number) {
+export class RemainderPercentageExceededError extends FieldValidationError {
+  constructor(readonly availablePercentage: number) {
     super(
-      `Sum of remainderPercentage exceeds 100% (available: ${availablePercentage}%)`,
+      `Die Summe aller Rest-Prozentsätze darf 100 % nicht überschreiten (noch verfügbar: ${availablePercentage} %).`,
+      { remainderPercentage: `Maximal noch ${availablePercentage} % verfügbar.` },
     );
-    this.name = "RemainderPercentageExceededError";
-    this.availablePercentage = availablePercentage;
   }
 }
 
-export class InvalidPotOrderError extends Error {
+export class InvalidPotOrderError extends FieldValidationError {
   constructor(message = "Ungültige Topf-Reihenfolge.") {
-    super(message);
-    this.name = "InvalidPotOrderError";
+    super(message, "orderedPotIds");
   }
 }
 
-export class PotNotFoundError extends Error {
-  readonly potId: string;
-
-  constructor(potId: string) {
-    super(`Pot not found: ${potId}`);
-    this.name = "PotNotFoundError";
-    this.potId = potId;
-  }
-}
-
-export class PotLinkedBalanceReadOnlyError extends Error {
+export class PotNotFoundError extends FieldValidationError {
   constructor() {
-    super("Der Stand eines gekoppelten Topfs wird per Sync übernommen.");
-    this.name = "PotLinkedBalanceReadOnlyError";
+    super("Mindestens ein ausgewählter Topf existiert nicht.", { allocations: "Unbekannter Topf in der Verteilung." });
   }
 }
 
-export class PotExternalLinkConflictError extends Error {
+export class PotLinkedBalanceReadOnlyError extends FieldValidationError {
   constructor() {
-    super("Dieses Konto bzw. diese Position ist bereits mit einem Topf gekoppelt.");
-    this.name = "PotExternalLinkConflictError";
+    super("Der Stand eines gekoppelten Topfs wird per Sync übernommen.", {
+      currentCents: "Wird beim Abgleich aus Bespin übernommen.",
+    });
   }
 }
 
-export class PotExternalLinkTargetNotFoundError extends Error {
+export class PotExternalLinkConflictError extends ApiError {
   constructor() {
-    super("Das Kopplungsziel ist im letzten Stand aus Bespin nicht enthalten.");
-    this.name = "PotExternalLinkTargetNotFoundError";
+    super(409, "Dieses Konto bzw. diese Position ist bereits gekoppelt.", {
+      fieldErrors: { externalLink: "Bereits mit einem anderen Topf gekoppelt." },
+    });
   }
 }
 
-export class PotExternalLinkOutOfScopeError extends Error {
+export class PotExternalLinkTargetNotFoundError extends FieldValidationError {
   constructor() {
-    super("Nur Haushalts-Konten und -Positionen können gekoppelt werden.");
-    this.name = "PotExternalLinkOutOfScopeError";
+    super("Das Kopplungsziel ist im letzten Stand aus Bespin nicht enthalten.", {
+      externalLink: "Ziel nicht im letzten Snapshot gefunden.",
+    });
   }
 }
 
-export class AllocationValidationError extends Error {
+export class PotExternalLinkOutOfScopeError extends FieldValidationError {
+  constructor() {
+    super("Nur Haushalts-Konten und -Positionen können gekoppelt werden.", {
+      externalLink: "Nur Haushalts-Konten können gekoppelt werden.",
+    });
+  }
+}
+
+export class AllocationValidationError extends FieldValidationError {
   constructor(message: string) {
-    super(message);
-    this.name = "AllocationValidationError";
+    super(message, "allocations");
   }
+}
+
+/** Neue bzw. geänderte Zieldaten müssen im erlaubten Fenster ab heute liegen. */
+export function assertPotTargetDateInWindow(targetDate: string | null | undefined): void {
+  if (!targetDate) return;
+  const message = validatePotTargetDateWindow(targetDate, getTodayIsoDate());
+  if (message !== null) throw new FieldValidationError(message, "targetDate");
 }
 
 // --- Cashflow Items (Manual) ---
@@ -198,7 +193,7 @@ export function updateManualCashflowItem(
     return null;
   }
   if (existing.source !== "manual") {
-    throw new NonManualCashflowItemError(id);
+    throw new NonManualCashflowItemError("bearbeitet");
   }
 
   const db = getDb();
@@ -226,7 +221,7 @@ export function deleteManualCashflowItem(id: string): string | null {
     return null;
   }
   if (existing.source !== "manual") {
-    throw new NonManualCashflowItemError(id);
+    throw new NonManualCashflowItemError("gelöscht");
   }
 
   const db = getDb();
@@ -256,7 +251,7 @@ function assertLinksExist(
       .where(eq(properties.id, linkedPropertyId))
       .get();
     if (!property) {
-      throw new LinkedPropertyNotFoundError(linkedPropertyId);
+      throw new LinkedPropertyNotFoundError();
     }
   }
 
@@ -267,7 +262,7 @@ function assertLinksExist(
       .where(eq(financialContracts.id, linkedContractId))
       .get();
     if (!contract) {
-      throw new LinkedContractNotFoundError(linkedContractId);
+      throw new LinkedContractNotFoundError();
     }
   }
 }
@@ -739,7 +734,7 @@ export function executeWaterfallAllocation(
     let totalBigInt = 0n;
     for (const entry of input.allocations) {
       if (!potById.has(entry.potId)) {
-        throw new PotNotFoundError(entry.potId);
+        throw new PotNotFoundError();
       }
       totalBigInt += BigInt(entry.amountCents);
     }
@@ -775,7 +770,7 @@ export function executeWaterfallAllocation(
 
       const existing = potById.get(entry.potId);
       if (!existing) {
-        throw new PotNotFoundError(entry.potId);
+        throw new PotNotFoundError();
       }
 
       const nextCents = existing.currentCents + entry.amountCents;

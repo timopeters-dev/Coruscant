@@ -1,7 +1,6 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { withTempDatabase } from "@tests/helpers/temp-db";
+import { apiRequest } from "@tests/helpers/http";
 import * as dbModule from "@/backend/db/connection";
 import { createPot, getPotById, listPots } from "@/backend/db/queries/allocation";
 import { listBalanceSnapshots } from "@/backend/db/queries/balance-history";
@@ -21,9 +20,6 @@ import * as bridgeClient from "@/backend/integrations/finanz-cockpit-client";
 import * as balanceSnapshotJob from "@/backend/jobs/balance-snapshot-job";
 import { POST as syncExternal } from "@/app/api/external/sync/route";
 
-const tempDirs: string[] = [];
-const originalDbUrl = process.env.DATABASE_URL;
-const originalSyncInterval = process.env.FINANZ_COCKPIT_SYNC_INTERVAL_MINUTES;
 
 function createSyncRequest(body: unknown): Request {
   return new Request("http://localhost/api/external/sync", {
@@ -33,33 +29,15 @@ function createSyncRequest(body: unknown): Request {
   });
 }
 
+
+
+withTempDatabase();
+
 beforeEach(() => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coruscant-sync-"));
-  tempDirs.push(dir);
-  process.env.DATABASE_URL = path.join(dir, "test.db");
-  delete process.env.FINANZ_COCKPIT_SYNC_INTERVAL_MINUTES;
+  vi.stubEnv("FINANZ_COCKPIT_SYNC_INTERVAL_MINUTES", undefined);
 });
 
-afterEach(() => {
-  vi.restoreAllMocks();
-  dbModule.closeDb();
-  if (originalDbUrl === undefined) {
-    delete process.env.DATABASE_URL;
-  } else {
-    process.env.DATABASE_URL = originalDbUrl;
-  }
-  if (originalSyncInterval === undefined) {
-    delete process.env.FINANZ_COCKPIT_SYNC_INTERVAL_MINUTES;
-  } else {
-    process.env.FINANZ_COCKPIT_SYNC_INTERVAL_MINUTES = originalSyncInterval;
-  }
-  while (tempDirs.length > 0) {
-    const dir = tempDirs.pop();
-    if (dir && fs.existsSync(dir)) {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  }
-});
+afterEach(() => vi.restoreAllMocks());
 
 describe("POST /api/external/sync", () => {
   it("persists a new snapshot in external_snapshots on successful sync", async () => {
@@ -75,7 +53,7 @@ describe("POST /api/external/sync", () => {
       },
     });
 
-    const response = await syncExternal();
+    const response = await syncExternal(apiRequest("/api/external/sync"));
     expect(response.status).toBe(200);
 
     const body = await response.json();
@@ -109,7 +87,7 @@ describe("POST /api/external/sync", () => {
       message: "finanz_cockpit ist aktuell nicht erreichbar.",
     });
 
-    const response = await syncExternal();
+    const response = await syncExternal(apiRequest("/api/external/sync"));
     expect(response.status).toBe(502);
 
     const body = await response.json();
@@ -129,7 +107,7 @@ describe("POST /api/external/sync", () => {
         "FINANZ_COCKPIT_URL oder EXTERNAL_SUMMARY_TOKEN ist nicht konfiguriert.",
     });
 
-    const response = await syncExternal();
+    const response = await syncExternal(apiRequest("/api/external/sync"));
     expect(response.status).toBe(503);
 
     const body = await response.json();
@@ -154,7 +132,7 @@ describe("POST /api/external/sync", () => {
       message: "FINANZ_COCKPIT_URL ist keine gültige HTTP(S)-URL.",
     });
 
-    const response = await syncExternal();
+    const response = await syncExternal(apiRequest("/api/external/sync"));
     expect(response.status).toBe(503);
 
     const body = await response.json();
@@ -182,7 +160,7 @@ describe("POST /api/external/sync", () => {
       throw new Error("SQLITE_BUSY");
     });
 
-    const response = await syncExternal();
+    const response = await syncExternal(apiRequest("/api/external/sync"));
     expect(response.status).toBe(500);
     const body = await response.json();
     expect(body).toHaveProperty("error");
@@ -441,7 +419,7 @@ describe("POST /api/external/sync", () => {
         positions: [],
       });
 
-      const response = await syncExternal();
+      const response = await syncExternal(apiRequest("/api/external/sync"));
       const body = await response.json();
       expect(body.status).toBe("synced");
       expect(body.potSync).toEqual({ updated: 1, unchanged: 1, missing: [linkedGone.id], conflicts: [], outOfScope: [], clamped: [] });
@@ -467,12 +445,12 @@ describe("POST /api/external/sync", () => {
     it("keeps stand and syncedAt of a pot whose target vanished in a later snapshot", async () => {
       const pot = makePot("Konto", { kind: "account", ref: "acc-1" });
       mockSummary("2026-11-17T09:00:00.000Z", { accounts: [account("acc-1", "household", 5_000)], positions: [] });
-      await syncExternal();
+      await syncExternal(apiRequest("/api/external/sync"));
       expect(getPotById(pot.id)?.currentCents).toBe(5_000);
 
       vi.restoreAllMocks();
       mockSummary("2026-11-17T10:00:00.000Z", { accounts: [], positions: [] });
-      const body = await (await syncExternal()).json();
+      const body = await (await syncExternal(apiRequest("/api/external/sync"))).json();
       expect(body.potSync.missing).toEqual([pot.id]);
       expect(getPotById(pot.id)).toMatchObject({
         currentCents: 5_000,
@@ -490,7 +468,7 @@ describe("POST /api/external/sync", () => {
         positions: [],
       });
 
-      const body = await (await syncExternal()).json();
+      const body = await (await syncExternal(apiRequest("/api/external/sync"))).json();
       expect(body.potSync).toEqual({ updated: 1, unchanged: 0, missing: [], conflicts: [], outOfScope: [pr.id], clamped: [] });
       expect(getPotById(hh.id)).toMatchObject({ currentCents: 20_000, externalLinkScope: "household" });
       expect(getPotById(pr.id)).toMatchObject({
@@ -503,7 +481,7 @@ describe("POST /api/external/sync", () => {
     it("tolerates an older payload without accounts/positions", async () => {
       const pot = makePot("Konto", { kind: "account", ref: "acc-1" }, 3_000);
       mockSummary("2026-11-17T09:00:00.000Z");
-      const response = await syncExternal();
+      const response = await syncExternal(apiRequest("/api/external/sync"));
       expect(response.status).toBe(200);
       const body = await response.json();
       expect(body.potSync).toEqual({ updated: 0, unchanged: 0, missing: [pot.id], conflicts: [], outOfScope: [], clamped: [] });
@@ -521,7 +499,7 @@ describe("POST /api/external/sync", () => {
           code,
           message: "nicht erreichbar",
         });
-        const response = await syncExternal();
+        const response = await syncExternal(apiRequest("/api/external/sync"));
         expect([502, 503]).toContain(response.status);
         expect((await response.json()).potSync).toBeUndefined();
         expect(getPotById(pot.id)).toEqual(before);
@@ -553,13 +531,13 @@ describe("POST /api/external/sync", () => {
     it("reports clamped (overdrawn) linked pots in the potSync response", async () => {
       const pot = makePot("Dispo", { kind: "account", ref: "acc-1" }, 500);
       mockSummary("2026-11-17T09:00:00.000Z", { accounts: [account("acc-1", "household", -2_000)], positions: [] });
-      const body = await (await syncExternal()).json();
+      const body = await (await syncExternal(apiRequest("/api/external/sync"))).json();
       expect(body.potSync.clamped).toEqual([pot.id]);
       expect(getPotById(pot.id)?.currentCents).toBe(0);
 
       vi.restoreAllMocks();
       mockSummary("2026-11-17T10:00:00.000Z", { accounts: [account("acc-1", "household", -5)], positions: [] });
-      const again = await (await syncExternal()).json();
+      const again = await (await syncExternal(apiRequest("/api/external/sync"))).json();
       expect(again.potSync).toMatchObject({ unchanged: 1, clamped: [pot.id] });
     });
 
@@ -571,7 +549,7 @@ describe("POST /api/external/sync", () => {
         .run(sql`UPDATE pots SET current_cents = 10.5 WHERE id = ${pot.id}`);
       mockSummary("2026-11-17T09:00:00.000Z", { accounts: [account("acc-1", "household", 5_000)], positions: [] });
 
-      const response = await syncExternal();
+      const response = await syncExternal(apiRequest("/api/external/sync"));
       expect(response.status).toBe(500);
       expect(getLatestExternalSnapshot()).toBeNull();
       expect(getPotById(pot.id)?.externalSyncedAt).toBeNull();
@@ -590,7 +568,7 @@ describe("POST /api/external/sync", () => {
         accounts: [account("acc-depot", "household", 100, 4_000), account("acc-giro", "household", 700), account("acc-other", "household", 0)],
         positions: [position("acc-other")],
       });
-      const first = await (await syncExternal()).json();
+      const first = await (await syncExternal(apiRequest("/api/external/sync"))).json();
       expect(first.potSync.conflicts).toEqual([]);
       expect(getPotById(positionPot.id)?.currentCents).toBe(4_000);
 
@@ -600,7 +578,7 @@ describe("POST /api/external/sync", () => {
         accounts: [account("acc-depot", "household", 200, 4_000), account("acc-giro", "household", 900), account("acc-other", "household", 0)],
         positions: [position("acc-depot")],
       });
-      const response = await syncExternal();
+      const response = await syncExternal(apiRequest("/api/external/sync"));
       expect(response.status).toBe(200);
       const body = await response.json();
       expect(body.potSync.conflicts).toEqual([positionPot.id]);
@@ -620,7 +598,7 @@ describe("POST /api/external/sync", () => {
         ],
         positions: [],
       });
-      await syncExternal();
+      await syncExternal(apiRequest("/api/external/sync"));
       expect(getPotById(dated.id)?.externalSyncedAt).toBe("2026-11-17T06:00:00.000Z");
       expect(getPotById(undated.id)?.externalSyncedAt).toBe("2026-11-17T09:00:00.000Z");
     });
@@ -630,7 +608,7 @@ describe("POST /api/external/sync", () => {
         accounts: [account("acc-1", "household", 100)],
         positions: [],
       });
-      await syncExternal();
+      await syncExternal(apiRequest("/api/external/sync"));
       const latest = getLatestExternalSnapshot();
       expect(parseSnapshotAccounts(latest)).toHaveLength(1);
       expect(parseSnapshotPositions(latest)).toEqual([]);

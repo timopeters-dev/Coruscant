@@ -1,7 +1,6 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { withTempDatabase } from "@tests/helpers/temp-db";
+import { apiRequest } from "@tests/helpers/http";
 import * as dbModule from "@/backend/db/connection";
 import { cashflowItems, externalSnapshots } from "@/backend/db/schema";
 import { PATCH as patchAllocationSettings } from "@/app/api/allocation/settings/route";
@@ -14,35 +13,10 @@ import {
 } from "@/app/api/cashflow-items/[id]/route";
 import { GET as listCashflowItems, POST as createCashflowItem } from "@/app/api/cashflow-items/route";
 
-const tempDirs: string[] = [];
-const originalDbUrl = process.env.DATABASE_URL;
-const originalHouseholdDummy = process.env.CORUSCANT_HOUSEHOLD_DUMMY;
+withTempDatabase();
 
 beforeEach(() => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coruscant-cashflow-"));
-  tempDirs.push(dir);
-  process.env.DATABASE_URL = path.join(dir, "test.db");
-  process.env.CORUSCANT_HOUSEHOLD_DUMMY = "false";
-});
-
-afterEach(() => {
-  dbModule.closeDb();
-  if (originalDbUrl === undefined) {
-    delete process.env.DATABASE_URL;
-  } else {
-    process.env.DATABASE_URL = originalDbUrl;
-  }
-  if (originalHouseholdDummy === undefined) {
-    delete process.env.CORUSCANT_HOUSEHOLD_DUMMY;
-  } else {
-    process.env.CORUSCANT_HOUSEHOLD_DUMMY = originalHouseholdDummy;
-  }
-  while (tempDirs.length > 0) {
-    const dir = tempDirs.pop();
-    if (dir && fs.existsSync(dir)) {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  }
+  vi.stubEnv("CORUSCANT_HOUSEHOLD_DUMMY", "false");
 });
 
 describe("/api/cashflow-items CRUD & live contract derivation", () => {
@@ -124,7 +98,7 @@ describe("/api/cashflow-items CRUD & live contract derivation", () => {
     expect(personalContractRes.status).toBe(201);
 
     // 3. GET /api/cashflow-items derives only active contracts
-    const listRes1 = await listCashflowItems();
+    const listRes1 = await listCashflowItems(apiRequest("/api/cashflow-items"));
     expect(listRes1.status).toBe(200);
     const listBody1 = (await listRes1.json()) as {
       items: Array<{ id: string }>;
@@ -163,7 +137,7 @@ describe("/api/cashflow-items CRUD & live contract derivation", () => {
     );
     expect(enableContractsRes.status).toBe(200);
 
-    const listResWithContracts = await listCashflowItems();
+    const listResWithContracts = await listCashflowItems(apiRequest("/api/cashflow-items"));
     const listBodyWithContracts = (await listResWithContracts.json()) as {
       summary: {
         totalOutflowCents: number;
@@ -186,7 +160,7 @@ describe("/api/cashflow-items CRUD & live contract derivation", () => {
     );
     expect(pauseRes.status).toBe(200);
 
-    const listRes2 = await listCashflowItems();
+    const listRes2 = await listCashflowItems(apiRequest("/api/cashflow-items"));
     const listBody2 = (await listRes2.json()) as {
       derivedContractItems: unknown[];
       summary: { monthlySurplusCents: number };
@@ -205,7 +179,7 @@ describe("/api/cashflow-items CRUD & live contract derivation", () => {
     );
     expect(patchRes.status).toBe(200);
 
-    const listResAfterDeactivate = await listCashflowItems();
+    const listResAfterDeactivate = await listCashflowItems(apiRequest("/api/cashflow-items"));
     const listBodyAfterDeactivate = (await listResAfterDeactivate.json()) as {
       summary: { totalOutflowCents: number; monthlySurplusCents: number };
     };
@@ -277,7 +251,7 @@ describe("/api/cashflow-items CRUD & live contract derivation", () => {
       }),
     );
 
-    const resNoContract = await listCashflowItems();
+    const resNoContract = await listCashflowItems(apiRequest("/api/cashflow-items"));
     expect(resNoContract.status).toBe(200);
     const bodyNoContract = (await resNoContract.json()) as {
       summary: {
@@ -308,7 +282,7 @@ describe("/api/cashflow-items CRUD & live contract derivation", () => {
       }),
     );
 
-    const resWithContract = await listCashflowItems();
+    const resWithContract = await listCashflowItems(apiRequest("/api/cashflow-items"));
     const bodyWithContract = (await resWithContract.json()) as {
       summary: {
         contractOutflowCents: number;
@@ -412,7 +386,7 @@ describe("/api/cashflow-items CRUD & live contract derivation", () => {
       })
       .run();
 
-    const getRes = await listCashflowItems();
+    const getRes = await listCashflowItems(apiRequest("/api/cashflow-items"));
     expect(getRes.status).toBe(200);
     const getBody = (await getRes.json()) as {
       derivedPropertyItems: { id: string; source: string }[];

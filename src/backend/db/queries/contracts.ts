@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { asc, desc, eq } from "drizzle-orm";
 import { getDb } from "@/backend/db/connection";
+import { FieldValidationError, LinkedPropertyNotFoundError, type FieldErrors } from "@/backend/errors";
 import {
   financialContracts,
   pots,
@@ -40,39 +41,19 @@ export function toContractRow(row: StoredContractRow): FinancialContractRow {
   return rest;
 }
 
-export class LinkedPropertyNotFoundError extends Error {
-  constructor(propertyId: string) {
-    super(`Linked property not found: ${propertyId}`);
-    this.name = "LinkedPropertyNotFoundError";
+export class RentalProfileValidationError extends FieldValidationError {
+  constructor(fieldErrors: FieldErrors) {
+    super("Mietprofil-Validierung fehlgeschlagen.", fieldErrors);
   }
 }
 
-export class RentalProfileValidationError extends Error {
-  readonly fieldErrors: Record<string, string>;
-  constructor(fieldErrors: Record<string, string>) {
-    super("Mietprofil-Validierung fehlgeschlagen.");
-    this.name = "RentalProfileValidationError";
-    this.fieldErrors = fieldErrors;
-  }
-}
-
-export class MaintenancePotValidationError extends Error {
-  readonly fieldErrors: Record<string, string>;
+export class MaintenancePotValidationError extends FieldValidationError {
   constructor(message: string) {
-    super(message);
-    this.name = "MaintenancePotValidationError";
-    this.fieldErrors = { maintenanceReservePotId: message };
+    super(message, "maintenanceReservePotId");
   }
 }
 
-export class PropertyValidationError extends Error {
-  readonly fieldErrors: Record<string, string>;
-  constructor(message: string, fieldErrors: Record<string, string>) {
-    super(message);
-    this.name = "PropertyValidationError";
-    this.fieldErrors = fieldErrors;
-  }
-}
+export class PropertyValidationError extends FieldValidationError {}
 
 export function assertMaintenancePotAssignable(
   potId: string,
@@ -534,7 +515,7 @@ function assertLinkedPropertyExists(linkedPropertyId: string | null): void {
   }
   const property = getPropertyById(linkedPropertyId);
   if (!property) {
-    throw new LinkedPropertyNotFoundError(linkedPropertyId);
+    throw new LinkedPropertyNotFoundError();
   }
 }
 

@@ -6,12 +6,12 @@ import {
   deletePropertyImageIfExists,
   InvalidPropertyImageError,
   MAX_PROPERTY_IMAGE_BYTES,
-  PropertyImagePathTraversalError,
   PropertyImageTooLargeError,
   readPropertyImageFile,
   resolveSafePropertyImagePath,
   savePropertyImageFile,
 } from "@/backend/storage/property-image-storage";
+import { PathTraversalError } from "@/backend/storage/file-store";
 
 const JPEG_HEADER = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
 const PNG_HEADER = Buffer.from([
@@ -102,10 +102,10 @@ describe("property-image-storage", () => {
 
     for (const badPath of badPaths) {
       expect(() => resolveSafePropertyImagePath(badPath, tempDir)).toThrow(
-        PropertyImagePathTraversalError,
+        PathTraversalError,
       );
       expect(() => readPropertyImageFile(badPath, tempDir)).toThrow(
-        PropertyImagePathTraversalError,
+        PathTraversalError,
       );
     }
   });

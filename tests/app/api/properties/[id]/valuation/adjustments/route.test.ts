@@ -1,48 +1,30 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import * as dbModule from "@/backend/db/connection";
+import {
+  adjustmentsRoute,
+  adoptRoute,
+  estimateRoute,
+  historyRoute,
+} from "@tests/helpers/valuation-routes";
+import { withTempDatabase } from "@tests/helpers/temp-db";
 import { createProperty, getPropertyById } from "@/backend/db/queries/contracts";
 import { listValuationHistory } from "@/backend/db/queries/property-valuations";
 import { PATCH as patchProperty } from "@/app/api/properties/[id]/route";
-import { createValuationAdoptHandler } from "@/app/api/properties/[id]/valuation/adopt/handlers";
-import { createValuationEstimateHandler } from "@/app/api/properties/[id]/valuation/handlers";
-import { createValuationHistoryHandler } from "@/app/api/properties/[id]/valuation/history/handlers";
-import { createValuationAdjustmentsHandler } from "@/app/api/properties/[id]/valuation/adjustments/handlers";
-
-const tempDirs: string[] = [];
-const originalDbUrl = process.env.DATABASE_URL;
-const originalApiKey = process.env.IMMOANALYSE_API_KEY;
 
 const FIXED_NOW_1 = () => new Date("2026-11-18T18:00:00Z");
 const FIXED_NOW_2 = () => new Date("2026-11-18T19:00:00Z");
 
-beforeEach(() => {
-  const dir = fs.mkdtempSync(
-    path.join(os.tmpdir(), "coruscant-val-adjustments-route-"),
-  );
-  tempDirs.push(dir);
-  process.env.DATABASE_URL = path.join(dir, "test.db");
-  delete process.env.IMMOANALYSE_API_KEY;
+vi.mock("@/backend/integrations/property-valuator", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/backend/integrations/property-valuator")>();
+  return { ...actual, createDefaultPropertyValuator: vi.fn(actual.createDefaultPropertyValuator) };
 });
 
+withTempDatabase();
+
+beforeEach(() => vi.stubEnv("IMMOANALYSE_API_KEY", ""));
+
 afterEach(() => {
-  dbModule.closeDb();
-  if (originalDbUrl === undefined) {
-    delete process.env.DATABASE_URL;
-  } else {
-    process.env.DATABASE_URL = originalDbUrl;
-  }
-  if (originalApiKey === undefined) {
-    delete process.env.IMMOANALYSE_API_KEY;
-  } else {
-    process.env.IMMOANALYSE_API_KEY = originalApiKey;
-  }
+  vi.useRealTimers();
   vi.restoreAllMocks();
-  for (const dir of tempDirs.splice(0, tempDirs.length)) {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
 });
 
 function createSampleProperty(
@@ -61,8 +43,7 @@ function createSampleProperty(
 }
 
 function makeEstimateHandler(nowFn = FIXED_NOW_1) {
-  return createValuationEstimateHandler(
-    () => ({
+  return estimateRoute(() => ({
       estimate: async () => ({
         ok: true,
         provider: "immoanalyse",
@@ -82,9 +63,7 @@ function makeEstimateHandler(nowFn = FIXED_NOW_1) {
         },
         quota: null,
       }),
-    }),
-    nowFn,
-  );
+    }), nowFn);
 }
 
 describe("PUT /api/properties/[id]/valuation/adjustments", () => {
@@ -92,8 +71,8 @@ describe("PUT /api/properties/[id]/valuation/adjustments", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     const prop = createSampleProperty();
     const ESTIMATE = makeEstimateHandler(FIXED_NOW_1);
-    const ADOPT = createValuationAdoptHandler(FIXED_NOW_1);
-    const PUT_ADJ = createValuationAdjustmentsHandler(FIXED_NOW_2);
+    const ADOPT = adoptRoute(FIXED_NOW_1);
+    const PUT_ADJ = adjustmentsRoute(FIXED_NOW_2);
 
     const estRes = await ESTIMATE(
       new Request("http://localhost", { method: "POST", body: "{}" }),
@@ -180,8 +159,8 @@ describe("PUT /api/properties/[id]/valuation/adjustments", () => {
   it("recomputes on upperCents when appliedChoice was upper", async () => {
     const prop = createSampleProperty();
     const ESTIMATE = makeEstimateHandler(FIXED_NOW_1);
-    const ADOPT = createValuationAdoptHandler(FIXED_NOW_1);
-    const PUT_ADJ = createValuationAdjustmentsHandler(FIXED_NOW_2);
+    const ADOPT = adoptRoute(FIXED_NOW_1);
+    const PUT_ADJ = adjustmentsRoute(FIXED_NOW_2);
 
     const estRes = await ESTIMATE(
       new Request("http://localhost", { method: "POST", body: "{}" }),
@@ -218,7 +197,7 @@ describe("PUT /api/properties/[id]/valuation/adjustments", () => {
 
   it("saves adjustments without recompute when source is manual", async () => {
     const prop = createSampleProperty({ estimatedValueCents: 49_000_000 });
-    const PUT_ADJ = createValuationAdjustmentsHandler(FIXED_NOW_1);
+    const PUT_ADJ = adjustmentsRoute(FIXED_NOW_1);
 
     const putRes = await PUT_ADJ(
       new Request("http://localhost", {
@@ -243,7 +222,7 @@ describe("PUT /api/properties/[id]/valuation/adjustments", () => {
 
   it("returns 409 value_changed atomically when expectedEstimatedValueCents mismatches", async () => {
     const prop = createSampleProperty({ estimatedValueCents: 49_000_000 });
-    const PUT_ADJ = createValuationAdjustmentsHandler(FIXED_NOW_1);
+    const PUT_ADJ = adjustmentsRoute(FIXED_NOW_1);
 
     const res = await PUT_ADJ(
       new Request("http://localhost", {
@@ -266,7 +245,7 @@ describe("PUT /api/properties/[id]/valuation/adjustments", () => {
   it("rejects invalid payloads with 400, unknown property with 404, and PATCH with valuationAdjustments with 400", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     const prop = createSampleProperty();
-    const PUT_ADJ = createValuationAdjustmentsHandler(FIXED_NOW_1);
+    const PUT_ADJ = adjustmentsRoute(FIXED_NOW_1);
 
     const badPayloads = [
       // 9 items
@@ -331,8 +310,7 @@ describe("PUT /api/properties/[id]/valuation/adjustments", () => {
   it("preserves an open pendingSuggestion across PUT /adjustments so it can still be adopted", async () => {
     const prop = createSampleProperty({ estimatedValueCents: 49_000_000 });
     const ESTIMATE_1 = makeEstimateHandler(FIXED_NOW_1);
-    const ESTIMATE_2 = createValuationEstimateHandler(
-      () => ({
+    const ESTIMATE_2 = estimateRoute(() => ({
         estimate: async () => ({
           ok: true,
           provider: "immoanalyse",
@@ -352,14 +330,10 @@ describe("PUT /api/properties/[id]/valuation/adjustments", () => {
           },
           quota: null,
         }),
-      }),
-      FIXED_NOW_2,
-    );
-    const ADOPT = createValuationAdoptHandler(FIXED_NOW_1);
-    const PUT_ADJ = createValuationAdjustmentsHandler(
-      () => new Date("2026-11-18T20:00:00Z"),
-    );
-    const HISTORY = createValuationHistoryHandler();
+      }), FIXED_NOW_2);
+    const ADOPT = adoptRoute(FIXED_NOW_1);
+    const PUT_ADJ = adjustmentsRoute(() => new Date("2026-11-18T20:00:00Z"));
+    const HISTORY = historyRoute();
 
     // 1. First estimate + adopt
     const est1Res = await ESTIMATE_1(
@@ -431,8 +405,8 @@ describe("PUT /api/properties/[id]/valuation/adjustments", () => {
   it("persists catalogKey in property and valuation history and rejects unknown/duplicate/exclusive conflicts", async () => {
     const prop = createSampleProperty({ estimatedValueCents: 49_000_000 });
     const ESTIMATE = makeEstimateHandler(FIXED_NOW_1);
-    const ADOPT = createValuationAdoptHandler(FIXED_NOW_1);
-    const PUT_ADJ = createValuationAdjustmentsHandler(FIXED_NOW_2);
+    const ADOPT = adoptRoute(FIXED_NOW_1);
+    const PUT_ADJ = adjustmentsRoute(FIXED_NOW_2);
 
     const estRes = await ESTIMATE(
       new Request("http://localhost", { method: "POST", body: "{}" }),

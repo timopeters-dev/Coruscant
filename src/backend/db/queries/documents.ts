@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { and, desc, eq, type SQL } from "drizzle-orm";
 import { getDb } from "@/backend/db/connection";
+import { ApiError, FieldValidationError, NotFoundError, type FieldErrors } from "@/backend/errors";
 import { type FinancialContractRow, toContractRow } from "./contracts";
 import { documents, financialContracts, properties } from "@/backend/db/schema";
 import {
@@ -20,99 +21,62 @@ import type {
 
 export type DocumentRow = typeof documents.$inferSelect;
 
-export class DuplicateDocumentError extends Error {
-  readonly existingDocument: DocumentRow;
-
-  constructor(existingDocument: DocumentRow) {
-    super(`Dokument mit identischem Hash existiert bereits (${existingDocument.filename}).`);
-    this.name = "DuplicateDocumentError";
-    this.existingDocument = existingDocument;
+export class DuplicateDocumentError extends ApiError {
+  constructor(readonly existingDocument: DocumentRow) {
+    super(409, `Dieses PDF wurde bereits hochgeladen (${existingDocument.filename}).`, { existingDocument });
   }
 }
 
-export class DocumentNotFoundError extends Error {
-  readonly documentId: string;
-
-  constructor(documentId: string) {
-    super(`Dokument nicht gefunden: ${documentId}`);
-    this.name = "DocumentNotFoundError";
-    this.documentId = documentId;
+export class DocumentNotFoundError extends NotFoundError {
+  constructor() {
+    super("Dokument nicht gefunden.");
   }
 }
 
-export class DocumentLinkedEntityNotFoundError extends Error {
-  readonly field: "linkedPropertyId" | "linkedContractId";
-  readonly entityId: string;
-
-  constructor(
-    field: "linkedPropertyId" | "linkedContractId",
-    entityId: string,
-  ) {
-    super(`Verknüpfte Entität nicht gefunden (${field}: ${entityId}).`);
-    this.name = "DocumentLinkedEntityNotFoundError";
-    this.field = field;
-    this.entityId = entityId;
+export class DocumentLinkedEntityNotFoundError extends FieldValidationError {
+  constructor(field: "linkedPropertyId" | "linkedContractId", entityId: string) {
+    super(`Verknüpfte Entität nicht gefunden (${field}: ${entityId}).`, field);
   }
 }
 
-export class ContractCalibrationConflictError extends Error {
-  readonly evaluation: ContractCalibrationEvaluation;
-
-  constructor(evaluation: ContractCalibrationEvaluation) {
-    super(
-      `Vertrag ist bereits auf neueres Datum (${evaluation.previousAsOfDate}) geeicht als das Belegdatum (${evaluation.effectiveDate}).`,
-    );
-    this.name = "ContractCalibrationConflictError";
-    this.evaluation = evaluation;
-  }
-}
-
-export class DocumentValidationError extends Error {
-  readonly field: string;
-
+export class DocumentValidationError extends FieldValidationError {
   constructor(field: string, message: string) {
-    super(message);
-    this.name = "DocumentValidationError";
-    this.field = field;
+    super(message, field);
   }
 }
 
-export class ContractLoanOptionsValidationError extends Error {
-  readonly fieldErrors: Record<string, string>;
-
-  constructor(fieldErrors: Record<string, string>) {
-    const firstMsg =
-      Object.values(fieldErrors)[0] ??
-      "Darlehensoptionen sind nach der Zusammenführung nicht konsistent.";
-    super(firstMsg);
-    this.name = "ContractLoanOptionsValidationError";
-    this.fieldErrors = fieldErrors;
-  }
-}
-
-export class DocumentAlreadyVerifiedError extends Error {
-  readonly documentId: string;
-
-  constructor(documentId: string) {
+export class ContractCalibrationConflictError extends ApiError {
+  constructor(readonly evaluation: ContractCalibrationEvaluation) {
     super(
-      "Bereits verifizierte Belege können nicht erneut durch die KI überschrieben werden.",
+      409,
+      `Vertrag ist bereits auf neueres Datum (${evaluation.previousAsOfDate}) geeicht als das Belegdatum (${evaluation.effectiveDate}).`,
+      {
+        code: "calibration_date_conflict",
+        evaluation,
+        previousAsOfDate: evaluation.previousAsOfDate,
+        effectiveDate: evaluation.effectiveDate,
+      },
     );
-    this.name = "DocumentAlreadyVerifiedError";
-    this.documentId = documentId;
   }
 }
 
-export class DocumentAlreadyLinkedError extends Error {
-  readonly documentId: string;
-  readonly linkedContractId: string;
+export class ContractLoanOptionsValidationError extends ApiError {
+  constructor(fieldErrors: FieldErrors) {
+    super(422, Object.values(fieldErrors)[0] ?? "Darlehensoptionen sind nach der Zusammenführung nicht konsistent.", {
+      fieldErrors,
+    });
+  }
+}
 
-  constructor(documentId: string, linkedContractId: string) {
-    super(
-      `Dokument ist bereits mit einem Vertrag verknüpft (${linkedContractId}).`,
-    );
-    this.name = "DocumentAlreadyLinkedError";
-    this.documentId = documentId;
-    this.linkedContractId = linkedContractId;
+export class DocumentAlreadyVerifiedError extends ApiError {
+  constructor() {
+    super(409, "Bereits verifizierte Belege können nicht erneut durch die KI überschrieben werden.");
+  }
+}
+
+export class DocumentAlreadyLinkedError extends ApiError {
+  constructor(linkedContractId: string) {
+    super(409, `Dokument ist bereits mit einem Vertrag verknüpft (${linkedContractId}).`, { linkedContractId });
   }
 }
 
@@ -296,7 +260,7 @@ export function updateDocumentRecord(
 ): DocumentRow {
   const existing = getDocumentById(id);
   if (!existing) {
-    throw new DocumentNotFoundError(id);
+    throw new DocumentNotFoundError();
   }
 
   const db = getDb();
@@ -376,7 +340,7 @@ export function updateDocumentRecord(
     .all();
 
   if (!updated) {
-    throw new DocumentNotFoundError(id);
+    throw new DocumentNotFoundError();
   }
   return updated;
 }
@@ -402,7 +366,7 @@ export function verifyDocumentAndOptionallyCalibrate(
       .get();
 
     if (!existing) {
-      throw new DocumentNotFoundError(id);
+      throw new DocumentNotFoundError();
     }
 
     if (input.linkedPropertyId) {
@@ -675,7 +639,7 @@ export function verifyDocumentAndOptionallyCalibrate(
       .all();
 
     if (!updatedDoc) {
-      throw new DocumentNotFoundError(id);
+      throw new DocumentNotFoundError();
     }
 
     return {
@@ -711,11 +675,11 @@ export function applyAiExtractionIfPending(
       .get();
 
     if (!existing) {
-      throw new DocumentNotFoundError(id);
+      throw new DocumentNotFoundError();
     }
 
     if (existing.status === "verified") {
-      throw new DocumentAlreadyVerifiedError(id);
+      throw new DocumentAlreadyVerifiedError();
     }
 
     const [updated] = tx
@@ -737,7 +701,7 @@ export function applyAiExtractionIfPending(
       .all();
 
     if (!updated) {
-      throw new DocumentAlreadyVerifiedError(id);
+      throw new DocumentAlreadyVerifiedError();
     }
     return updated;
   });
@@ -762,13 +726,11 @@ export function createContractFromDocument(
       .get();
 
     if (!existing) {
-      throw new DocumentNotFoundError(documentId);
+      throw new DocumentNotFoundError();
     }
 
     if (existing.linkedContractId !== null) {
-      throw new DocumentAlreadyLinkedError(
-        documentId,
-        existing.linkedContractId,
+      throw new DocumentAlreadyLinkedError(existing.linkedContractId,
       );
     }
 
@@ -882,7 +844,7 @@ export function createContractFromDocument(
       .all();
 
     if (!updatedDoc) {
-      throw new DocumentNotFoundError(documentId);
+      throw new DocumentNotFoundError();
     }
 
     return {
@@ -901,7 +863,7 @@ export function deleteDocumentRecord(id: string): DocumentRow {
     .all();
 
   if (!deleted) {
-    throw new DocumentNotFoundError(id);
+    throw new DocumentNotFoundError();
   }
   return deleted;
 }

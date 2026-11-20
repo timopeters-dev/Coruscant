@@ -353,3 +353,27 @@ export function buildPotLinkOptions(
 
   return options;
 }
+
+export interface PotSyncSummary {
+  updated: number;
+  unchanged: number;
+  missing: string[];
+  conflicts: string[];
+  outOfScope: string[];
+  /** Töpfe, deren negativer Quellwert auf 0 begrenzt wurde. */
+  clamped: string[];
+}
+
+export function summarizePotSync(outcomes: readonly PotSyncOutcome[]): PotSyncSummary {
+  const idsWith = (status: PotSyncOutcome["status"]) => outcomes.filter((o) => o.status === status).map((o) => o.potId);
+  return {
+    updated: idsWith("updated").length,
+    unchanged: idsWith("unchanged").length,
+    missing: idsWith("link_missing"),
+    conflicts: idsWith("link_conflict"),
+    outOfScope: idsWith("link_out_of_scope"),
+    clamped: outcomes
+      .filter((o) => (o.status === "updated" || o.status === "unchanged") && o.clampedNegative)
+      .map((o) => o.potId),
+  };
+}

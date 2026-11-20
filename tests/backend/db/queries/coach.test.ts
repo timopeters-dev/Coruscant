@@ -1,8 +1,5 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import * as dbModule from "@/backend/db/connection";
+import { describe, expect, it } from "vitest";
+import { withTempDatabase } from "@tests/helpers/temp-db";
 import { createManualCashflowItem } from "@/backend/db/queries/allocation";
 import { insertExternalSnapshot } from "@/backend/db/queries/external-snapshots";
 import {
@@ -12,24 +9,7 @@ import {
 } from "@/domain/recommendation/investment-context";
 import { buildRefLabelMap, loadInvestmentContextInput } from "@/backend/db/queries/coach";
 
-const tempDirs: string[] = [];
-const originalDbUrl = process.env.DATABASE_URL;
-
-beforeEach(() => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coruscant-coachq-"));
-  tempDirs.push(dir);
-  process.env.DATABASE_URL = path.join(dir, "test.db");
-});
-
-afterEach(() => {
-  dbModule.closeDb();
-  if (originalDbUrl === undefined) delete process.env.DATABASE_URL;
-  else process.env.DATABASE_URL = originalDbUrl;
-  while (tempDirs.length > 0) {
-    const dir = tempDirs.pop();
-    if (dir && fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
+withTempDatabase();
 
 describe("loadInvestmentContextInput – Lebenshaltungskosten", () => {
   it("nutzt die konsolidierten Gesamtausgaben (manuelle Abflüsse senken die Abdeckung)", () => {
