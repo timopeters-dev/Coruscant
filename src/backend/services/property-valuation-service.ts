@@ -1,27 +1,6 @@
-import { loadPropertyValuationSource } from "@/backend/db/queries/contracts";
-import {
-  recordValuationOutcome,
-  upsertQuotaSnapshot,
-} from "@/backend/db/queries/property-valuations";
-import type { QuotaSnapshot } from "@/domain/properties/valuation/auto-schedule";
-import {
-  validatePropertyValuation,
-  type PropertyValuation,
-  type ValuationRejectReason,
-  type ValuationWarning,
-} from "@/domain/properties/valuation/valuation";
-import { sumAdjustmentBps } from "@/domain/properties/valuation/adjustments";
-import {
-  assertValuationContextSafe,
-  buildPropertyValuationContext,
-  ValuationContextPiiError,
-  type ValuationContextUnavailableReason,
-} from "@/domain/properties/valuation/context";
-import {
-  decideValuationWrite,
-  type ValuationTrigger,
-  type ValuationWriteDecision,
-} from "@/domain/properties/valuation/write-decision";
+import { loadPropertyValuationSource, type PropertyValuationSourceData } from "@/backend/db/queries/contracts";
+import { recordValuationOutcome, upsertQuotaSnapshot } from "@/backend/db/queries/property-valuations";
+import { ApiError, NotFoundError } from "@/backend/errors";
 import {
   assertRequestHasNoAddress,
   buildImmoAnalyseRequest,
@@ -33,6 +12,39 @@ import {
   type ValuatorErrorCode,
 } from "@/backend/integrations/property-valuator";
 import { getBerlinClockSnapshot } from "@/backend/jobs/berlin-clock";
+import type { QuotaSnapshot } from "@/domain/properties/valuation/auto-schedule";
+import { sumAdjustmentBps } from "@/domain/properties/valuation/adjustments";
+import {
+  assertValuationContextSafe,
+  buildPropertyValuationContext,
+  ValuationContextPiiError,
+  type PropertyValuationContext,
+  type ValuationContextUnavailableReason,
+} from "@/domain/properties/valuation/context";
+import {
+  validatePropertyValuation,
+  type PropertyValuation,
+  type ValuationRejectReason,
+  type ValuationWarning,
+} from "@/domain/properties/valuation/valuation";
+import {
+  decideValuationWrite,
+  type ValuationTrigger,
+  type ValuationWriteDecision,
+} from "@/domain/properties/valuation/write-decision";
+
+export type ValuationErrorCode = "not_found" | "unavailable" | "unsafe" | "valuation_rejected" | ValuatorErrorCode;
+
+export interface ValuationError {
+  kind: "error";
+  code: ValuationErrorCode;
+  message: string;
+  reason?: ValuationContextUnavailableReason | ValuationRejectReason;
+  rationale?: string;
+  httpStatus?: number;
+  apiCode?: string;
+  quota?: QuotaSnapshot | null;
+}
 
 export type RunPropertyValuationResult =
   | {
@@ -45,21 +57,36 @@ export type RunPropertyValuationResult =
       cached: boolean;
       quota: QuotaSnapshot | null;
     }
-  | {
-      kind: "error";
-      code:
-        | "not_found"
-        | "unavailable"
-        | "unsafe"
-        | "valuation_rejected"
-        | ValuatorErrorCode;
-      message: string;
-      reason?: ValuationContextUnavailableReason | ValuationRejectReason;
-      rationale?: string;
-      httpStatus?: number;
-      apiCode?: string;
-      quota?: QuotaSnapshot | null;
-    };
+  | ValuationError;
+
+type PreparedRequest =
+  | { kind: "ok"; source: PropertyValuationSourceData; context: PropertyValuationContext; requestJson: string }
+  | ValuationError;
+
+/**
+ * Baut den anonymisierten Request an ImmoAnalyse. Unvollständige Objekte und
+ * Kontexte mit möglichen personenbezogenen Daten verlassen den Server nie.
+ */
+export function prepareValuationRequest(propertyId: string, todayKey: string): PreparedRequest {
+  const source = loadPropertyValuationSource(propertyId, todayKey);
+  if (!source) return { kind: "error", code: "not_found", message: "Immobilie nicht gefunden." };
+
+  const built = buildPropertyValuationContext(source.contextInput);
+  if (!built.ok) {
+    return { kind: "error", code: "unavailable", reason: built.reason, message: "Objektkontext für die Wertschätzung unvollständig." };
+  }
+  try {
+    assertValuationContextSafe(built.context, source.contextInput.forbiddenTerms);
+    const body = buildImmoAnalyseRequest(built.context);
+    assertRequestHasNoAddress(body);
+    return { kind: "ok", source, context: built.context, requestJson: serializeImmoAnalyseRequest(body) };
+  } catch (error) {
+    if (error instanceof ValuationContextPiiError) {
+      return { kind: "error", code: "unsafe", message: "Kontext enthält potenziell personenbezogene Daten." };
+    }
+    throw error;
+  }
+}
 
 export interface RunPropertyValuationOptions {
   trigger: ValuationTrigger;
@@ -73,131 +100,54 @@ export async function runPropertyValuation(
 ): Promise<RunPropertyValuationResult> {
   const getNow = options.nowFn ?? (() => new Date());
   const startNow = getNow();
-  const startNowIso = startNow.toISOString();
   const todayKey = getBerlinClockSnapshot(startNow).dateKey;
 
-  const source = loadPropertyValuationSource(propertyId, todayKey);
-  if (!source) {
-    return {
-      kind: "error",
-      code: "not_found",
-      message: "Immobilie nicht gefunden.",
-    };
-  }
+  /** Automatische Läufe protokollieren auch Fehlschläge am Objekt. */
+  const recordAutoFailure = (outcome: "not_valuable" | "rejected" | "error", nowIso: string, markDone: boolean) => {
+    if (options.trigger !== "auto") return;
+    recordValuationOutcome({ propertyId, trigger: "auto", valuation: null, decision: null, outcome, nowIso, markDone });
+  };
 
-  const built = buildPropertyValuationContext(source.contextInput);
-  if (!built.ok) {
-    if (options.trigger === "auto") {
-      recordValuationOutcome({
-        propertyId,
-        trigger: "auto",
-        valuation: null,
-        decision: null,
-        outcome: "not_valuable",
-        nowIso: startNowIso,
-        markDone: false,
-      });
-    }
-    return {
-      kind: "error",
-      code: "unavailable",
-      reason: built.reason,
-      message: "Objektkontext für die Wertschätzung unvollständig.",
-    };
+  const prepared = prepareValuationRequest(propertyId, todayKey);
+  if (prepared.kind === "error") {
+    if (prepared.code === "unavailable") recordAutoFailure("not_valuable", startNow.toISOString(), false);
+    return prepared;
   }
-
-  let requestJson: string;
-  try {
-    assertValuationContextSafe(built.context, source.contextInput.forbiddenTerms);
-    const body = buildImmoAnalyseRequest(built.context);
-    assertRequestHasNoAddress(body);
-    requestJson = serializeImmoAnalyseRequest(body);
-  } catch (error) {
-    if (error instanceof ValuationContextPiiError) {
-      return {
-        kind: "error",
-        code: "unsafe",
-        message: "Kontext enthält potenziell personenbezogene Daten.",
-      };
-    }
-    throw error;
-  }
+  const { source, context, requestJson } = prepared;
 
   const valuator = options.valuator ?? createDefaultPropertyValuator(todayKey);
-  const estimateResult = await valuator.estimate(requestJson);
+  const estimate = await valuator.estimate(requestJson);
   const completedAtIso = getNow().toISOString();
+  if (estimate.quota) upsertQuotaSnapshot(estimate.quota, completedAtIso);
 
-  if (estimateResult.quota) {
-    upsertQuotaSnapshot(estimateResult.quota, completedAtIso);
-  }
-
-  if (!estimateResult.ok) {
-    if (options.trigger === "auto") {
-      if (estimateResult.code === "not_valuable") {
-        recordValuationOutcome({
-          propertyId,
-          trigger: "auto",
-          valuation: null,
-          decision: null,
-          outcome: "not_valuable",
-          nowIso: completedAtIso,
-          markDone: true,
-        });
-      } else if (
-        estimateResult.code !== "unauthorized" &&
-        estimateResult.code !== "quota_exceeded"
-      ) {
-        recordValuationOutcome({
-          propertyId,
-          trigger: "auto",
-          valuation: null,
-          decision: null,
-          outcome: "error",
-          nowIso: completedAtIso,
-          markDone: false,
-        });
-      }
-    }
-
+  if (!estimate.ok) {
+    if (estimate.code === "not_valuable") recordAutoFailure("not_valuable", completedAtIso, true);
+    // Ungültiger Schlüssel und leeres Kontingent sind kein Objektproblem.
+    else if (estimate.code !== "unauthorized" && estimate.code !== "quota_exceeded") recordAutoFailure("error", completedAtIso, false);
     return {
       kind: "error",
-      code: estimateResult.code,
-      message: estimateResult.message,
-      httpStatus: estimateResult.httpStatus,
-      apiCode: estimateResult.apiCode,
-      quota: estimateResult.quota ?? null,
+      code: estimate.code,
+      message: estimate.message,
+      httpStatus: estimate.httpStatus,
+      apiCode: estimate.apiCode,
+      quota: estimate.quota ?? null,
     };
   }
 
   const validation = validatePropertyValuation({
-    normalized: estimateResult.result,
-    context: built.context,
+    normalized: estimate.result,
+    context,
     currentValueCents: source.currentValueCents,
     today: todayKey,
     adjustmentBps: sumAdjustmentBps(source.adjustments),
   });
-
   if (!validation.ok) {
-    if (options.trigger === "auto") {
-      recordValuationOutcome({
-        propertyId,
-        trigger: "auto",
-        valuation: null,
-        decision: null,
-        outcome:
-          validation.reason === "not_reliably_valuable"
-            ? "not_valuable"
-            : "rejected",
-        nowIso: completedAtIso,
-        markDone: true,
-      });
-    }
-
+    recordAutoFailure(validation.reason === "not_reliably_valuable" ? "not_valuable" : "rejected", completedAtIso, true);
     return {
       kind: "error",
       code: "valuation_rejected",
       reason: validation.reason,
-      rationale: estimateResult.result.rationale || undefined,
+      rationale: estimate.result.rationale || undefined,
       message: "Bewertungsergebnis wurde durch Plausibilitätsprüfung abgelehnt.",
     };
   }
@@ -208,7 +158,6 @@ export async function runPropertyValuation(
     currentValueCents: source.currentValueCents,
     warnings: validation.warnings,
   });
-
   const recorded = recordValuationOutcome({
     propertyId,
     trigger: options.trigger,
@@ -227,6 +176,53 @@ export async function runPropertyValuation(
     historyId: recorded?.historyId ?? null,
     requestJson,
     cached: validation.valuation.cached,
-    quota: estimateResult.quota,
+    quota: estimate.quota,
   };
+}
+
+const UNAVAILABLE_MESSAGE: Record<ValuationContextUnavailableReason, string> = {
+  missing_postal_code: "Gültige 5-stellige PLZ im Objekt pflegen, um eine Schätzung zu erhalten.",
+  missing_living_area: "Wohnfläche im Objekt pflegen, um eine Schätzung zu erhalten.",
+  missing_property_type: "Objekttyp im Objekt pflegen, um eine Schätzung zu erhalten.",
+};
+
+const STATUS_BY_VALUATOR_CODE: Record<ValuatorErrorCode, number> = {
+  not_configured: 503,
+  unauthorized: 502,
+  quota_exceeded: 429,
+  rate_limited: 429,
+  not_valuable: 422,
+  invalid_request: 502,
+  timeout: 504,
+  http_error: 502,
+  network_error: 502,
+  invalid_payload: 502,
+};
+
+/** Übersetzt einen Bewertungsfehler in die API-Antwort (`code` + `error`). */
+export function toValuationApiError(error: ValuationError): ApiError {
+  switch (error.code) {
+    case "not_found":
+      return new NotFoundError(error.message);
+    case "unavailable": {
+      const reason = error.reason as ValuationContextUnavailableReason;
+      return new ApiError(422, UNAVAILABLE_MESSAGE[reason], { code: "valuation_context_unavailable", reason });
+    }
+    case "unsafe":
+      return new ApiError(422, "Kontext enthält potenziell personenbezogene Daten und wird nicht gesendet.", {
+        code: "valuation_context_unsafe",
+      });
+    case "valuation_rejected":
+      return new ApiError(422, error.message, {
+        code: "valuation_rejected",
+        reason: error.reason,
+        ...(error.rationale ? { rationale: error.rationale } : {}),
+      });
+    case "quota_exceeded":
+      return new ApiError(429, error.message, { code: "quota_exceeded", resetAt: error.quota?.resetAt ?? null });
+    case "not_valuable":
+      return new ApiError(422, error.message, { code: "not_valuable", ...(error.apiCode ? { apiCode: error.apiCode } : {}) });
+    default:
+      return new ApiError(STATUS_BY_VALUATOR_CODE[error.code], error.message, { code: error.code });
+  }
 }

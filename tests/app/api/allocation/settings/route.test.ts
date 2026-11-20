@@ -1,35 +1,15 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import { withTempDatabase } from "@tests/helpers/temp-db";
+import { apiRequest } from "@tests/helpers/http";
 import * as dbModule from "@/backend/db/connection";
 import { appMeta } from "@/backend/db/schema";
 import { GET, PATCH } from "@/app/api/allocation/settings/route";
 
-const tempDirs: string[] = [];
-const originalDbUrl = process.env.DATABASE_URL;
-
-beforeEach(() => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coruscant-alloc-settings-"));
-  tempDirs.push(dir);
-  process.env.DATABASE_URL = path.join(dir, "test.db");
-});
-
-afterEach(() => {
-  dbModule.closeDb();
-  if (originalDbUrl === undefined) {
-    delete process.env.DATABASE_URL;
-  } else {
-    process.env.DATABASE_URL = originalDbUrl;
-  }
-  for (const dir of tempDirs.splice(0, tempDirs.length)) {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-});
+withTempDatabase();
 
 describe("/api/allocation/settings", () => {
   it("returns default settings on GET and persists partial/full updates on PATCH", async () => {
-    const initialRes = await GET();
+    const initialRes = await GET(apiRequest("/api/allocation/settings"));
     expect(initialRes.status).toBe(200);
     expect(await initialRes.json()).toEqual({
       variableBasis: "budget",
@@ -65,7 +45,7 @@ describe("/api/allocation/settings", () => {
       includePropertyItems: false,
     });
 
-    const verifyRes = await GET();
+    const verifyRes = await GET(apiRequest("/api/allocation/settings"));
     expect(await verifyRes.json()).toEqual({
       variableBasis: "avg_3m",
       includeContractItems: true,
@@ -83,7 +63,7 @@ describe("/api/allocation/settings", () => {
       })
       .run();
 
-    const res = await GET();
+    const res = await GET(apiRequest("/api/allocation/settings"));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       variableBasis: "budget",

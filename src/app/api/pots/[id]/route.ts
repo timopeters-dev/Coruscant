@@ -1,156 +1,44 @@
-import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import {
+  assertPotTargetDateInWindow,
   deletePot,
   getPotById,
-  LinkedContractNotFoundError,
-  LinkedPropertyNotFoundError,
-  PotExternalLinkConflictError,
-  PotExternalLinkOutOfScopeError,
-  PotExternalLinkTargetNotFoundError,
-  PotLinkedBalanceReadOnlyError,
-  RemainderPercentageExceededError,
   updatePot,
 } from "@/backend/db/queries/allocation";
-import {
-  badRequestResponse,
-  internalErrorResponse,
-  notFoundResponse,
-  parseJsonBody,
-  validationErrorResponse,
-} from "@/backend/http";
-import { getTodayIsoDate } from "@/domain/core/date";
-import {
-  potUpdateSchema,
-  validatePotTargetDateWindow,
-} from "@/validation/allocation";
+import { NotFoundError } from "@/backend/errors";
+import { json, readJson, route, validationError, type RouteContext } from "@/backend/http";
+import { potUpdateSchema } from "@/validation/allocation";
 
 export const dynamic = "force-dynamic";
 
-interface RouteContext {
-  params: Promise<{ id: string }>;
-}
+const notFound = () => new NotFoundError("Topf nicht gefunden.");
 
-export async function GET(
-  _request: Request,
-  context: RouteContext,
-): Promise<NextResponse> {
+export const GET = route(async (_request, { params }: RouteContext) => {
+  const pot = getPotById((await params).id);
+  if (!pot) throw notFound();
+  return json({ pot });
+});
+
+export const PATCH = route(async (request, { params }: RouteContext) => {
+  const patch = await readJson(request, potUpdateSchema);
+  const { id } = await params;
+  const existing = getPotById(id);
+  if (!existing) throw notFound();
+  if (patch.targetDate !== existing.targetDate) assertPotTargetDateInWindow(patch.targetDate);
+
+  let pot;
   try {
-    const { id } = await context.params;
-    const pot = getPotById(id);
-    if (!pot) {
-      return notFoundResponse("Topf nicht gefunden.");
-    }
-    return NextResponse.json({ pot }, { status: 200 });
-  } catch {
-    return internalErrorResponse();
-  }
-}
-
-export async function PATCH(
-  request: Request,
-  context: RouteContext,
-): Promise<NextResponse> {
-  const body = await parseJsonBody(request);
-  if (!body.ok) {
-    return body.response;
-  }
-
-  const parsed = potUpdateSchema.safeParse(body.data);
-  if (!parsed.success) {
-    return validationErrorResponse(parsed.error);
-  }
-
-  try {
-    const { id } = await context.params;
-    const existing = getPotById(id);
-    if (!existing) {
-      return notFoundResponse("Topf nicht gefunden.");
-    }
-
-    if (
-      parsed.data.targetDate !== undefined &&
-      parsed.data.targetDate !== null &&
-      parsed.data.targetDate !== existing.targetDate
-    ) {
-      const dateError = validatePotTargetDateWindow(
-        parsed.data.targetDate,
-        getTodayIsoDate(),
-      );
-      if (dateError !== null) {
-        return badRequestResponse(dateError, { targetDate: dateError });
-      }
-    }
-
-    const pot = updatePot(id, parsed.data);
-    if (!pot) {
-      return notFoundResponse("Topf nicht gefunden.");
-    }
-    return NextResponse.json({ pot }, { status: 200 });
+    pot = updatePot(id, patch);
   } catch (error) {
-    if (error instanceof ZodError) {
-      return validationErrorResponse(error);
-    }
-    if (error instanceof PotExternalLinkTargetNotFoundError) {
-      return badRequestResponse(error.message, {
-        externalLink: "Ziel nicht im letzten Snapshot gefunden.",
-      });
-    }
-    if (error instanceof PotExternalLinkOutOfScopeError) {
-      return badRequestResponse(error.message, {
-        externalLink: "Nur Haushalts-Konten können gekoppelt werden.",
-      });
-    }
-    if (error instanceof PotExternalLinkConflictError) {
-      return NextResponse.json(
-        {
-          error: "Dieses Konto bzw. diese Position ist bereits gekoppelt.",
-          fieldErrors: {
-            externalLink: "Bereits mit einem anderen Topf gekoppelt.",
-          },
-        },
-        { status: 409 },
-      );
-    }
-    if (error instanceof PotLinkedBalanceReadOnlyError) {
-      return badRequestResponse(error.message, {
-        currentCents: "Wird beim Abgleich aus Bespin übernommen.",
-      });
-    }
-    if (error instanceof LinkedPropertyNotFoundError) {
-      return badRequestResponse("Verknüpfte Immobilie existiert nicht.", {
-        linkedPropertyId: "Unbekannte Immobilie.",
-      });
-    }
-    if (error instanceof LinkedContractNotFoundError) {
-      return badRequestResponse("Verknüpfter Vertrag existiert nicht.", {
-        linkedContractId: "Unbekannter Vertrag.",
-      });
-    }
-    if (error instanceof RemainderPercentageExceededError) {
-      return badRequestResponse(
-        `Die Summe aller Rest-Prozentsätze darf 100 % nicht überschreiten (noch verfügbar: ${error.availablePercentage} %).`,
-        {
-          remainderPercentage: `Maximal noch ${error.availablePercentage} % verfügbar.`,
-        },
-      );
-    }
-    return internalErrorResponse();
+    if (error instanceof ZodError) throw validationError(error);
+    throw error;
   }
-}
+  if (!pot) throw notFound();
+  return json({ pot });
+});
 
-export async function DELETE(
-  _request: Request,
-  context: RouteContext,
-): Promise<NextResponse> {
-  try {
-    const { id } = await context.params;
-    const deletedId = deletePot(id);
-    if (!deletedId) {
-      return notFoundResponse("Topf nicht gefunden.");
-    }
-    return NextResponse.json({ deletedId }, { status: 200 });
-  } catch {
-    return internalErrorResponse();
-  }
-}
+export const DELETE = route(async (_request, { params }: RouteContext) => {
+  const deletedId = deletePot((await params).id);
+  if (!deletedId) throw notFound();
+  return json({ deletedId });
+});

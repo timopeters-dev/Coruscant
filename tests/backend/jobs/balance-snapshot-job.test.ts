@@ -1,8 +1,5 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import * as dbModule from "@/backend/db/connection";
+import { describe, expect, it } from "vitest";
+import { withTempDatabase } from "@tests/helpers/temp-db";
 import { createPot } from "@/backend/db/queries/allocation";
 import { listBalanceSnapshots } from "@/backend/db/queries/balance-history";
 import { insertExternalSnapshot, loadCockpitData } from "@/backend/db/queries/cockpit";
@@ -11,29 +8,7 @@ import { potCreateSchema } from "@/validation/allocation";
 import { getBerlinClockSnapshot } from "@/backend/jobs/berlin-clock";
 import { runBalanceSnapshotJob } from "@/backend/jobs/balance-snapshot-job";
 
-const tempDirs: string[] = [];
-const originalDbUrl = process.env.DATABASE_URL;
-
-beforeEach(() => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coruscant-snap-job-"));
-  tempDirs.push(dir);
-  process.env.DATABASE_URL = path.join(dir, "test.db");
-});
-
-afterEach(() => {
-  dbModule.closeDb();
-  if (originalDbUrl === undefined) {
-    delete process.env.DATABASE_URL;
-  } else {
-    process.env.DATABASE_URL = originalDbUrl;
-  }
-  while (tempDirs.length > 0) {
-    const dir = tempDirs.pop();
-    if (dir && fs.existsSync(dir)) {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  }
-});
+withTempDatabase();
 
 describe("runBalanceSnapshotJob", () => {
   it("skips on empty DB without writing a row", async () => {

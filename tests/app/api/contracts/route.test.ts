@@ -1,8 +1,7 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import * as dbModule from "@/backend/db/connection";
+import { withTempDatabase } from "@tests/helpers/temp-db";
+import { apiRequest } from "@tests/helpers/http";
 import { financialContracts } from "@/backend/db/schema";
 import {
   DELETE as deleteContractById,
@@ -11,29 +10,7 @@ import {
 } from "@/app/api/contracts/[id]/route";
 import { GET as listContracts, POST as createContract } from "@/app/api/contracts/route";
 
-const tempDirs: string[] = [];
-const originalDbUrl = process.env.DATABASE_URL;
-
-beforeEach(() => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coruscant-contracts-"));
-  tempDirs.push(dir);
-  process.env.DATABASE_URL = path.join(dir, "test.db");
-});
-
-afterEach(() => {
-  dbModule.closeDb();
-  if (originalDbUrl === undefined) {
-    delete process.env.DATABASE_URL;
-  } else {
-    process.env.DATABASE_URL = originalDbUrl;
-  }
-  while (tempDirs.length > 0) {
-    const dir = tempDirs.pop();
-    if (dir && fs.existsSync(dir)) {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  }
-});
+withTempDatabase();
 
 describe("/api/contracts CRUD & validation", () => {
   it("supports creating all 4 contract types, status transitions, category switching, and deletion", async () => {
@@ -93,7 +70,7 @@ describe("/api/contracts CRUD & validation", () => {
       createdIds.push(body.contract.id);
     }
 
-    const listRes = await listContracts();
+    const listRes = await listContracts(apiRequest("/api/contracts"));
     expect(listRes.status).toBe(200);
     const listBody = (await listRes.json()) as {
       contracts: Array<{ id: string }>;
@@ -231,7 +208,7 @@ describe("/api/contracts household only", () => {
       .get();
     expect(row?.sphere).toBe("household");
 
-    const list = (await (await listContracts()).json()) as {
+    const list = (await (await listContracts(apiRequest("/api/contracts"))).json()) as {
       contracts: Array<Record<string, unknown>>;
     };
     expect(list.contracts).toHaveLength(1);

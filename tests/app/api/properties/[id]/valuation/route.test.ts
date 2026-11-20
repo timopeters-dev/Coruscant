@@ -1,8 +1,13 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import * as dbModule from "@/backend/db/connection";
+import {
+  adjustmentsRoute,
+  adoptRoute,
+  estimateRoute,
+  historyEntryDeleteRoute,
+  historyRoute,
+  previewRoute,
+} from "@tests/helpers/valuation-routes";
+import { withTempDatabase } from "@tests/helpers/temp-db";
 import {
   createProperty,
   getPropertyById,
@@ -10,48 +15,21 @@ import {
 } from "@/backend/db/queries/contracts";
 import { getQuotaSnapshot } from "@/backend/db/queries/property-valuations";
 import type { PropertyValuator } from "@/backend/integrations/property-valuator";
-import { createValuationAdjustmentsHandler } from "@/app/api/properties/[id]/valuation/adjustments/handlers";
-import { createValuationAdoptHandler } from "@/app/api/properties/[id]/valuation/adopt/handlers";
-import {
-  createValuationEstimateHandler,
-  createValuationPreviewHandler,
-} from "@/app/api/properties/[id]/valuation/handlers";
-import { createValuationHistoryEntryDeleteHandler } from "@/app/api/properties/[id]/valuation/history/[historyId]/handlers";
-import { createValuationHistoryHandler } from "@/app/api/properties/[id]/valuation/history/handlers";
-
-const tempDirs: string[] = [];
-const originalDbUrl = process.env.DATABASE_URL;
-const originalApiKey = process.env.IMMOANALYSE_API_KEY;
 
 const FIXED_NOW = () => new Date("2026-11-18T18:00:00Z");
 
-beforeEach(() => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coruscant-valuation-route-"));
-  tempDirs.push(dir);
-  process.env.DATABASE_URL = path.join(dir, "test.db");
-  delete process.env.IMMOANALYSE_API_KEY;
+vi.mock("@/backend/integrations/property-valuator", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/backend/integrations/property-valuator")>();
+  return { ...actual, createDefaultPropertyValuator: vi.fn(actual.createDefaultPropertyValuator) };
 });
 
+withTempDatabase();
+
+beforeEach(() => vi.stubEnv("IMMOANALYSE_API_KEY", ""));
+
 afterEach(() => {
-  dbModule.closeDb();
-  if (originalDbUrl === undefined) {
-    delete process.env.DATABASE_URL;
-  } else {
-    process.env.DATABASE_URL = originalDbUrl;
-  }
-  if (originalApiKey === undefined) {
-    delete process.env.IMMOANALYSE_API_KEY;
-  } else {
-    process.env.IMMOANALYSE_API_KEY = originalApiKey;
-  }
   vi.useRealTimers();
   vi.restoreAllMocks();
-  while (tempDirs.length > 0) {
-    const dir = tempDirs.pop();
-    if (dir && fs.existsSync(dir)) {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  }
 });
 
 function createSampleProperty(
@@ -78,7 +56,7 @@ function createSampleProperty(
 describe("/api/properties/[id]/valuation, /adopt, /history", () => {
   it("GET returns requestJson without street/name and works without API key", async () => {
     const prop = createSampleProperty();
-    const GET = createValuationPreviewHandler(FIXED_NOW);
+    const GET = previewRoute(FIXED_NOW);
 
     const res = await GET(new Request("http://localhost"), {
       params: Promise.resolve({ id: prop.id }),
@@ -92,7 +70,7 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
 
   it("GET returns 422 missing_property_type when propertyType is null", async () => {
     const prop = createSampleProperty({ propertyType: null });
-    const GET = createValuationPreviewHandler(FIXED_NOW);
+    const GET = previewRoute(FIXED_NOW);
 
     const res = await GET(new Request("http://localhost"), {
       params: Promise.resolve({ id: prop.id }),
@@ -105,7 +83,7 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
 
   it("POST happy path creates history entry without mutating property value and uses identical requestJson", async () => {
     const prop = createSampleProperty();
-    const GET = createValuationPreviewHandler(FIXED_NOW);
+    const GET = previewRoute(FIXED_NOW);
     const previewRes = await GET(new Request("http://localhost"), {
       params: Promise.resolve({ id: prop.id }),
     });
@@ -137,10 +115,7 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
       },
     }));
 
-    const POST = createValuationEstimateHandler(
-      () => ({ estimate: estimateMock }),
-      FIXED_NOW,
-    );
+    const POST = estimateRoute(() => ({ estimate: estimateMock }), FIXED_NOW);
     const postRes = await POST(
       new Request("http://localhost", { method: "POST", body: "{}" }),
       { params: Promise.resolve({ id: prop.id }) },
@@ -166,7 +141,7 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
   it("POST without key returns 503 not_configured without calling fetch", async () => {
     const prop = createSampleProperty();
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const POST = createValuationEstimateHandler(undefined, FIXED_NOW);
+    const POST = estimateRoute(undefined, FIXED_NOW);
 
     const res = await POST(
       new Request("http://localhost", { method: "POST", body: "{}" }),
@@ -182,8 +157,7 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
   it("POST maps not_reliably_valuable, 402 quota_exceeded, API 422, and timeout", async () => {
     const prop = createSampleProperty();
 
-    const nvHandler = createValuationEstimateHandler(
-      () => ({
+    const nvHandler = estimateRoute(() => ({
         estimate: async () => ({
           ok: true,
           provider: "immoanalyse",
@@ -203,9 +177,7 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
           },
           quota: null,
         }),
-      }),
-      FIXED_NOW,
-    );
+      }), FIXED_NOW);
     const nvRes = await nvHandler(
       new Request("http://localhost", { method: "POST", body: "{}" }),
       { params: Promise.resolve({ id: prop.id }) },
@@ -215,8 +187,7 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
       code: "valuation_rejected",
     });
 
-    const quotaHandler = createValuationEstimateHandler(
-      () => ({
+    const quotaHandler = estimateRoute(() => ({
         estimate: async () => ({
           ok: false,
           code: "quota_exceeded",
@@ -230,9 +201,7 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
             tariff: "free",
           },
         }),
-      }),
-      FIXED_NOW,
-    );
+      }), FIXED_NOW);
     const qRes = await quotaHandler(
       new Request("http://localhost", { method: "POST", body: "{}" }),
       { params: Promise.resolve({ id: prop.id }) },
@@ -240,17 +209,14 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
     expect(qRes.status).toBe(429);
     expect(getQuotaSnapshot()?.remaining).toBe(0);
 
-    const api422Handler = createValuationEstimateHandler(
-      () => ({
+    const api422Handler = estimateRoute(() => ({
         estimate: async () => ({
           ok: false,
           code: "not_valuable",
           apiCode: "region_data_insufficient",
           message: "422",
         }),
-      }),
-      FIXED_NOW,
-    );
+      }), FIXED_NOW);
     const r422 = await api422Handler(
       new Request("http://localhost", { method: "POST", body: "{}" }),
       { params: Promise.resolve({ id: prop.id }) },
@@ -261,16 +227,13 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
       apiCode: "region_data_insufficient",
     });
 
-    const timeoutHandler = createValuationEstimateHandler(
-      () => ({
+    const timeoutHandler = estimateRoute(() => ({
         estimate: async () => ({
           ok: false,
           code: "timeout",
           message: "timeout",
         }),
-      }),
-      FIXED_NOW,
-    );
+      }), FIXED_NOW);
     const r504 = await timeoutHandler(
       new Request("http://localhost", { method: "POST", body: "{}" }),
       { params: Promise.resolve({ id: prop.id }) },
@@ -284,7 +247,7 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
     const valuator: PropertyValuator = {
       estimate: vi.fn(),
     };
-    const POST = createValuationEstimateHandler(() => valuator, FIXED_NOW);
+    const POST = estimateRoute(() => valuator, FIXED_NOW);
 
     // Note: sanitizeCity strips street-like city, so test strict POST body rejection first
     const badBodyRes = await POST(
@@ -308,8 +271,7 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
     // Create manual history entry via updateProperty on propA
     updateProperty(propA.id, { estimatedValueCents: 31_000_000 });
 
-    const POST = createValuationEstimateHandler(
-      () => ({
+    const POST = estimateRoute(() => ({
         estimate: async () => ({
           ok: true,
           provider: "immoanalyse",
@@ -329,9 +291,7 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
           },
           quota: null,
         }),
-      }),
-      FIXED_NOW,
-    );
+      }), FIXED_NOW);
 
     const valRes = await POST(
       new Request("http://localhost", { method: "POST", body: "{}" }),
@@ -339,7 +299,7 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
     );
     const { historyId } = (await valRes.json()) as { historyId: string };
 
-    const HISTORY = createValuationHistoryHandler();
+    const HISTORY = historyRoute();
     const histBefore = await HISTORY(new Request("http://localhost"), {
       params: Promise.resolve({ id: propA.id }),
     });
@@ -354,7 +314,7 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
       (e) => e.source === "manual",
     )!;
 
-    const ADOPT = createValuationAdoptHandler(FIXED_NOW);
+    const ADOPT = adoptRoute(FIXED_NOW);
 
     // Foreign property -> 404
     const foreignRes = await ADOPT(
@@ -421,8 +381,7 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
 
   it("applies current adjustments on adopt (lower) and dynamically adjusts history.pendingSuggestion", async () => {
     const prop = createSampleProperty({ estimatedValueCents: 49_000_000 });
-    const ESTIMATE = createValuationEstimateHandler(
-      () => ({
+    const ESTIMATE = estimateRoute(() => ({
         estimate: async () => ({
           ok: true,
           provider: "immoanalyse",
@@ -442,12 +401,10 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
           },
           quota: null,
         }),
-      }),
-      FIXED_NOW,
-    );
-    const PUT_ADJ = createValuationAdjustmentsHandler(FIXED_NOW);
-    const HISTORY = createValuationHistoryHandler();
-    const ADOPT = createValuationAdoptHandler(FIXED_NOW);
+      }), FIXED_NOW);
+    const PUT_ADJ = adjustmentsRoute(FIXED_NOW);
+    const HISTORY = historyRoute();
+    const ADOPT = adoptRoute(FIXED_NOW);
 
     const estRes = await ESTIMATE(
       new Request("http://localhost", { method: "POST", body: "{}" }),
@@ -519,7 +476,7 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
     updateProperty(propA.id, { estimatedValueCents: 31_000_000 });
     updateProperty(propA.id, { estimatedValueCents: 3_100_000_000 });
 
-    const HISTORY = createValuationHistoryHandler();
+    const HISTORY = historyRoute();
     const readEntries = async (id: string) => {
       const res = await HISTORY(new Request("http://localhost"), {
         params: Promise.resolve({ id }),
@@ -533,7 +490,7 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
     expect(before).toHaveLength(2);
     const typo = before.find((e) => e.medianCents === 3_100_000_000)!;
 
-    const DELETE = createValuationHistoryEntryDeleteHandler();
+    const DELETE = historyEntryDeleteRoute();
 
     const foreignRes = await DELETE(
       new Request("http://localhost", { method: "DELETE" }),
@@ -567,8 +524,7 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
 
   it("DELETE of a pending suggestion clears history.pendingSuggestion", async () => {
     const prop = createSampleProperty();
-    const ESTIMATE = createValuationEstimateHandler(
-      () => ({
+    const ESTIMATE = estimateRoute(() => ({
         estimate: async () => ({
           ok: true,
           provider: "immoanalyse",
@@ -588,23 +544,21 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
           },
           quota: null,
         }),
-      }),
-      FIXED_NOW,
-    );
+      }), FIXED_NOW);
     const estRes = await ESTIMATE(
       new Request("http://localhost", { method: "POST", body: "{}" }),
       { params: Promise.resolve({ id: prop.id }) },
     );
     const { historyId } = (await estRes.json()) as { historyId: string };
 
-    const DELETE = createValuationHistoryEntryDeleteHandler();
+    const DELETE = historyEntryDeleteRoute();
     const delRes = await DELETE(
       new Request("http://localhost", { method: "DELETE" }),
       { params: Promise.resolve({ id: prop.id, historyId }) },
     );
     expect(delRes.status).toBe(200);
 
-    const HISTORY = createValuationHistoryHandler();
+    const HISTORY = historyRoute();
     const histRes = await HISTORY(new Request("http://localhost"), {
       params: Promise.resolve({ id: prop.id }),
     });
@@ -619,7 +573,7 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
 
   it("omits requestJson in GET and POST when getDevMode() is false and never sends adjustments/catalogKey to valuator", async () => {
     const prop = createSampleProperty();
-    const PUT_ADJ = createValuationAdjustmentsHandler(FIXED_NOW);
+    const PUT_ADJ = adjustmentsRoute(FIXED_NOW);
     const adjRes = await PUT_ADJ(
       new Request("http://localhost", {
         method: "PUT",
@@ -637,7 +591,7 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
     );
     expect(adjRes.status).toBe(200);
 
-    const GET_PROD = createValuationPreviewHandler(FIXED_NOW, () => false);
+    const GET_PROD = previewRoute(FIXED_NOW, () => false);
     const getProdRes = await GET_PROD(new Request("http://localhost"), {
       params: Promise.resolve({ id: prop.id }),
     });
@@ -646,7 +600,7 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
     expect(getProdBody).toEqual({ usable: true });
     expect("requestJson" in getProdBody).toBe(false);
 
-    const GET_DEV = createValuationPreviewHandler(FIXED_NOW, () => true);
+    const GET_DEV = previewRoute(FIXED_NOW, () => true);
     const getDevRes = await GET_DEV(new Request("http://localhost"), {
       params: Promise.resolve({ id: prop.id }),
     });
@@ -680,11 +634,7 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
       },
     });
 
-    const POST_PROD = createValuationEstimateHandler(
-      makeValuator,
-      FIXED_NOW,
-      () => false,
-    );
+    const POST_PROD = estimateRoute(makeValuator, FIXED_NOW, () => false);
     const postProdRes = await POST_PROD(
       new Request("http://localhost", { method: "POST", body: "{}" }),
       { params: Promise.resolve({ id: prop.id }) },
@@ -695,11 +645,7 @@ describe("/api/properties/[id]/valuation, /adopt, /history", () => {
     expect(postProdBody.valuation).toBeDefined();
     expect(postProdBody.historyId).toBeDefined();
 
-    const POST_DEV = createValuationEstimateHandler(
-      makeValuator,
-      FIXED_NOW,
-      () => true,
-    );
+    const POST_DEV = estimateRoute(makeValuator, FIXED_NOW, () => true);
     const postDevRes = await POST_DEV(
       new Request("http://localhost", { method: "POST", body: "{}" }),
       { params: Promise.resolve({ id: prop.id }) },

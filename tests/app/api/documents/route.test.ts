@@ -1,8 +1,7 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import * as dbModule from "@/backend/db/connection";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { withTempDatabase } from "@tests/helpers/temp-db";
 import {
   createContract,
   createProperty,
@@ -26,9 +25,6 @@ const SAMPLE_PDF_BYTES = Buffer.from(
   "%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n",
 );
 
-const tempDirs: string[] = [];
-const originalDbUrl = process.env.DATABASE_URL;
-const originalDocsDir = process.env.DOCUMENTS_DIR;
 
 function makePdfRequest(
   bytes: Buffer = SAMPLE_PDF_BYTES,
@@ -45,33 +41,11 @@ function makePdfRequest(
   });
 }
 
-beforeEach(() => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coruscant-docs-api-"));
-  tempDirs.push(dir);
-  process.env.DATABASE_URL = path.join(dir, "test.db");
-  process.env.DOCUMENTS_DIR = path.join(dir, "documents");
-});
 
-afterEach(() => {
-  vi.restoreAllMocks();
-  dbModule.closeDb();
-  if (originalDbUrl === undefined) {
-    delete process.env.DATABASE_URL;
-  } else {
-    process.env.DATABASE_URL = originalDbUrl;
-  }
-  if (originalDocsDir === undefined) {
-    delete process.env.DOCUMENTS_DIR;
-  } else {
-    process.env.DOCUMENTS_DIR = originalDocsDir;
-  }
-  while (tempDirs.length > 0) {
-    const dir = tempDirs.pop();
-    if (dir && fs.existsSync(dir)) {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  }
-});
+
+withTempDatabase({ dirs: { DOCUMENTS_DIR: "documents" } });
+
+afterEach(() => vi.restoreAllMocks());
 
 describe("/api/documents integration", () => {
   it("uploads PDF with mocked AI extraction, streams file, and blocks duplicate uploads", async () => {

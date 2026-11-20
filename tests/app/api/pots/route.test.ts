@@ -1,8 +1,7 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import * as dbModule from "@/backend/db/connection";
+import { withTempDatabase } from "@tests/helpers/temp-db";
+import { apiRequest } from "@tests/helpers/http";
 import { pots as potsTable } from "@/backend/db/schema";
 import { eq } from "drizzle-orm";
 import { addMonthsToIsoDate, getTodayIsoDate } from "@/domain/core/date";
@@ -17,29 +16,7 @@ import { POST as allocatePots } from "@/app/api/pots/allocate/route";
 import { POST as reorderPots } from "@/app/api/pots/reorder/route";
 import { GET as listPots, POST as createPot } from "@/app/api/pots/route";
 
-const tempDirs: string[] = [];
-const originalDbUrl = process.env.DATABASE_URL;
-
-beforeEach(() => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coruscant-pots-"));
-  tempDirs.push(dir);
-  process.env.DATABASE_URL = path.join(dir, "test.db");
-});
-
-afterEach(() => {
-  dbModule.closeDb();
-  if (originalDbUrl === undefined) {
-    delete process.env.DATABASE_URL;
-  } else {
-    process.env.DATABASE_URL = originalDbUrl;
-  }
-  while (tempDirs.length > 0) {
-    const dir = tempDirs.pop();
-    if (dir && fs.existsSync(dir)) {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  }
-});
+withTempDatabase();
 
 describe("/api/pots purpose", () => {
   it("speichert purpose im Roundtrip, lässt es bei PATCH ohne purpose unverändert und migriert Bestand auf null", async () => {
@@ -326,7 +303,7 @@ describe("/api/pots CRUD, percentage guard, reorder, and atomic allocation", () 
     expect(allocBody.unallocatedCents).toBe(30_000);
 
     // Verify GET /api/pots reflects new balances and recentAllocations
-    const listAfterAlloc = await listPots();
+    const listAfterAlloc = await listPots(apiRequest("/api/pots"));
     const listBody = (await listAfterAlloc.json()) as {
       pots: Array<{ id: string; currentCents: number }>;
       recentAllocations: Array<{ potId: string; amountCents: number }>;
@@ -348,7 +325,7 @@ describe("/api/pots CRUD, percentage guard, reorder, and atomic allocation", () 
     );
     expect(delRes.status).toBe(200);
 
-    const listAfterDelete = await listPots();
+    const listAfterDelete = await listPots(apiRequest("/api/pots"));
     const afterDeleteBody = (await listAfterDelete.json()) as {
       pots: Array<{ id: string; priority: number }>;
       recentAllocations: Array<{ potId: string }>;

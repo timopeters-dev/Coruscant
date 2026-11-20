@@ -1,9 +1,9 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { unzipSync } from "fflate";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import * as dbModule from "@/backend/db/connection";
+import { withTempDatabase } from "@tests/helpers/temp-db";
 import { createDocumentRecord } from "@/backend/db/queries/documents";
 import { documents } from "@/backend/db/schema";
 import { eq } from "drizzle-orm";
@@ -12,28 +12,10 @@ import { savePdfFile } from "@/backend/storage/pdf-storage";
 import { GET as exportRoute } from "@/app/api/tax/export/route";
 import { GET as summaryRoute } from "@/app/api/tax/summary/route";
 
-const tempDirs: string[] = [];
-const originalDbUrl = process.env.DATABASE_URL;
-const originalDocsDir = process.env.DOCUMENTS_DIR;
-
-beforeEach(() => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coruscant-tax-api-"));
-  tempDirs.push(dir);
-  process.env.DATABASE_URL = path.join(dir, "test.db");
-  process.env.DOCUMENTS_DIR = path.join(dir, "documents");
-});
+withTempDatabase({ dirs: { DOCUMENTS_DIR: "documents" } });
 
 afterEach(() => {
   vi.restoreAllMocks();
-  dbModule.closeDb();
-  if (originalDbUrl === undefined) delete process.env.DATABASE_URL;
-  else process.env.DATABASE_URL = originalDbUrl;
-  if (originalDocsDir === undefined) delete process.env.DOCUMENTS_DIR;
-  else process.env.DOCUMENTS_DIR = originalDocsDir;
-  while (tempDirs.length > 0) {
-    const dir = tempDirs.pop();
-    if (dir) fs.rmSync(dir, { recursive: true, force: true });
-  }
 });
 
 interface SeedOptions {

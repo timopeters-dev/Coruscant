@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { and, desc, eq, isNotNull, ne } from "drizzle-orm";
 import { getDb } from "@/backend/db/connection";
+import { ApiError, NotFoundError } from "@/backend/errors";
 import {
   properties,
   propertyValuationHistory,
@@ -41,26 +42,21 @@ export type AutoValuationOutcome = NonNullable<
   PropertyRow["lastAutoValuationOutcome"]
 >;
 
-export class ValuationHistoryNotFoundError extends Error {
-  constructor(message = "Bewertungseintrag nicht gefunden.") {
-    super(message);
-    this.name = "ValuationHistoryNotFoundError";
+export class ValuationHistoryNotFoundError extends NotFoundError {
+  constructor() {
+    super("Bewertungseintrag nicht gefunden.");
   }
 }
 
-export class PropertyNotFoundError extends Error {
-  constructor(message = "Immobilie nicht gefunden.") {
-    super(message);
-    this.name = "PropertyNotFoundError";
+export class PropertyNotFoundError extends NotFoundError {
+  constructor() {
+    super("Immobilie nicht gefunden.");
   }
 }
 
-export class ValuationValueConflictError extends Error {
-  readonly currentValueCents: number;
-  constructor(currentValueCents: number) {
-    super("Der Objektwert hat sich zwischenzeitlich geändert.");
-    this.name = "ValuationValueConflictError";
-    this.currentValueCents = currentValueCents;
+export class ValuationValueConflictError extends ApiError {
+  constructor(readonly currentValueCents: number) {
+    super(409, "Der Objektwert hat sich zwischenzeitlich geändert.", { code: "value_changed", currentValueCents });
   }
 }
 

@@ -1,7 +1,5 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import { withTempDatabase } from "@tests/helpers/temp-db";
 import * as dbModule from "@/backend/db/connection";
 import {
   applyPotSyncFromSnapshot,
@@ -19,29 +17,7 @@ import { PATCH as patchPotById } from "@/app/api/pots/[id]/route";
 import { POST as allocatePots } from "@/app/api/pots/allocate/route";
 import { POST as createPot } from "@/app/api/pots/route";
 
-const tempDirs: string[] = [];
-const originalDbUrl = process.env.DATABASE_URL;
-
-beforeEach(() => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coruscant-potlink-"));
-  tempDirs.push(dir);
-  process.env.DATABASE_URL = path.join(dir, "test.db");
-});
-
-afterEach(() => {
-  dbModule.closeDb();
-  if (originalDbUrl === undefined) {
-    delete process.env.DATABASE_URL;
-  } else {
-    process.env.DATABASE_URL = originalDbUrl;
-  }
-  while (tempDirs.length > 0) {
-    const dir = tempDirs.pop();
-    if (dir && fs.existsSync(dir)) {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  }
-});
+withTempDatabase();
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
 

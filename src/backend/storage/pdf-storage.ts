@@ -1,96 +1,53 @@
 import crypto from "node:crypto";
-import fs from "node:fs";
 import path from "node:path";
+import { ApiError, NotFoundError, isFileNotFound } from "@/backend/errors";
+import { createFileStore, PathTraversalError } from "./file-store";
+
+export { PathTraversalError };
 
 export const MAX_PDF_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB
 
-const STORAGE_PATH_PATTERN = /^\d{4}\/[0-9a-f-]{36}\.pdf$/i;
+const store = createFileStore({
+  envVar: "DOCUMENTS_DIR",
+  defaultDir: "data/documents",
+  pathPattern: /^\d{4}\/[0-9a-f-]{36}\.pdf$/i,
+  traversalMessage: "Ungültiger Dokumentenpfad.",
+});
 
-export class InvalidPdfError extends Error {
+export class InvalidPdfError extends ApiError {
   constructor(message = "Ungültige PDF-Datei.") {
-    super(message);
-    this.name = "InvalidPdfError";
+    super(400, message);
   }
 }
 
-export class PdfTooLargeError extends Error {
-  constructor(
-    message = `Die PDF-Datei überschreitet das Limit von ${MAX_PDF_SIZE_BYTES / (1024 * 1024)} MB.`,
-  ) {
-    super(message);
-    this.name = "PdfTooLargeError";
+export class PdfTooLargeError extends ApiError {
+  constructor() {
+    super(413, `Die PDF-Datei überschreitet das Limit von ${MAX_PDF_SIZE_BYTES / (1024 * 1024)} MB.`);
   }
 }
 
-export class PathTraversalError extends Error {
-  constructor(message = "Ungültiger Dokumentenpfad.") {
-    super(message);
-    this.name = "PathTraversalError";
-  }
-}
-
-export function resolveDocumentsBaseDir(customBaseDir?: string): string {
-  const raw =
-    customBaseDir ?? process.env.DOCUMENTS_DIR?.trim() ?? "data/documents";
-  const target = raw.length > 0 ? raw : "data/documents";
-  return path.isAbsolute(target)
-    ? path.resolve(target)
-    : path.resolve(/* turbopackIgnore: true */ process.cwd(), target);
-}
+export const resolveDocumentsBaseDir = store.baseDir;
+export const resolveSafeStoragePath = store.resolveSafe;
+export const readPdfFile = store.read;
+export const deletePdfFileIfExists = store.deleteIfExists;
+export const getPdfFileSize = store.size;
 
 export function sanitizeOriginalFilename(filename: string): string {
-  const normalizedSlashes = filename.replace(/\\/g, "/");
-  const base = path.posix.basename(normalizedSlashes);
-  const cleaned = base
-    .replace(/[\u0000-\u001f\u007f/\\]/g, "")
-    .trim()
-    .slice(0, 255);
+  const base = path.posix.basename(filename.replace(/\\/g, "/"));
+  const cleaned = base.replace(/[\u0000-\u001f\u007f/\\]/g, "").trim().slice(0, 255);
   return cleaned.length > 0 ? cleaned : "dokument.pdf";
 }
 
 export function validatePdfBuffer(buffer: Buffer): void {
-  if (buffer.byteLength === 0) {
-    throw new InvalidPdfError("Die hochgeladene Datei ist leer.");
-  }
-  if (buffer.byteLength > MAX_PDF_SIZE_BYTES) {
-    throw new PdfTooLargeError();
-  }
+  if (buffer.byteLength === 0) throw new InvalidPdfError("Die hochgeladene Datei ist leer.");
+  if (buffer.byteLength > MAX_PDF_SIZE_BYTES) throw new PdfTooLargeError();
   if (buffer.subarray(0, 5).toString("ascii") !== "%PDF-") {
-    throw new InvalidPdfError(
-      "Die Datei ist kein gültiges PDF-Dokument (fehlende %PDF-Signatur).",
-    );
+    throw new InvalidPdfError("Die Datei ist kein gültiges PDF-Dokument (fehlende %PDF-Signatur).");
   }
 }
 
 export function computeSha256Hex(buffer: Buffer): string {
   return crypto.createHash("sha256").update(buffer).digest("hex");
-}
-
-export function resolveSafeStoragePath(
-  storagePath: string,
-  baseDir?: string,
-): string {
-  if (
-    !storagePath ||
-    storagePath.includes("\0") ||
-    storagePath.includes("\\") ||
-    path.isAbsolute(storagePath) ||
-    storagePath.split("/").some((segment) => segment === "..")
-  ) {
-    throw new PathTraversalError();
-  }
-
-  if (!STORAGE_PATH_PATTERN.test(storagePath)) {
-    throw new PathTraversalError();
-  }
-
-  const resolvedBase = resolveDocumentsBaseDir(baseDir);
-  const resolvedTarget = path.resolve(resolvedBase, storagePath);
-  if (!resolvedTarget.startsWith(resolvedBase + path.sep)) {
-    throw new PathTraversalError();
-  }
-
-  return resolvedTarget;
 }
 
 export interface SavedPdfResult {
@@ -99,89 +56,23 @@ export interface SavedPdfResult {
   byteSize: number;
 }
 
-export function savePdfFile(
-  buffer: Buffer,
-  year: number,
-  baseDir?: string,
-): SavedPdfResult {
+export function savePdfFile(buffer: Buffer, year: number, baseDir?: string): SavedPdfResult {
   validatePdfBuffer(buffer);
   if (!Number.isInteger(year) || year < 1900 || year > 2100) {
     throw new RangeError(`Ungültiges Speicher-Jahr: ${String(year)}`);
   }
-
-  const uuid = crypto.randomUUID();
-  const storagePath = `${year}/${uuid}.pdf`;
-  const targetPath = resolveSafeStoragePath(storagePath, baseDir);
-
-  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-  fs.writeFileSync(targetPath, buffer, { flag: "wx" });
-
-  return {
-    storagePath,
-    sha256Hash: computeSha256Hex(buffer),
-    byteSize: buffer.byteLength,
-  };
+  const storagePath = `${year}/${crypto.randomUUID()}.pdf`;
+  store.writeNew(storagePath, buffer, baseDir);
+  return { storagePath, sha256Hash: computeSha256Hex(buffer), byteSize: buffer.byteLength };
 }
 
-export function readPdfFile(storagePath: string, baseDir?: string): Buffer {
-  const resolvedBase = resolveDocumentsBaseDir(baseDir);
-  const targetPath = resolveSafeStoragePath(storagePath, resolvedBase);
-
-  const realBase = fs.realpathSync(resolvedBase);
-  const realTarget = fs.realpathSync(targetPath);
-  if (!realTarget.startsWith(realBase + path.sep)) {
-    throw new PathTraversalError();
-  }
-
-  return fs.readFileSync(realTarget);
-}
-
-export function deletePdfFileIfExists(
-  storagePath: string,
-  baseDir?: string,
-): void {
-  const targetPath = resolveSafeStoragePath(storagePath, baseDir);
+/** Liest die PDF eines Dokuments; fehlende Dateien und unsichere Pfade werden zu 404. */
+export function readPdfFileOrNotFound(storagePath: string): Buffer {
   try {
-    fs.unlinkSync(targetPath);
+    return readPdfFile(storagePath);
   } catch (error) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "ENOENT"
-    ) {
-      return;
-    }
-    throw error;
-  }
-}
-
-/**
- * Größe der gespeicherten PDF in Bytes. Fehlende Dateien und unsichere
- * Pfade liefern `null` (gelten als fehlend).
- */
-export function getPdfFileSize(
-  storagePath: string,
-  baseDir?: string,
-): number | null {
-  let targetPath: string;
-  try {
-    targetPath = resolveSafeStoragePath(storagePath, baseDir);
-  } catch (error) {
-    if (error instanceof PathTraversalError) return null;
-    throw error;
-  }
-  try {
-    const stat = fs.statSync(targetPath);
-    return stat.isFile() ? stat.size : null;
-  } catch (error) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "ENOENT"
-    ) {
-      return null;
+    if (error instanceof PathTraversalError || isFileNotFound(error)) {
+      throw new NotFoundError("PDF-Datei nicht gefunden.");
     }
     throw error;
   }

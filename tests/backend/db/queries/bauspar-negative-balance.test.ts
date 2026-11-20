@@ -1,9 +1,6 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import { withTempDatabase } from "@tests/helpers/temp-db";
 import { ZodError } from "zod";
-import * as dbModule from "@/backend/db/connection";
 import { createContract, updateContract } from "@/backend/db/queries/contracts";
 import {
   createDocumentRecord,
@@ -13,29 +10,7 @@ import {
 import { contractCreateSchema } from "@/validation/contracts";
 import { documentVerifySchema } from "@/validation/documents";
 
-const tempDirs: string[] = [];
-const originalDbUrl = process.env.DATABASE_URL;
-
-beforeEach(() => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coruscant-bauspar-neg-"));
-  tempDirs.push(dir);
-  process.env.DATABASE_URL = path.join(dir, "test.db");
-});
-
-afterEach(() => {
-  dbModule.closeDb();
-  if (originalDbUrl === undefined) {
-    delete process.env.DATABASE_URL;
-  } else {
-    process.env.DATABASE_URL = originalDbUrl;
-  }
-  while (tempDirs.length > 0) {
-    const dir = tempDirs.pop();
-    if (dir && fs.existsSync(dir)) {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  }
-});
+withTempDatabase();
 
 const savingsInput = {
   name: "Bausparvertrag Musterkasse",

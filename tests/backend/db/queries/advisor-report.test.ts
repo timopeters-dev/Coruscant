@@ -1,7 +1,5 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import { withTempDatabase } from "@tests/helpers/temp-db";
 import * as dbModule from "@/backend/db/connection";
 import { createPot } from "@/backend/db/queries/allocation";
 import {
@@ -13,8 +11,6 @@ import { createContract, createProperty } from "@/backend/db/queries/contracts";
 import { potCreateSchema } from "@/validation/allocation";
 import { contractCreateSchema } from "@/validation/contracts";
 
-const tempDirs: string[] = [];
-const originalDbUrl = process.env.DATABASE_URL;
 
 const ALL_TABLES = [
   "app_meta",
@@ -42,28 +38,9 @@ function readTableCounts(): Record<string, number> {
   return counts;
 }
 
-beforeEach(() => {
-  const dir = fs.mkdtempSync(
-    path.join(os.tmpdir(), "coruscant-advisor-report-db-"),
-  );
-  tempDirs.push(dir);
-  process.env.DATABASE_URL = path.join(dir, "test.db");
-});
 
-afterEach(() => {
-  dbModule.closeDb();
-  if (originalDbUrl === undefined) {
-    delete process.env.DATABASE_URL;
-  } else {
-    process.env.DATABASE_URL = originalDbUrl;
-  }
-  while (tempDirs.length > 0) {
-    const dir = tempDirs.pop();
-    if (dir && fs.existsSync(dir)) {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  }
-});
+
+withTempDatabase();
 
 describe("advisor-report DB queries", () => {
   it("loads anonymized view without trap PII strings, retains them in full mode, and never mutates the DB", () => {

@@ -1,37 +1,15 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import * as dbModule from "@/backend/db/connection";
+import { describe, expect, it } from "vitest";
+import { withTempDatabase } from "@tests/helpers/temp-db";
 import { createPot } from "@/backend/db/queries/allocation";
 import { insertExternalSnapshot, loadCockpitData } from "@/backend/db/queries/cockpit";
 import { createContract, createProperty } from "@/backend/db/queries/contracts";
 import { potCreateSchema } from "@/validation/allocation";
 import { contractCreateSchema } from "@/validation/contracts";
 
-const tempDirs: string[] = [];
-const originalDbUrl = process.env.DATABASE_URL;
 
-beforeEach(() => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "coruscant-cockpit-db-"));
-  tempDirs.push(dir);
-  process.env.DATABASE_URL = path.join(dir, "test.db");
-});
 
-afterEach(() => {
-  dbModule.closeDb();
-  if (originalDbUrl === undefined) {
-    delete process.env.DATABASE_URL;
-  } else {
-    process.env.DATABASE_URL = originalDbUrl;
-  }
-  while (tempDirs.length > 0) {
-    const dir = tempDirs.pop();
-    if (dir && fs.existsSync(dir)) {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  }
-});
+
+withTempDatabase();
 
 describe("loadCockpitData integration", () => {
   it("counts only truly projected contracts (excluding paused and lump_sum) and ignores personal snapshot aggregates", () => {
