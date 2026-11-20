@@ -1,4 +1,4 @@
-import { executeWaterfallAllocation } from "@/backend/db/queries/allocation";
+import { executeWaterfallAllocation } from "@/backend/db/queries/pot-allocations";
 import { json, readJson, route } from "@/backend/http";
 import { potAllocateSchema } from "@/validation/allocation";
 

@@ -1,4 +1,4 @@
-import { loadPropertyValuationSource, type PropertyValuationSourceData } from "@/backend/db/queries/contracts";
+import { loadPropertyValuationSource, type PropertyValuationSourceData } from "@/backend/db/queries/properties";
 import { recordValuationOutcome, upsertQuotaSnapshot } from "@/backend/db/queries/property-valuations";
 import { ApiError, NotFoundError } from "@/backend/errors";
 import {

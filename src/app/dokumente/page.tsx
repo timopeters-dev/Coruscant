@@ -1,5 +1,6 @@
 import { DokumenteWorkspace } from "@/frontend/dokumente/dokumente-workspace";
-import { listContracts, listProperties } from "@/backend/db/queries/contracts";
+import { listContracts } from "@/backend/db/queries/contracts";
+import { listProperties } from "@/backend/db/queries/properties";
 import { listDocuments } from "@/backend/db/queries/documents";
 import { getTodayIsoDate } from "@/domain/core/date";
 

@@ -1,4 +1,4 @@
-import { verifyDocumentAndOptionallyCalibrate } from "@/backend/db/queries/documents";
+import { verifyDocumentAndOptionallyCalibrate } from "@/backend/db/queries/document-review";
 import { json, readJson, route, type RouteContext } from "@/backend/http";
 import { getTodayIsoDate } from "@/domain/core/date";
 import { documentVerifySchema } from "@/validation/documents";

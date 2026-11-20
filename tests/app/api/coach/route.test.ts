@@ -3,7 +3,7 @@ import { POST as assessmentPOST } from "@/app/api/coach/assessment/route";
 import { POST as chatPOST } from "@/app/api/coach/chat/route";
 import { POST as explainPOST } from "@/app/api/coach/explain/route";
 import { getDb } from "@/backend/db/connection";
-import { createPot } from "@/backend/db/queries/allocation";
+import { createPot } from "@/backend/db/queries/pots";
 import { createContract } from "@/backend/db/queries/contracts";
 import { insertExternalSnapshot } from "@/backend/db/queries/external-snapshots";
 import { loadRecommendationState } from "@/backend/db/queries/recommendation";

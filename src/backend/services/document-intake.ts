@@ -1,13 +1,5 @@
-import {
-  applyAiExtractionIfPending,
-  createDocumentRecord,
-  DocumentAlreadyVerifiedError,
-  DocumentNotFoundError,
-  DuplicateDocumentError,
-  getDocumentById,
-  getDocumentBySha256,
-  type DocumentRow,
-} from "@/backend/db/queries/documents";
+import { applyAiExtractionIfPending } from "@/backend/db/queries/document-review";
+import { createDocumentRecord, DocumentAlreadyVerifiedError, DocumentNotFoundError, DuplicateDocumentError, getDocumentById, getDocumentBySha256, type DocumentRow } from "@/backend/db/queries/documents";
 import { createDefaultDocumentExtractor } from "@/backend/integrations/gemini-document-extractor";
 import {
   computeSha256Hex,

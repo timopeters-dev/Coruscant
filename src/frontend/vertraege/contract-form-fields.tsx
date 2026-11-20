@@ -5,7 +5,8 @@ import { AlertTriangle } from "lucide-react";
 import { Input } from "@/frontend/ui/input";
 import { Label } from "@/frontend/ui/label";
 import { Select } from "@/frontend/ui/select";
-import type { FinancialContractRow, PropertyRow } from "@/backend/db/queries/contracts";
+import type { FinancialContractRow } from "@/backend/db/queries/contracts";
+import type { PropertyRow } from "@/backend/db/queries/properties";
 import type { ContractPrefillResult } from "@/domain/contracts/prefill";
 import type {
   ContractCategory,

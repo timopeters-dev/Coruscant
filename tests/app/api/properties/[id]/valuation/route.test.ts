@@ -8,11 +8,7 @@ import {
   previewRoute,
 } from "@tests/helpers/valuation-routes";
 import { withTempDatabase } from "@tests/helpers/temp-db";
-import {
-  createProperty,
-  getPropertyById,
-  updateProperty,
-} from "@/backend/db/queries/contracts";
+import { createProperty, getPropertyById, updateProperty } from "@/backend/db/queries/properties";
 import { getQuotaSnapshot } from "@/backend/db/queries/property-valuations";
 import type { PropertyValuator } from "@/backend/integrations/property-valuator";
 

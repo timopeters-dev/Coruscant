@@ -7,8 +7,9 @@ import { Dialog } from "@/frontend/ui/dialog";
 import { Input } from "@/frontend/ui/input";
 import { Label } from "@/frontend/ui/label";
 import { Select } from "@/frontend/ui/select";
-import type { PotRow } from "@/backend/db/queries/allocation";
-import type { FinancialContractRow, PropertyRow } from "@/backend/db/queries/contracts";
+import type { PotRow } from "@/backend/db/queries/pots";
+import type { FinancialContractRow } from "@/backend/db/queries/contracts";
+import type { PropertyRow } from "@/backend/db/queries/properties";
 import { getTodayIsoDate } from "@/domain/core/date";
 import {
   centsToEuroInputString,

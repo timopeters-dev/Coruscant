@@ -1,4 +1,4 @@
-import { createContractFromDocument } from "@/backend/db/queries/documents";
+import { createContractFromDocument } from "@/backend/db/queries/document-review";
 import { json, readJson, route, type RouteContext } from "@/backend/http";
 import { documentCreateContractSchema } from "@/validation/documents";
 

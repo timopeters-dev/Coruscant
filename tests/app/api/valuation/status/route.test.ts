@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GET } from "@/app/api/valuation/status/route";
-import { createProperty } from "@/backend/db/queries/contracts";
+import { createProperty } from "@/backend/db/queries/properties";
 import { apiRequest } from "@tests/helpers/http";
 import { withTempDatabase } from "@tests/helpers/temp-db";
 

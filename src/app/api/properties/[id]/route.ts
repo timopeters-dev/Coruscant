@@ -1,9 +1,4 @@
-import {
-  deleteProperty,
-  getPropertyById,
-  serializePropertyForApi,
-  updateProperty,
-} from "@/backend/db/queries/contracts";
+import { deleteProperty, getPropertyById, serializePropertyForApi, updateProperty } from "@/backend/db/queries/properties";
 import { PropertyNotFoundError } from "@/backend/db/queries/property-valuations";
 import { json, readJson, route, type RouteContext } from "@/backend/http";
 import { deletePropertyImageQuietly } from "@/backend/storage/property-image-storage";

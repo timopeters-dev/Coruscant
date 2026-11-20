@@ -27,7 +27,8 @@ import {
   type ContractFormValues,
   validateAndBuildContractPayload,
 } from "@/frontend/vertraege/contract-form-fields";
-import type { FinancialContractRow, PropertyRow } from "@/backend/db/queries/contracts";
+import type { FinancialContractRow } from "@/backend/db/queries/contracts";
+import type { PropertyRow } from "@/backend/db/queries/properties";
 import type { DocumentRow } from "@/backend/db/queries/documents";
 import { suggestTaxCategoryForPropertyUsage } from "@/domain/properties/rental";
 import {

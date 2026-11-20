@@ -19,13 +19,12 @@ import { StatusBadge } from "@/frontend/ui/status-badge";
 import { Badge } from "@/frontend/ui/badge";
 import { Button } from "@/frontend/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/frontend/ui/card";
-import type {
-  AllocationSettingsState,
-  CashflowItemRow,
-  PotRow,
-  RecentPotAllocationRow,
-} from "@/backend/db/queries/allocation";
-import type { FinancialContractRow, PropertyRow } from "@/backend/db/queries/contracts";
+import type { AllocationSettingsState } from "@/backend/db/queries/allocation-settings";
+import type { CashflowItemRow } from "@/backend/db/queries/cashflow-items";
+import type { PotRow } from "@/backend/db/queries/pots";
+import type { RecentPotAllocationRow } from "@/backend/db/queries/pot-allocations";
+import type { FinancialContractRow } from "@/backend/db/queries/contracts";
+import type { PropertyRow } from "@/backend/db/queries/properties";
 import {
   calculateConsolidatedCashflow,
   type DomainCashflowItem,

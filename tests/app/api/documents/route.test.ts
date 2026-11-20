@@ -2,12 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { withTempDatabase } from "@tests/helpers/temp-db";
-import {
-  createContract,
-  createProperty,
-  getContractById,
-  listContracts,
-} from "@/backend/db/queries/contracts";
+import { createContract, getContractById, listContracts } from "@/backend/db/queries/contracts";
+import { createProperty } from "@/backend/db/queries/properties";
 import { getDocumentById } from "@/backend/db/queries/documents";
 import * as extractorModule from "@/backend/integrations/gemini-document-extractor";
 import { contractCreateSchema } from "@/validation/contracts";

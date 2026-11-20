@@ -1,10 +1,8 @@
-import {
-  createManualCashflowItem,
-  getAllocationSettings,
-  listManualCashflowItems,
-} from "@/backend/db/queries/allocation";
+import { createManualCashflowItem, listManualCashflowItems } from "@/backend/db/queries/cashflow-items";
+import { getAllocationSettings } from "@/backend/db/queries/allocation-settings";
 import { getLatestExternalSnapshot, parseSnapshotHousehold } from "@/backend/db/queries/cockpit";
-import { listContracts, listProperties } from "@/backend/db/queries/contracts";
+import { listContracts } from "@/backend/db/queries/contracts";
+import { listProperties } from "@/backend/db/queries/properties";
 import { json, readJson, route } from "@/backend/http";
 import { resolveHouseholdDataForWorkspace } from "@/backend/integrations/household-dummy";
 import {

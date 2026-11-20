@@ -7,7 +7,7 @@ import { Badge } from "@/frontend/ui/badge";
 import { Button } from "@/frontend/ui/button";
 import { Card, CardContent } from "@/frontend/ui/card";
 import { Sheet } from "@/frontend/ui/sheet";
-import type { CashflowItemRow } from "@/backend/db/queries/allocation";
+import type { CashflowItemRow } from "@/backend/db/queries/cashflow-items";
 import {
   type CashflowFrequency,
   type ConsolidatedCashflowSummary,

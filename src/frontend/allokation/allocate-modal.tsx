@@ -7,7 +7,7 @@ import { Button } from "@/frontend/ui/button";
 import { Dialog } from "@/frontend/ui/dialog";
 import { Input } from "@/frontend/ui/input";
 import { Label } from "@/frontend/ui/label";
-import type { PotRow } from "@/backend/db/queries/allocation";
+import type { PotRow } from "@/backend/db/queries/pots";
 import { getTodayIsoDate } from "@/domain/core/date";
 import {
   centsToEuroInputString,

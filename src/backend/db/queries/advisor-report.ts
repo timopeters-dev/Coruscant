@@ -1,7 +1,8 @@
-import { listPots } from "./allocation";
+import { listPots } from "./pots";
 import { listBalanceSnapshots } from "./balance-history";
 import { loadHouseholdBalance } from "./cockpit";
-import { listContracts, listProperties } from "./contracts";
+import { listContracts } from "./contracts";
+import { listProperties } from "./properties";
 import { loadPlanningBase } from "./planning-base";
 import { loadRecommendationState } from "./recommendation";
 import {

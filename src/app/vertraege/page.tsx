@@ -1,6 +1,7 @@
 import { VertraegeWorkspace } from "@/frontend/vertraege/vertraege-workspace";
-import { listPots } from "@/backend/db/queries/allocation";
-import { listContracts, listProperties } from "@/backend/db/queries/contracts";
+import { listPots } from "@/backend/db/queries/pots";
+import { listContracts } from "@/backend/db/queries/contracts";
+import { listProperties } from "@/backend/db/queries/properties";
 import { type DocumentRow, listDocuments } from "@/backend/db/queries/documents";
 import {
   type ContractProjectionResult,
