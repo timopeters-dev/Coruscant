@@ -4,7 +4,7 @@ import {
   type PropertyVsEtfInput,
 } from "@/domain/planning/property-vs-etf";
 import type { PropertyVsEtfTaxInput } from "@/domain/planning/property-vs-etf-tax";
-import { applyMonthlyGrowth, computeMonthlyGrowthFactor } from "@/domain/planning/scenarios";
+import { applyMonthlyGrowth, computeMonthlyGrowthFactor } from "@/domain/planning/etf";
 import { TAX_25D } from "../../fixtures/property-vs-etf-tax-25d";
 
 const BASE_B: PropertyVsEtfInput = {

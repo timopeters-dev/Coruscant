@@ -1,9 +1,7 @@
 import { redactFreeText, trimChatHistory } from "@/domain/recommendation/coach-text";
-import {
-  findCentLikeNumbers,
-  validateExplanation,
-  type RecommendationLlmView,
-} from "@/domain/recommendation/llm";
+import { findCentLikeNumbers } from "@/domain/recommendation/llm-context";
+import { validateExplanation } from "@/domain/recommendation/llm-explanation-check";
+import type { RecommendationLlmView } from "@/domain/recommendation/llm-recommendation-view";
 import {
   coachAssessmentSchema,
   coachChatReplySchema,

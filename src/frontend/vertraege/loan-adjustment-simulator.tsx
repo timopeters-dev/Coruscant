@@ -20,11 +20,8 @@ import {
   dayNumberToIsoDate,
   isoDateToDayNumber,
 } from "@/domain/core/date";
-import {
-  remainingSpecialRepaymentCents,
-  repaymentBpsFromRate,
-  resolveRateCorridor,
-} from "@/domain/contracts/loan-options";
+import { remainingSpecialRepaymentCents, resolveRateCorridor } from "@/domain/contracts/loan-allowances";
+import { repaymentBpsFromRate } from "@/domain/contracts/loan-options";
 import { formatBpsDE, formatCentsDE } from "@/domain/core/money";
 import { formatDurationMonthsDE, formatMonthYearDE } from "./labels";
 import { MonthPicker } from "@/frontend/ui/date-picker";

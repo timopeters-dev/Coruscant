@@ -1,17 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { DomainContract } from "@/domain/contracts/contract";
-import {
-  MAX_ETF_RETURN_BPS,
-  MIN_ETF_RETURN_BPS,
-  applyMonthlyGrowth,
-  buildPrepaymentDefaults,
-  calculateEtfLiquidationTax,
-  computeMonthlyGrowthFactor,
-  findBreakEvenReturnBps,
-  simulateCashflowChange,
-  simulatePrepaymentVsEtf,
-  type PrepaymentVsEtfInput,
-} from "@/domain/planning/scenarios";
+import { MAX_ETF_RETURN_BPS, MIN_ETF_RETURN_BPS, applyMonthlyGrowth, calculateEtfLiquidationTax, computeMonthlyGrowthFactor } from "@/domain/planning/etf";
+import { buildPrepaymentDefaults, findBreakEvenReturnBps, simulatePrepaymentVsEtf, type PrepaymentVsEtfInput } from "@/domain/planning/prepayment-vs-etf";
+import { simulateCashflowChange } from "@/domain/planning/cashflow-change";
 import type { DomainPot } from "@/domain/allocation/waterfall";
 
 const SCALE = 10n ** 12n;

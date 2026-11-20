@@ -1,7 +1,7 @@
 /** Monatlicher Verlauf eines Vertrags (Tilgungsplan bzw. Ansparverlauf) inkl. Sondertilgung und Ratenwechsel. */
 import { applyCappedSpecialRepayment, type DomainContract, getCalibrationAge, stepContractMonth, validateContract } from "./contract";
 import { addMonthsToIsoDate, countCompletedMonths, parseIsoDate } from "@/domain/core/date";
-import { remainingSpecialRepaymentCents, resolveRateCorridor, resolveYearlyCapCents, specialRepaymentRule } from "./loan-options";
+import { remainingSpecialRepaymentCents, resolveRateCorridor, resolveYearlyCapCents, specialRepaymentRule } from "./loan-allowances";
 import { assertNonNegativeInteger, assertSafeInteger, roundHalfUpBigInt } from "@/domain/core/money";
 import { type AmortizationMarker, type AmortizationOptions, type AmortizationPoint, type AmortizationSeriesResult, DEFAULT_FLAT_HORIZON_MONTHS, MAX_SERIES_MONTHS, type RateChangeSummary } from "./amortization-types";
 

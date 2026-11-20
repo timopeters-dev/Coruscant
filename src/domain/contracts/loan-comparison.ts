@@ -2,12 +2,7 @@ import type { DomainContract, RepaymentType } from "./contract";
 import { parseIsoDate } from "@/domain/core/date";
 import type { RateCorridor, SpecialRepaymentAllowance } from "./loan-options";
 import { assertNonNegativeInteger, assertSafeInteger } from "@/domain/core/money";
-import {
-  type BreakEvenResult,
-  buildPrepaymentDefaults,
-  findBreakEvenReturnBps,
-  simulatePrepaymentVsEtf,
-} from "@/domain/planning/scenarios";
+import { type BreakEvenResult, buildPrepaymentDefaults, findBreakEvenReturnBps, simulatePrepaymentVsEtf } from "@/domain/planning/prepayment-vs-etf";
 
 export const LOAN_COMPARISON_PROBE_CENTS = 100_000;
 export const LOAN_COMPARISON_RATE_PROBE_CENTS = 10_000;

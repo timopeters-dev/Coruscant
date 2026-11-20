@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { simulateCashflowChangeSeries } from "@/domain/allocation/cashflow-change-series";
-import { simulateCashflowChange } from "@/domain/planning/scenarios";
+import { simulateCashflowChange } from "@/domain/planning/cashflow-change";
 import type { DomainPot } from "@/domain/allocation/waterfall";
 
 const samplePots: DomainPot[] = [

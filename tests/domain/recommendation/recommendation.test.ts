@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { computeRecommendationFingerprint, recommendMonthlySavings, recommendUse } from "@/domain/recommendation/recommendation";
 import { DEFAULT_RECOMMENDATION_ASSUMPTIONS, validateRecommendationAssumptions, type RecommendationLoan, type RecommendationPot, type RecommendationState } from "@/domain/recommendation/types";
 import type { RateCorridor } from "@/domain/contracts/loan-options";
-import { findBreakEvenReturnBps } from "@/domain/planning/scenarios";
+import { findBreakEvenReturnBps } from "@/domain/planning/prepayment-vs-etf";
 
 function makePot(overrides: Partial<RecommendationPot> = {}): RecommendationPot {
   const hasTarget = overrides.targetCents !== undefined && overrides.targetCents !== null;

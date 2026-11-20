@@ -11,7 +11,7 @@ import {
 } from "@/domain/core/date";
 import { buildInvestmentContext } from "@/domain/recommendation/investment-context";
 import { recommendUse } from "@/domain/recommendation/recommendation";
-import { buildPrepaymentDefaults } from "@/domain/planning/scenarios";
+import { buildPrepaymentDefaults } from "@/domain/planning/prepayment-vs-etf";
 import type { DomainPot } from "@/domain/allocation/waterfall";
 import { isDevMode } from "@/backend/dev-mode";
 import { PlanungWorkspace } from "@/frontend/planung/planung-workspace";

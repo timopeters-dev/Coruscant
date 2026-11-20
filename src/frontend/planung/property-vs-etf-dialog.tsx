@@ -15,7 +15,7 @@ import { centsToEuroInputString, formatBpsDE, parseEuroInputToCents } from "@/do
 import { CURRENT_PURCHASE_COST_RULE_SET } from "@/domain/planning/purchase-defaults";
 import { formatWholeEuroDE } from "@/frontend/charts/chart-scale";
 import { totalSaleCostsBps } from "@/domain/planning/property-vs-etf-tax";
-import { ALLOWED_CHURCH_TAX_BPS } from "@/domain/planning/scenarios";
+import { ALLOWED_CHURCH_TAX_BPS } from "@/domain/planning/etf";
 import { cn } from "@/frontend/ui/cn";
 import { SliderField } from "./euro-slider-field";
 import {

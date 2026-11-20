@@ -1,4 +1,4 @@
-import type { RecommendationLlmView } from "@/domain/recommendation/llm";
+import type { RecommendationLlmView } from "@/domain/recommendation/llm-recommendation-view";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   COACH_SYSTEM_PROMPT,

@@ -1,4 +1,4 @@
-import type { RecommendationLlmView } from "@/domain/recommendation/llm";
+import type { RecommendationLlmView } from "@/domain/recommendation/llm-recommendation-view";
 import type {
   CoachAssessment,
   CoachChatMessage,

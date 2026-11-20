@@ -1,8 +1,4 @@
-import {
-  MAX_ETF_RETURN_BPS,
-  MAX_SAVER_ALLOWANCE_CENTS,
-  MIN_ETF_RETURN_BPS,
-} from "@/domain/planning/scenarios";
+import { MAX_ETF_RETURN_BPS, MAX_SAVER_ALLOWANCE_CENTS, MIN_ETF_RETURN_BPS } from "@/domain/planning/etf";
 import { z } from "zod";
 
 export const recommendationAssumptionsPatchSchema = z

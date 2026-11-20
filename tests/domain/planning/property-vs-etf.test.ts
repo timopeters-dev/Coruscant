@@ -6,7 +6,7 @@ import {
   type PropertyVsEtfInput,
 } from "@/domain/planning/property-vs-etf";
 import { calculatePurchaseCostsCents } from "@/domain/planning/property-vs-etf-defaults";
-import { applyMonthlyGrowth, computeMonthlyGrowthFactor } from "@/domain/planning/scenarios";
+import { applyMonthlyGrowth, computeMonthlyGrowthFactor } from "@/domain/planning/etf";
 
 const BASE_A: PropertyVsEtfInput = {
   purchasePriceCents: 20_000_000,

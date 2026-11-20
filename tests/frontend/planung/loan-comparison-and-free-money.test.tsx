@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { DomainContract } from "@/domain/contracts/contract";
 import { buildLoanComparison } from "@/domain/contracts/loan-comparison";
-import { buildPrepaymentDefaults } from "@/domain/planning/scenarios";
+import { buildPrepaymentDefaults } from "@/domain/planning/prepayment-vs-etf";
 import { FreeMoneyPanel } from "@/frontend/planung/free-money-panel";
 import { LoanComparisonTable } from "@/frontend/planung/loan-comparison-table";
 import {

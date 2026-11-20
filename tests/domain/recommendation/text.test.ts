@@ -4,7 +4,7 @@ import {
   formatRecommendationNote,
   formatRecommendationReason,
 } from "@/domain/recommendation/text";
-import { findCentLikeNumbers } from "@/domain/recommendation/llm";
+import { findCentLikeNumbers } from "@/domain/recommendation/llm-context";
 import { formatRecommendationReason as reExportedReason } from "@/frontend/planung/recommendation-text";
 
 describe("recommendation-text", () => {

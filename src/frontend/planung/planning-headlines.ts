@@ -1,7 +1,7 @@
 import { formatWholeEuroDE } from "@/frontend/charts/chart-scale";
 import { addMonthsToYearMonth } from "@/domain/core/date";
 import { formatBpsDE } from "@/domain/core/money";
-import type { BreakEvenResult } from "@/domain/planning/scenarios";
+import type { BreakEvenResult } from "@/domain/planning/prepayment-vs-etf";
 import { formatMonthDE } from "@/domain/core/date-format";
 import type { FreeMoneyView, SalaryView } from "./planning-state";
 
