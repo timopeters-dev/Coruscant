@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { loadAdvisorSensitiveStrings } from "@/db/queries/advisor-report";
-import { checkAdvisorQuestion } from "@/lib/domain/advisor-report-anonymize";
-import { advisorQuestionCheckSchema } from "@/lib/validation/advisor-report";
+import { loadAdvisorSensitiveStrings } from "@/backend/db/queries/advisor-report";
+import { checkAdvisorQuestion } from "@/domain/report/anonymize";
+import { advisorQuestionCheckSchema } from "@/validation/advisor-report";
 
 const NO_STORE_HEADERS = {
   "Cache-Control": "no-store",

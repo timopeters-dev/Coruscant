@@ -3,14 +3,14 @@ import {
   AllocationValidationError,
   executeWaterfallAllocation,
   PotNotFoundError,
-} from "@/db/queries/allocation";
+} from "@/backend/db/queries/allocation";
 import {
   badRequestResponse,
   internalErrorResponse,
   parseJsonBody,
   validationErrorResponse,
-} from "@/lib/api/http";
-import { potAllocateSchema } from "@/lib/validation/allocation";
+} from "@/backend/http";
+import { potAllocateSchema } from "@/validation/allocation";
 
 export const dynamic = "force-dynamic";
 

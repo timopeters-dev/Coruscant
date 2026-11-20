@@ -5,16 +5,16 @@ import {
   DocumentNotFoundError,
   DocumentValidationError,
   updateDocumentRecord,
-} from "@/db/queries/documents";
+} from "@/backend/db/queries/documents";
 import {
   badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
   parseJsonBody,
   validationErrorResponse,
-} from "@/lib/api/http";
-import { deletePdfFileIfExists } from "@/lib/storage/pdf-storage";
-import { documentUpdateSchema } from "@/lib/validation/documents";
+} from "@/backend/http";
+import { deletePdfFileIfExists } from "@/backend/storage/pdf-storage";
+import { documentUpdateSchema } from "@/validation/documents";
 
 export const dynamic = "force-dynamic";
 

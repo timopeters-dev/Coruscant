@@ -6,16 +6,16 @@ import {
   DocumentNotFoundError,
   DocumentValidationError,
   verifyDocumentAndOptionallyCalibrate,
-} from "@/db/queries/documents";
+} from "@/backend/db/queries/documents";
 import {
   badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
   parseJsonBody,
   validationErrorResponse,
-} from "@/lib/api/http";
-import { getTodayIsoDate } from "@/lib/domain/date";
-import { documentVerifySchema } from "@/lib/validation/documents";
+} from "@/backend/http";
+import { getTodayIsoDate } from "@/domain/core/date";
+import { documentVerifySchema } from "@/validation/documents";
 
 export const dynamic = "force-dynamic";
 

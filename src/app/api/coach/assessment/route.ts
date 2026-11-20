@@ -1,4 +1,4 @@
-import { createAssessmentHandler } from "../handlers";
+import { createAssessmentHandler } from "@/app/api/coach/handlers";
 
 export const dynamic = "force-dynamic";
 

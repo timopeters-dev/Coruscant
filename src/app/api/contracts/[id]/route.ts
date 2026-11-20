@@ -5,15 +5,15 @@ import {
   getContractById,
   LinkedPropertyNotFoundError,
   updateContract,
-} from "@/db/queries/contracts";
+} from "@/backend/db/queries/contracts";
 import {
   badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
   parseJsonBody,
   validationErrorResponse,
-} from "@/lib/api/http";
-import { contractUpdateSchema } from "@/lib/validation/contracts";
+} from "@/backend/http";
+import { contractUpdateSchema } from "@/validation/contracts";
 
 export const dynamic = "force-dynamic";
 

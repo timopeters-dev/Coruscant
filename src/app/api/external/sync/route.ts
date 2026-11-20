@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import { getLatestExternalSnapshot } from "@/db/queries/cockpit";
-import { storeSnapshotAndSyncPots } from "@/db/queries/allocation";
-import { badRequestResponse, internalErrorResponse } from "@/lib/api/http";
-import { evaluateSnapshotFreshness } from "@/lib/domain/external-sync";
+import { getLatestExternalSnapshot } from "@/backend/db/queries/cockpit";
+import { storeSnapshotAndSyncPots } from "@/backend/db/queries/allocation";
+import { badRequestResponse, internalErrorResponse } from "@/backend/http";
+import { evaluateSnapshotFreshness } from "@/domain/cockpit/external-sync";
 import {
   fetchFinanzCockpitSummary,
   getFinanzCockpitBridgeConfig,
-} from "@/lib/integrations/finanz-cockpit-client";
-import { runBalanceSnapshotJob } from "@/lib/server/balance-snapshot-job";
-import { externalSyncRequestSchema } from "@/lib/validation/external";
+} from "@/backend/integrations/finanz-cockpit-client";
+import { runBalanceSnapshotJob } from "@/backend/jobs/balance-snapshot-job";
+import { externalSyncRequestSchema } from "@/validation/external";
 
 export const dynamic = "force-dynamic";
 

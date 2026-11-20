@@ -1,4 +1,4 @@
-import { createChatHandler } from "../handlers";
+import { createChatHandler } from "@/app/api/coach/handlers";
 
 export const dynamic = "force-dynamic";
 

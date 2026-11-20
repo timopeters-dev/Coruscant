@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getDocumentById } from "@/db/queries/documents";
-import { internalErrorResponse, notFoundResponse } from "@/lib/api/http";
-import { PathTraversalError, readPdfFile } from "@/lib/storage/pdf-storage";
+import { getDocumentById } from "@/backend/db/queries/documents";
+import { internalErrorResponse, notFoundResponse } from "@/backend/http";
+import { PathTraversalError, readPdfFile } from "@/backend/storage/pdf-storage";
 
 export const dynamic = "force-dynamic";
 

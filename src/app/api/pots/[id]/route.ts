@@ -11,19 +11,19 @@ import {
   PotLinkedBalanceReadOnlyError,
   RemainderPercentageExceededError,
   updatePot,
-} from "@/db/queries/allocation";
+} from "@/backend/db/queries/allocation";
 import {
   badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
   parseJsonBody,
   validationErrorResponse,
-} from "@/lib/api/http";
-import { getTodayIsoDate } from "@/lib/domain/date";
+} from "@/backend/http";
+import { getTodayIsoDate } from "@/domain/core/date";
 import {
   potUpdateSchema,
   validatePotTargetDateWindow,
-} from "@/lib/validation/allocation";
+} from "@/validation/allocation";
 
 export const dynamic = "force-dynamic";
 

@@ -4,15 +4,15 @@ import {
   getCashflowItemById,
   NonManualCashflowItemError,
   updateManualCashflowItem,
-} from "@/db/queries/allocation";
+} from "@/backend/db/queries/allocation";
 import {
   badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
   parseJsonBody,
   validationErrorResponse,
-} from "@/lib/api/http";
-import { cashflowUpdateSchema } from "@/lib/validation/allocation";
+} from "@/backend/http";
+import { cashflowUpdateSchema } from "@/validation/allocation";
 
 export const dynamic = "force-dynamic";
 

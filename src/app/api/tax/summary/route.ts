@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getTaxYearOverview } from "@/db/queries/tax";
-import { badRequestResponse, internalErrorResponse } from "@/lib/api/http";
-import { parseTaxYearParam } from "@/lib/validation/tax";
+import { getTaxYearOverview } from "@/backend/db/queries/tax";
+import { badRequestResponse, internalErrorResponse } from "@/backend/http";
+import { parseTaxYearParam } from "@/validation/tax";
 
 export const dynamic = "force-dynamic";
 

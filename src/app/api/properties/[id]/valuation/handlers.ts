@@ -1,31 +1,31 @@
 import { NextResponse } from "next/server";
-import { loadPropertyValuationSource } from "@/db/queries/contracts";
+import { loadPropertyValuationSource } from "@/backend/db/queries/contracts";
 import {
   badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
   validationErrorResponse,
-} from "@/lib/api/http";
+} from "@/backend/http";
 import {
   assertValuationContextSafe,
   buildPropertyValuationContext,
   ValuationContextPiiError,
   type ValuationContextUnavailableReason,
-} from "@/lib/domain/property-valuation-context";
+} from "@/domain/properties/valuation/context";
 import {
   assertRequestHasNoAddress,
   buildImmoAnalyseRequest,
   serializeImmoAnalyseRequest,
-} from "@/lib/integrations/immoanalyse-mapping";
+} from "@/backend/integrations/immoanalyse-mapping";
 import {
   createDefaultPropertyValuator,
   type PropertyValuator,
   type ValuatorErrorCode,
-} from "@/lib/integrations/property-valuator";
-import { getBerlinClockSnapshot } from "@/lib/server/berlin-clock";
-import { isDevMode } from "@/lib/server/dev-mode";
-import { runPropertyValuation } from "@/lib/server/property-valuation-service";
-import { valuationPostBodySchema } from "@/lib/validation/immoanalyse";
+} from "@/backend/integrations/property-valuator";
+import { getBerlinClockSnapshot } from "@/backend/jobs/berlin-clock";
+import { isDevMode } from "@/backend/dev-mode";
+import { runPropertyValuation } from "@/backend/services/property-valuation-service";
+import { valuationPostBodySchema } from "@/validation/immoanalyse";
 
 export type PropertyValuatorFactory = () => PropertyValuator;
 

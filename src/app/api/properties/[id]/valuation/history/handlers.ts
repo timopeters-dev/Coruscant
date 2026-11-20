@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
-import { getPropertyById } from "@/db/queries/contracts";
+import { getPropertyById } from "@/backend/db/queries/contracts";
 import {
   getLatestPendingSuggestion,
   listValuationHistory,
-} from "@/db/queries/property-valuations";
-import { internalErrorResponse, notFoundResponse } from "@/lib/api/http";
+} from "@/backend/db/queries/property-valuations";
+import { internalErrorResponse, notFoundResponse } from "@/backend/http";
 import {
   applyValuationAdjustmentToBounds,
   parseValuationAdjustments,
   sumAdjustmentBps,
-} from "@/lib/domain/property-valuation-adjustments";
+} from "@/domain/properties/valuation/adjustments";
 
 export interface RouteContext {
   params: Promise<{ id: string }>;

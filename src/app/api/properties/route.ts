@@ -5,14 +5,14 @@ import {
   MaintenancePotValidationError,
   PropertyValidationError,
   serializePropertyForApi,
-} from "@/db/queries/contracts";
+} from "@/backend/db/queries/contracts";
 import {
   badRequestResponse,
   internalErrorResponse,
   parseJsonBody,
   validationErrorResponse,
-} from "@/lib/api/http";
-import { propertyCreateSchema } from "@/lib/validation/contracts";
+} from "@/backend/http";
+import { propertyCreateSchema } from "@/validation/contracts";
 
 export const dynamic = "force-dynamic";
 

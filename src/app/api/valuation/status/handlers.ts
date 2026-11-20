@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import {
   getQuotaSnapshot,
   listAllPropertyIntervals,
-} from "@/db/queries/property-valuations";
-import { internalErrorResponse } from "@/lib/api/http";
+} from "@/backend/db/queries/property-valuations";
+import { internalErrorResponse } from "@/backend/http";
 import {
   evaluateAutoValuationQuota,
   FREE_TIER_DEFAULT_LIMIT,
   summarizePlannedConsumption,
-} from "@/lib/domain/auto-valuation-schedule";
-import { getSchedulerStatusSnapshot } from "@/lib/server/scheduler";
+} from "@/domain/properties/valuation/auto-schedule";
+import { getSchedulerStatusSnapshot } from "@/backend/jobs/scheduler";
 
 export function createValuationStatusHandler(
   options: {

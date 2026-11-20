@@ -7,16 +7,16 @@ import {
   RentalProfileValidationError,
   serializePropertyForApi,
   updateProperty,
-} from "@/db/queries/contracts";
+} from "@/backend/db/queries/contracts";
 import {
   badRequestResponse,
   internalErrorResponse,
   notFoundResponse,
   parseJsonBody,
   validationErrorResponse,
-} from "@/lib/api/http";
-import { deletePropertyImageIfExists } from "@/lib/storage/property-image-storage";
-import { propertyUpdateSchema } from "@/lib/validation/contracts";
+} from "@/backend/http";
+import { deletePropertyImageIfExists } from "@/backend/storage/property-image-storage";
+import { propertyUpdateSchema } from "@/validation/contracts";
 
 export const dynamic = "force-dynamic";
 
