@@ -26,7 +26,7 @@ import {
   type ContractProjectionResult,
   extractContractMilestones,
 } from "@/domain/contracts/contract";
-import type { ContractOverview } from "@/domain/contracts/series";
+import type { ContractOverview } from "@/domain/contracts/amortization-types";
 import { formatBpsDE, formatCentsDE } from "@/domain/core/money";
 import type { PropertySummary } from "@/domain/properties/properties";
 import type {

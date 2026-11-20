@@ -7,10 +7,8 @@ import {
   type ContractProjectionResult,
   projectContractBalance,
 } from "@/domain/contracts/contract";
-import {
-  buildContractOverview,
-  type ContractOverview,
-} from "@/domain/contracts/series";
+import { buildContractOverview } from "@/domain/contracts/overview";
+import type { ContractOverview } from "@/domain/contracts/amortization-types";
 import { getTodayIsoDate } from "@/domain/core/date";
 import { summarizeProperties } from "@/domain/properties/properties";
 import { summarizeRentalPortfolio } from "@/domain/properties/rental";

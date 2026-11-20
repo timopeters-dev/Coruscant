@@ -16,10 +16,7 @@ import {
   contractRecordToDomain,
   type ContractProjectionResult,
 } from "@/domain/contracts/contract";
-import {
-  buildAmortizationSeries,
-  effectiveAsOf,
-} from "@/domain/contracts/series";
+import { buildAmortizationSeries, effectiveAsOf } from "@/domain/contracts/amortization";
 import { dayNumberToIsoDate, isoDateToDayNumber } from "@/domain/core/date";
 import { formatBpsDE } from "@/domain/core/money";
 import { AMORTIZATION_MARKER_LABELS, formatMonthYearDE } from "./labels";

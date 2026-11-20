@@ -1,5 +1,5 @@
 import { formatMonthDE } from "@/domain/core/date-format";
-import type { AmortizationMarkerKind } from "@/domain/contracts/series";
+import type { AmortizationMarkerKind } from "@/domain/contracts/amortization-types";
 import type { AutoValuationInterval } from "@/domain/properties/valuation/auto-schedule";
 import type {
   ContractCategory,

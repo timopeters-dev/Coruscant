@@ -1,15 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { type DomainContract, projectContractBalance } from "@/domain/contracts/contract";
-import {
-  buildAmortizationSeries,
-  buildContractOverview,
-  buildRateChangeTimingSeries,
-  compareLoanAdjustments,
-  compareSpecialRepayment,
-  effectiveAsOf,
-  sampleSeries,
-  summarizeYearlyPaymentSplit,
-} from "@/domain/contracts/series";
+import { buildAmortizationSeries, effectiveAsOf, sampleSeries } from "@/domain/contracts/amortization";
+import { buildContractOverview } from "@/domain/contracts/overview";
+import { buildRateChangeTimingSeries, compareLoanAdjustments, compareSpecialRepayment, summarizeYearlyPaymentSplit } from "@/domain/contracts/loan-adjustments";
 
 function makeLoan(overrides: Partial<DomainContract> = {}): DomainContract {
   return {
