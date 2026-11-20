@@ -916,7 +916,7 @@ function PropertyDetailDrawerInner({
                   size="sm"
                   onClick={handleDelete}
                   disabled={isDeleting}
-                  className="bg-[var(--rose)] text-white hover:opacity-90"
+                  variant="destructive"
                 >
                   {isDeleting ? "Löscht..." : "Endgültig löschen"}
                 </Button>

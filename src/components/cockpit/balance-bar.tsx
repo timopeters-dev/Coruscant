@@ -28,7 +28,7 @@ const SEGMENT_META = [
   {
     key: "free",
     label: "Frei",
-    description: "Haushalts-Töpfe + finanz_cockpit",
+    description: "Haushalts-Töpfe + Haushaltsbuch",
     dotClass: "bg-[var(--emerald)]",
     barClass: "bg-[var(--emerald)]",
   },
@@ -146,7 +146,7 @@ export function BalanceBar({
         {!breakdown.hasData ? (
           <p className="text-xs text-[var(--text-secondary)]">
             Noch keine Aktiva oder Verbindlichkeiten erfasst. Lege Verträge,
-            Immobilien oder Töpfe an oder synchronisiere mit finanz_cockpit.
+            Immobilien oder Töpfe an oder gleiche mit dem Haushaltsbuch ab.
           </p>
         ) : null}
 

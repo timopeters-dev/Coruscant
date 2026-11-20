@@ -824,8 +824,8 @@ export function AdvisorReportDocument({
             <strong>Datenquelle:</strong> Lokale Haushalts-App (Stand{" "}
             {view.meta.asOfDateDisplay}
             {view.dataQuality.snapshotAgeDays !== null
-              ? `, letzter Sync vor ${Math.max(0, view.dataQuality.snapshotAgeDays)} Tagen`
-              : ", kein Sync-Snapshot vorhanden"}
+              ? `, letzter Abgleich vor ${Math.max(0, view.dataQuality.snapshotAgeDays)} Tagen`
+              : ", noch kein Abgleich mit dem Haushaltsbuch"}
             ).
           </li>
         </ul>

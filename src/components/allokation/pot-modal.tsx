@@ -422,7 +422,7 @@ function PotModalInner({
             />
             {isLinked ? (
               <p className="text-xs text-[var(--text-secondary)]">
-                Wird beim Sync aus finanz_cockpit übernommen.
+                Wird beim Abgleich aus dem Haushaltsbuch übernommen.
               </p>
             ) : null}
             {errors.currentEuro ? (
@@ -639,7 +639,7 @@ function PotModalInner({
 
         <div className="space-y-1.5">
           <Label htmlFor="pot-external-link">
-            Mit finanz_cockpit koppeln (optional)
+            Mit dem Haushaltsbuch koppeln (optional)
           </Label>
           <Select
             id="pot-external-link"
@@ -670,7 +670,7 @@ function PotModalInner({
           </Select>
           {linkSelectDisabled ? (
             <p className="text-xs text-[var(--text-secondary)]">
-              Erst finanz_cockpit synchronisieren.
+              Erst mit dem Haushaltsbuch abgleichen.
             </p>
           ) : null}
           {initialLinkOutOfScope && externalLinkValue === initialLinkValue ? (

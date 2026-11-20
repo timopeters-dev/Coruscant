@@ -309,7 +309,7 @@ export function DocumentArchive({
                             size="sm"
                             disabled={isDeleting}
                             onClick={() => void handleDelete(doc.id)}
-                            className="bg-[var(--rose)] text-white hover:opacity-90"
+                            variant="destructive"
                           >
                             Löschen?
                           </Button>

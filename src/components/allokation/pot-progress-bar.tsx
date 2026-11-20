@@ -30,14 +30,14 @@ export function PotProgressBar({ bar, deadlineStatus }: PotProgressBarProps) {
       <div
         className={cn(
           "h-full transition-all",
-          bar.reached ? "bg-[var(--emerald)]" : "bg-[var(--accent)]",
+          bar.reached ? "bg-[var(--emerald)]" : "bg-[var(--meter-fill)]",
         )}
         style={{ width: `${bar.currentBps / 100}%` }}
       />
       {bar.previewBps > 0 ? (
         <div
           className={cn(
-            "h-full border border-dashed bg-[var(--accent)]/35 transition-all",
+            "h-full border border-dashed bg-[var(--meter-fill)]/35 transition-all",
             previewBorder,
           )}
           style={{ width: `${bar.previewBps / 100}%` }}

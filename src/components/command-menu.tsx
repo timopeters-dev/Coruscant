@@ -150,7 +150,7 @@ export function CommandMenu({
             {finanzCockpitUrl ? (
               <Command.Group heading="Extern" className={GROUP}>
                 <Command.Item
-                  value="Finanz Cockpit öffnen extern"
+                  value="Haushaltsbuch öffnen extern"
                   onSelect={() =>
                     run(() =>
                       window.open(finanzCockpitUrl, "_blank", "noopener,noreferrer"),
@@ -161,7 +161,7 @@ export function CommandMenu({
                   <ItemIcon>
                     <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
                   </ItemIcon>
-                  <span>Finanz Cockpit öffnen</span>
+                  <span>Haushaltsbuch öffnen</span>
                   <EnterHint />
                 </Command.Item>
               </Command.Group>

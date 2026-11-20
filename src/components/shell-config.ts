@@ -1,3 +1,4 @@
+import { COMPANION_APP_NAME } from "@/lib/companion-app";
 import {
   Building2,
   Calculator,
@@ -72,6 +73,6 @@ export function resolveActiveTheme(
 }
 
 export const FINANZ_COCKPIT_LINK = {
-  label: "Finanz Cockpit",
-  ariaLabel: "Finanz Cockpit (öffnet in neuem Tab)",
+  label: COMPANION_APP_NAME,
+  ariaLabel: `${COMPANION_APP_NAME} (öffnet in neuem Tab)`,
 } as const;

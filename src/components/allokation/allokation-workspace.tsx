@@ -336,13 +336,13 @@ export function AllokationWorkspace({
           | { message?: string }
           | null;
         setActionError(
-          body?.message ?? "finanz_cockpit-Synchronisation fehlgeschlagen.",
+          body?.message ?? "Abgleich mit dem Haushaltsbuch fehlgeschlagen.",
         );
         return;
       }
       router.refresh();
     } catch {
-      setActionError("Netzwerkfehler bei der finanz_cockpit-Synchronisation.");
+      setActionError("Netzwerkfehler beim Abgleich mit dem Haushaltsbuch.");
     } finally {
       setIsSyncingBridge(false);
     }
@@ -410,7 +410,7 @@ export function AllokationWorkspace({
             Cashflow &amp; Wasserfall
           </h1>
           <p className="text-sm text-[var(--text-secondary)]">
-            Gemeinschaftskonto-Basis (finanz_cockpit), Verträge und priorisierte
+            Gemeinschaftskonto aus dem Haushaltsbuch, Verträge und priorisierte
             Ziel-Töpfe.
           </p>
         </div>
@@ -478,15 +478,14 @@ export function AllokationWorkspace({
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium text-[var(--text-primary)]">
-                    Noch kein Gemeinschaftskonto synchronisiert
+                    Noch kein Gemeinschaftskonto abgeglichen
                   </p>
-                  <StatusBadge variant="modeled" detail="Kein Sync" />
+                  <StatusBadge variant="modeled" detail="Nicht abgeglichen" />
                 </div>
                 <p className="text-xs text-[var(--text-secondary)]">
-                  Markiere in <code className="font-mono">finanz_cockpit</code>{" "}
-                  ein Konto als Gemeinschaftskonto (
+                  Markiere im Haushaltsbuch ein Konto als Gemeinschaftskonto (
                   <code className="font-mono">scope = household</code>) und
-                  starte einen Sync. Verträge, Objekte und Ziel-Töpfe
+                  starte einen Abgleich. Verträge, Objekte und Ziel-Töpfe
                   bleiben bereits nutzbar.
                 </p>
               </div>
@@ -503,7 +502,7 @@ export function AllokationWorkspace({
                   )}
                   aria-hidden="true"
                 />
-                finanz_cockpit synchronisieren
+                Mit dem Haushaltsbuch abgleichen
               </Button>
             </CardContent>
           </Card>
@@ -730,7 +729,7 @@ export function AllokationWorkspace({
                   )}
                   aria-hidden="true"
                 />
-                Sync
+                {isSyncingBridge ? "Gleiche ab …" : "Jetzt abgleichen"}
               </Button>
             ) : null}
           </div>

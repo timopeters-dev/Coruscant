@@ -91,7 +91,7 @@ export async function POST(request?: Request): Promise<Response> {
             status: "skipped",
             reason: "fresh",
             snapshot: latestSnapshot,
-            message: "finanz_cockpit-Snapshot ist noch aktuell.",
+            message: "Stand aus dem Haushaltsbuch ist noch aktuell.",
           },
           { status: 200 },
         );
@@ -136,7 +136,7 @@ export async function POST(request?: Request): Promise<Response> {
           snapshot,
           potSync,
           historyRecorded,
-          message: "finanz_cockpit erfolgreich synchronisiert.",
+          message: "Mit dem Haushaltsbuch abgeglichen.",
         },
         { status: 200 },
       );

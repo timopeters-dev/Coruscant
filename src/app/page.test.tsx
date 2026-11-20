@@ -74,7 +74,7 @@ describe("CockpitPage", () => {
     const html = renderToStaticMarkup(<CockpitPage />);
 
     expect(html).toContain("Haushalts-Cockpit");
-    expect(html).toContain("Berater-Bericht");
+    expect(html).toContain("Bericht erstellen");
     expect(errorSpy).toHaveBeenCalledTimes(1);
   });
 });
