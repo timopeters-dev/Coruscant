@@ -33,7 +33,7 @@ vi.mock("next/link", () => ({
   },
 }));
 
-import { buildPrepaymentDefaults } from "@/domain/planning/scenarios";
+import { buildPrepaymentDefaults } from "@/domain/planning/prepayment-vs-etf";
 import { PlanungWorkspace } from "@/frontend/planung/planung-workspace";
 import { parsePropertyVsEtfQuery } from "@/frontend/planung/property-vs-etf-query";
 

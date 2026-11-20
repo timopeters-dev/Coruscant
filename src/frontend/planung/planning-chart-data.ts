@@ -2,10 +2,8 @@ import type { LineSeries } from "@/frontend/charts/line-chart";
 import type { TimelineRow } from "@/frontend/charts/timeline-range-chart";
 import type { CashflowChangeSeries } from "@/domain/allocation/cashflow-change-series";
 import { addMonthsToYearMonth } from "@/domain/core/date";
-import type {
-  CashflowChangeResult,
-  PrepaymentTimelinePoint,
-} from "@/domain/planning/scenarios";
+import type { CashflowChangeResult } from "@/domain/planning/cashflow-change";
+import type { PrepaymentTimelinePoint } from "@/domain/planning/prepayment-vs-etf";
 import { formatMonthDE } from "@/domain/core/date-format";
 
 export function toPrepaymentSeries(

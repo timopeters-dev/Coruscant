@@ -4,7 +4,7 @@ import {
   PROPERTY_VS_ETF_TAX_LIMITS,
 } from "@/domain/planning/property-vs-etf-defaults";
 import type { PropertyPurchaseInput } from "@/domain/planning/purchase";
-import { ALLOWED_CHURCH_TAX_BPS } from "@/domain/planning/scenarios";
+import { ALLOWED_CHURCH_TAX_BPS } from "@/domain/planning/etf";
 import {
   coerceStrictInt,
   getParam,

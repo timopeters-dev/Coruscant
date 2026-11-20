@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CashflowChangeSeries } from "@/domain/allocation/cashflow-change-series";
-import type {
-  CashflowChangeResult,
-  PrepaymentTimelinePoint,
-} from "@/domain/planning/scenarios";
+import type { CashflowChangeResult } from "@/domain/planning/cashflow-change";
+import type { PrepaymentTimelinePoint } from "@/domain/planning/prepayment-vs-etf";
 import {
   pickTimelineHorizonMonths,
   toFillTimelineRows,

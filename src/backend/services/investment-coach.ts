@@ -13,12 +13,8 @@ import {
   isInvestmentContextUsable,
   type InvestmentContext,
 } from "@/domain/recommendation/investment-context";
-import {
-  buildLlmInvestmentContextView,
-  buildRecommendationLlmView,
-  collectRawCentValues,
-  serializeLlmContext,
-} from "@/domain/recommendation/llm";
+import { buildLlmInvestmentContextView, collectRawCentValues, serializeLlmContext } from "@/domain/recommendation/llm-context";
+import { buildRecommendationLlmView } from "@/domain/recommendation/llm-recommendation-view";
 import { computeRecommendationFingerprint, recommendMonthlySavings, recommendUse } from "@/domain/recommendation/recommendation";
 import type { CoachChatRequest } from "@/validation/coach";
 import type { ExplainRequest } from "@/validation/recommendation";

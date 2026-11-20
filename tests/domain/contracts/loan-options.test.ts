@@ -1,18 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { contractRecordToDomain, type DomainContract, validateContract } from "@/domain/contracts/contract";
-import {
-  annuityRateFromRepaymentBps,
-  DEFAULT_RATE_CHANGE_MAX_REPAYMENT_BPS,
-  DEFAULT_RATE_CHANGE_MIN_REPAYMENT_BPS,
-  getLoanOptions,
-  installmentRateFromRepaymentBps,
-  remainingSpecialRepaymentCents,
-  repaymentBpsFromRate,
-  resolveRateCorridor,
-  resolveYearlyCapCents,
-  specialRepaymentRule,
-  validateLoanOptions,
-} from "@/domain/contracts/loan-options";
+import { annuityRateFromRepaymentBps, DEFAULT_RATE_CHANGE_MAX_REPAYMENT_BPS, DEFAULT_RATE_CHANGE_MIN_REPAYMENT_BPS, getLoanOptions, installmentRateFromRepaymentBps, repaymentBpsFromRate } from "@/domain/contracts/loan-options";
+import { remainingSpecialRepaymentCents, resolveRateCorridor, resolveYearlyCapCents, specialRepaymentRule } from "@/domain/contracts/loan-allowances";
+import { validateLoanOptions } from "@/domain/contracts/loan-options-validation";
 
 function makeLoan(overrides: Partial<DomainContract> = {}): DomainContract {
   return {

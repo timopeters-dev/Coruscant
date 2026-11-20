@@ -21,7 +21,7 @@ import {
   PROPERTY_VS_ETF_LIMITS,
   PROPERTY_VS_ETF_TAX_DEFAULTS,
 } from "./property-vs-etf-defaults";
-import { applyMonthlyGrowth, computeMonthlyGrowthFactor } from "./scenarios";
+import { applyMonthlyGrowth, computeMonthlyGrowthFactor } from "./etf";
 
 export interface PropertyVsEtfInput {
   purchasePriceCents: number;

@@ -24,13 +24,8 @@ import {
   type ContractStatus,
   getCalibrationAge,
 } from "@/domain/contracts/contract";
-import {
-  getLoanOptions,
-  remainingSpecialRepaymentCents,
-  repaymentBpsFromRate,
-  resolveRateCorridor,
-  type RateChangeScope,
-} from "@/domain/contracts/loan-options";
+import { getLoanOptions, repaymentBpsFromRate, type RateChangeScope } from "@/domain/contracts/loan-options";
+import { remainingSpecialRepaymentCents, resolveRateCorridor } from "@/domain/contracts/loan-allowances";
 import { formatBpsDE, formatCentsDE } from "@/domain/core/money";
 import { CalibrationStaleNotice } from "./calibration-stale-notice";
 import {

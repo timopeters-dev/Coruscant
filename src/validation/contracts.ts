@@ -1,13 +1,8 @@
 import { z } from "zod";
 import { AUTO_VALUATION_INTERVALS } from "@/domain/properties/valuation/auto-schedule";
 import { getTodayIsoDate, parseIsoDate } from "@/domain/core/date";
-import {
-  MAX_RATE_CHANGE_COUNT,
-  resolveRateCorridor,
-  type OptionRight,
-  type RateChangeScope,
-  type SpecialRepaymentBasis,
-} from "@/domain/contracts/loan-options";
+import { MAX_RATE_CHANGE_COUNT, type OptionRight, type RateChangeScope, type SpecialRepaymentBasis } from "@/domain/contracts/loan-options";
+import { resolveRateCorridor } from "@/domain/contracts/loan-allowances";
 import {
   MAX_RENOVATIONS,
   RENOVATION_KINDS,

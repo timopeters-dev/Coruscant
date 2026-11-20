@@ -8,7 +8,7 @@ import type {
   LoanComparisonVerdict,
 } from "@/domain/contracts/loan-comparison";
 import { formatBpsDE } from "@/domain/core/money";
-import type { BreakEvenResult } from "@/domain/planning/scenarios";
+import type { BreakEvenResult } from "@/domain/planning/prepayment-vs-etf";
 import { cn } from "@/frontend/ui/cn";
 
 export interface LoanComparisonTableProps {

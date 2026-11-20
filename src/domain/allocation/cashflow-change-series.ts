@@ -1,6 +1,6 @@
 import { addMonthsToYearMonth, parseYearMonth } from "@/domain/core/date";
 import { assertSafeInteger } from "@/domain/core/money";
-import { MAX_SCENARIO_MONTHS } from "@/domain/planning/scenarios";
+import { MAX_SCENARIO_MONTHS } from "@/domain/planning/etf";
 import { calculateWaterfallSuggestion, type DomainPot } from "./waterfall";
 import {
   simulateMonthlyWaterfall,

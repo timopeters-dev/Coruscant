@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPrepaymentDefaults } from "@/domain/planning/scenarios";
+import { buildPrepaymentDefaults } from "@/domain/planning/prepayment-vs-etf";
 import type { DomainPot } from "@/domain/allocation/waterfall";
 import {
   buildPlanningHref,

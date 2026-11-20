@@ -2,7 +2,7 @@ import { divRoundHalfUpSigned, assertNonNegativeInteger, assertSafeInteger, roun
 import {
   PROPERTY_VS_ETF_TAX_LIMITS,
 } from "./property-vs-etf-defaults";
-import { ALLOWED_CHURCH_TAX_BPS, calculateEtfLiquidationTax } from "./scenarios";
+import { ALLOWED_CHURCH_TAX_BPS, calculateEtfLiquidationTax } from "./etf";
 
 /**
  * Vereinfachte Steuerlogik, keine Steuerberatung (Modelliert).

@@ -25,10 +25,7 @@ import {
 import { buildLoanComparison } from "@/domain/contracts/loan-comparison";
 import { formatBpsDE, formatCentsDE } from "@/domain/core/money";
 import { DEFAULT_RECOMMENDATION_ASSUMPTIONS } from "@/domain/recommendation/types";
-import {
-  ALLOWED_CHURCH_TAX_BPS,
-  MAX_SAVER_ALLOWANCE_CENTS,
-} from "@/domain/planning/scenarios";
+import { ALLOWED_CHURCH_TAX_BPS, MAX_SAVER_ALLOWANCE_CENTS } from "@/domain/planning/etf";
 import { cn } from "@/frontend/ui/cn";
 import { SliderField } from "./euro-slider-field";
 import { formatDateDE, formatMonthDE } from "@/domain/core/date-format";

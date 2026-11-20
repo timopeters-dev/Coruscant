@@ -15,7 +15,7 @@ import {
   validatePropertyVsEtfTaxInput,
   type PropertyVsEtfTaxInput,
 } from "@/domain/planning/property-vs-etf-tax";
-import { MAX_ETF_RETURN_BPS, MIN_ETF_RETURN_BPS } from "@/domain/planning/scenarios";
+import { MAX_ETF_RETURN_BPS, MIN_ETF_RETURN_BPS } from "@/domain/planning/etf";
 
 describe("property-vs-etf-defaults", () => {
   it("summiert das aktuelle Regelwerk auf 1207 bps", () => {

@@ -1,25 +1,9 @@
 import type { DomainContract } from "@/domain/contracts/contract";
 import { parseIsoDate, parseYearMonth } from "@/domain/core/date";
 import { DEFAULT_RECOMMENDATION_ASSUMPTIONS, type RecommendationAssumptions } from "@/domain/recommendation/types";
-import {
-  ALLOWED_CHURCH_TAX_BPS,
-  DEFAULT_CASHFLOW_HORIZON_MONTHS,
-  DEFAULT_SAVER_ALLOWANCE_CENTS,
-  MAX_ETF_RETURN_BPS,
-  MAX_SCENARIO_MONTHS,
-  MAX_SAVER_ALLOWANCE_CENTS,
-  MIN_ETF_RETURN_BPS,
-  findBreakEvenReturnBps,
-  simulateCashflowChange,
-  simulatePrepaymentVsEtf,
-  type BreakEvenResult,
-  type CashflowChangeInput,
-  type CashflowChangeResult,
-  type PrepaymentDefaults,
-  type PrepaymentMonthlyChannel,
-  type PrepaymentVsEtfInput,
-  type PrepaymentVsEtfResult,
-} from "@/domain/planning/scenarios";
+import { ALLOWED_CHURCH_TAX_BPS, DEFAULT_CASHFLOW_HORIZON_MONTHS, DEFAULT_SAVER_ALLOWANCE_CENTS, MAX_ETF_RETURN_BPS, MAX_SCENARIO_MONTHS, MAX_SAVER_ALLOWANCE_CENTS, MIN_ETF_RETURN_BPS } from "@/domain/planning/etf";
+import { findBreakEvenReturnBps, simulatePrepaymentVsEtf, type BreakEvenResult, type PrepaymentDefaults, type PrepaymentMonthlyChannel, type PrepaymentVsEtfInput, type PrepaymentVsEtfResult } from "@/domain/planning/prepayment-vs-etf";
+import { simulateCashflowChange, type CashflowChangeInput, type CashflowChangeResult } from "@/domain/planning/cashflow-change";
 import type { DomainPot } from "@/domain/allocation/waterfall";
 
 export type PlanningEntry = "geld" | "gehalt" | "coach";

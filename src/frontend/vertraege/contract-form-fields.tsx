@@ -4,14 +4,8 @@ import * as React from "react";
 import { AlertTriangle } from "lucide-react";
 import type { PropertyRow } from "@/backend/db/queries/properties";
 import type { ContractCategory, ContractStatus, RepaymentType } from "@/domain/contracts/contract";
-import {
-  remainingSpecialRepaymentCents,
-  repaymentBpsFromRate,
-  resolveRateCorridor,
-  type OptionRight,
-  type RateChangeScope,
-  type SpecialRepaymentBasis,
-} from "@/domain/contracts/loan-options";
+import { remainingSpecialRepaymentCents, resolveRateCorridor } from "@/domain/contracts/loan-allowances";
+import { repaymentBpsFromRate, type OptionRight, type RateChangeScope, type SpecialRepaymentBasis } from "@/domain/contracts/loan-options";
 import { formatBpsDE, formatEuroDE } from "@/domain/core/money";
 import { Collapse, CollapseChevron } from "@/frontend/ui/collapse";
 import { DatePicker } from "@/frontend/ui/date-picker";

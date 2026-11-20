@@ -2,14 +2,9 @@ import { describe, expect, it } from "vitest";
 import { buildInvestmentContext, type InvestmentContextInput } from "@/domain/recommendation/investment-context";
 import { recommendMonthlySavings, recommendUse } from "@/domain/recommendation/recommendation";
 import type { RecommendationState } from "@/domain/recommendation/types";
-import {
-  buildLlmInvestmentContextView,
-  buildRecommendationLlmView,
-  collectRawCentValues,
-  findCentLikeNumbers,
-  serializeLlmContext,
-  validateExplanation,
-} from "@/domain/recommendation/llm";
+import { buildLlmInvestmentContextView, collectRawCentValues, findCentLikeNumbers, serializeLlmContext } from "@/domain/recommendation/llm-context";
+import { buildRecommendationLlmView } from "@/domain/recommendation/llm-recommendation-view";
+import { validateExplanation } from "@/domain/recommendation/llm-explanation-check";
 
 function makeContextInput(): InvestmentContextInput {
   return {

@@ -10,10 +10,7 @@ import {
   withSavingsRate,
   type InvestmentContext,
 } from "@/domain/recommendation/investment-context";
-import {
-  buildLlmInvestmentContextView,
-  serializeLlmContext,
-} from "@/domain/recommendation/llm";
+import { buildLlmInvestmentContextView, serializeLlmContext } from "@/domain/recommendation/llm-context";
 import { formatBpsDE, formatCentsDE } from "@/domain/core/money";
 import {
   MAX_COACH_CHAT_MESSAGE_LENGTH,

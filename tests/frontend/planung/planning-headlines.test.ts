@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildPrepaymentDefaults,
-  type PrepaymentVsEtfResult,
-} from "@/domain/planning/scenarios";
+import { buildPrepaymentDefaults, type PrepaymentVsEtfResult } from "@/domain/planning/prepayment-vs-etf";
 import {
   buildFreeMoneyHeadlines,
   buildSalaryHeadlines,

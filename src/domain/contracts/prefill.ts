@@ -1,9 +1,5 @@
 import type { ContractCategory, RepaymentType } from "./contract";
-import type {
-  OptionRight,
-  RateChangeScope,
-  SpecialRepaymentBasis,
-} from "./loan-options";
+import type { OptionRight, RateChangeScope, SpecialRepaymentBasis } from "./loan-options";
 import { formatBpsDE, formatEuroDE } from "@/domain/core/money";
 
 export interface ExtractedContractData {
