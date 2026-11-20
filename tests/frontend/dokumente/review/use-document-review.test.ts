@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveInitialTaxCategory } from "@/frontend/dokumente/document-review-panel";
+import { resolveInitialTaxCategory } from "@/frontend/dokumente/review/use-document-review";
 
 describe("resolveInitialTaxCategory", () => {
   const properties = [
