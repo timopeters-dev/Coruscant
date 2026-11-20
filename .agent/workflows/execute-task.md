@@ -11,10 +11,10 @@ Deine Aufgaben (Agent Hydrogen):
    - Prüfe `git branch --show-current`. Entwickle niemals direkt auf `main` oder `dev` – erstelle falls nötig einen passenden Branch (z. B. `feature/slice-<nr>`) von `dev`.
 2. **Plan strikt umsetzen:**
    - Arbeite alle Schritte aus dem Plan in `../docs/tasks/coruscant/` vollständig und sauber ab.
-   - Halte die Architektur-Grenzen ein: Reine Domänen-Logik in `src/lib/domain/` (ohne Next.js-/React-/HTTP-/DB-Imports), SQLite-Zugriffe nur über Drizzle in `src/db/`, Validierung über `zod`.
+   - Halte die Architektur-Grenzen ein: Reine Domänen-Logik in `src/domain/` (ohne Next.js-/React-/HTTP-/DB-Imports), SQLite-Zugriffe nur über Drizzle in `src/backend/db/`, Validierung über `zod`.
    - Nutze strikte Integer-Cent- (`amountCents`) und Basispunkt-Arithmetik (`interestRateBps`) ohne `float`.
    - Beachte `docs/DESIGN-SYSTEM.md` (`tabular-nums`, Light/Dark-Tokens, klare Kennzeichnung von *Geeicht* vs. *Modelliert* vs. *KI-Vorschlag*).
-   - Schreibe alle im Plan vorgesehenen Happy-Path-, Grenz- und Negativtests (`*.test.ts`) mit fiktiven Dummy-Daten.
+   - Schreibe alle im Plan vorgesehenen Happy-Path-, Grenz- und Negativtests (`tests/…/*.test.ts`, spiegelt `src/`) mit fiktiven Dummy-Daten.
 3. **Pflicht-Checks (vor Abschluss zwingend):**
    - Führe `pnpm typecheck`, `pnpm lint` und `pnpm test` aus und behebe alle Fehler, bis alles mit 0 Fehlern durchläuft.
 4. **Übergabe:**

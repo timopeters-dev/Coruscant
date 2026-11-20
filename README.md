@@ -79,16 +79,16 @@ Alle Beträge nutzen Tabellenziffern; Daten erscheinen einheitlich als `TT.MM.JJ
 
 ```mermaid
 flowchart TB
-    UI["App Router · React UI<br/>src/app · src/components"] --> API["API-Routen + zod-Validierung<br/>src/app/api · src/lib/validation"]
-    API --> DOM["Domänenlogik (rein, ohne I/O)<br/>src/lib/domain"]
-    API --> DB["Drizzle ORM + SQLite<br/>src/db"]
+    UI["App Router · React UI<br/>src/app · src/frontend"] --> API["API-Routen + zod-Validierung<br/>src/app/api · src/validation"]
+    API --> DOM["Domänenlogik (rein, ohne I/O)<br/>src/domain"]
+    API --> DB["Drizzle ORM + SQLite<br/>src/backend/db"]
     API --> INT["Integrationen<br/>Gemini · finanz_cockpit · Immobilien-Bewertung"]
     DB --- FILES[("data/coruscant.db<br/>data/documents/")]
     INT -. "Bearer-Token" .-> FC["finanz_cockpit<br/>/api/external/summary"]
 ```
 
-- **Domänen-Isolation:** Alle Berechnungen (Wasserfall, Vertrags-Fortschreibung, Cashflow, Bilanz) liegen in `src/lib/domain/`, ohne Next-, React-, HTTP- oder DB-Imports. ESLint erzwingt das.
-- **Datenbankzugriff** nur über Drizzle in `src/db/`.
+- **Domänen-Isolation:** Alle Berechnungen (Wasserfall, Vertrags-Fortschreibung, Cashflow, Bilanz) liegen in `src/domain/`, ohne Next-, React-, HTTP- oder DB-Imports. ESLint erzwingt das.
+- **Datenbankzugriff** nur über Drizzle in `src/backend/db/`. Struktur im Detail: `docs/ARCHITECTURE.md` §4.
 - **Generik statt Hardcoding:** Es gibt keine Sonderfälle für einzelne Kredite, Personen oder Verträge im Code.
 - **KI hinter einem Adapter:** Das Modell kommt nur über `GEMINI_MODEL`. Die KI ändert nie still Bestandsdaten.
 

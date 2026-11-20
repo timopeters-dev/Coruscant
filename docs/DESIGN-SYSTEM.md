@@ -55,11 +55,11 @@ Reines Schwarz bzw. Weiß als Fläche ist tabu – gefüllte Elemente nutzen imm
 
 ## 4. Datumsanzeige
 - Tagesgenau: **`TT.MM.JJJJ`**, monatsgenau: **`MM.JJJJ`** (kein erfundener Tag), Zeitpunkte: **`TT.MM.JJJJ, HH:MM`** (Europe/Berlin).
-- Ausschließlich über `src/lib/domain/date-format.ts` (`formatDateDE`, `formatMonthDE`, `formatMonthPartsDE`, `formatDateTimeDE`). Kein rohes ISO in der Oberfläche, keine lokalen Formatter.
+- Ausschließlich über `src/domain/core/date-format.ts` (`formatDateDE`, `formatMonthDE`, `formatMonthPartsDE`, `formatDateTimeDE`). Kein rohes ISO in der Oberfläche, keine lokalen Formatter.
 - Gespeichert wird weiterhin ISO (`YYYY-MM-DD` / `YYYY-MM`).
 
 ## 5. Flächen, Formen, Struktur
-- **Karten:** `CARD_SURFACE` (`src/components/ui/card.tsx`) – Bogen mit einer Haarlinie, **kein Schatten**. Klickbare Karten (`<Card interactive>`) wechseln beim Hover nur die Linie zu Tinte, kein Anheben.
+- **Karten:** `CARD_SURFACE` (`src/frontend/ui/card.tsx`) – Bogen mit einer Haarlinie, **kein Schatten**. Klickbare Karten (`<Card interactive>`) wechseln beim Hover nur die Linie zu Tinte, kein Anheben.
 - **Radien:** bewusst klein (Tailwind-Skala in `@theme` überschrieben: `md` 3px, `lg` 5px, `xl` 7px, `2xl` 10px) – Hierarchie über Größe, nicht über Weichheit.
 - **Keine Kästen in Kästen:** Listen innerhalb einer Karte sind Zeilen mit Haarlinien (`divide-y`), Kennzahl-Gruppen Spalten mit Trennlinien.
 - **Header & Dock:** deckend auf Kalkpapier, Haarlinie unten bzw. oben; aktiver Navigationspunkt mit Tintenstrich.
@@ -69,13 +69,13 @@ Reines Schwarz bzw. Weiß als Fläche ist tabu – gefüllte Elemente nutzen imm
 ## 6. Signatur-Elemente
 - **Eichskala:** Jeder Fortschritts-/Anteilsbalken trägt `.meter` – flache Skala mit Kerben alle 10 %, Füllung in Tinte oder Semantikfarbe. `.scale-ticks` ergänzt eine Teilstrich-Skala (0/50/100 %) unter Balken, wo Anteile gelesen werden.
 - **Prüfzeichen im `StatusBadge`:** Geeicht = Eichmarke (voller Kern im Ring), Modelliert = gestrichelter Ring, KI-Vorschlag = Raute, Eich-Hinweis = Dreieck. Detailwerte stehen hinter einer feinen Trennlinie, nicht hinter `·`.
-- **Rechenbänder (`src/components/ui/equation.tsx`):** Kennzahlen, die rechnerisch zusammenhängen, stehen als Gleichung (`Equation`, `EquationTerm`, `EquationOperator`) statt als Kachel-Reihe – Cockpit: Aktiva − Passiva = Nettovermögen; Portfolio: Kaltmiete − Objektkosten − Raten = Cashflow und Objektwert − Restschuld = Eigenkapital (mit Beleihungsskala). Herkunft und Abgleich gehören in die Fußzeile des Bandes, dessen Zahlen sie betreffen.
-- **Slider:** Tintenfüllung bis zum Schieber über `rangeFillStyle(value, min, max)` (`src/components/ui/range-fill.ts`).
+- **Rechenbänder (`src/frontend/ui/equation.tsx`):** Kennzahlen, die rechnerisch zusammenhängen, stehen als Gleichung (`Equation`, `EquationTerm`, `EquationOperator`) statt als Kachel-Reihe – Cockpit: Aktiva − Passiva = Nettovermögen; Portfolio: Kaltmiete − Objektkosten − Raten = Cashflow und Objektwert − Restschuld = Eigenkapital (mit Beleihungsskala). Herkunft und Abgleich gehören in die Fußzeile des Bandes, dessen Zahlen sie betreffen.
+- **Slider:** Tintenfüllung bis zum Schieber über `rangeFillStyle(value, min, max)` (`src/frontend/ui/range-fill.ts`).
 
 ## 7. Bewegung
 - **Prinzip:** Bewegung beantwortet Handlungen (Öffnen, Umschalten, Bestätigen). Der einzige automatische Moment: Skalen (`.meter`) und Chart-Serien decken sich beim ersten Rendern einmal von links auf.
 - Seiten blenden nur kurz ein (`.page-enter`, ohne Versatz). Kein gestaffeltes Einblenden, kein Hover-Anheben, Kennzahlen zählen beim Laden **nicht** hoch (`AnimatedNumber` animiert nur Wertänderungen).
-- Easing `--ease-out`, Dauern `--dur-fast` 120 ms / `--dur` 200 ms / `--dur-slow` 380 ms; Federn zentral in `src/components/ui/motion.ts`.
+- Easing `--ease-out`, Dauern `--dur-fast` 120 ms / `--dur` 200 ms / `--dur-slow` 380 ms; Federn zentral in `src/frontend/ui/motion.ts`.
 - **Pflicht:** `prefers-reduced-motion` schaltet alle Animationen ab; Druck rendert ohne Animation.
 
 ## 8. Buttons
@@ -84,10 +84,10 @@ Reines Schwarz bzw. Weiß als Fläche ist tabu – gefüllte Elemente nutzen imm
 - Beschriftung nennt die Aktion im Aktiv: „Bericht erstellen“, „Jetzt abgleichen“.
 
 ## 9. Sprache
-- Die Begleit-App `finanz_cockpit` heißt in der Oberfläche **Bespin** (`COMPANION_APP_NAME` in `src/lib/companion-app.ts`). Technische Namen, Env-Variablen-Namen ausgenommen, erscheinen nicht in sichtbaren Texten. Am Link in der Kopfleiste und in der Befehlspalette steht ihre Bildmarke (`src/components/bespin-mark.tsx`, Wolkenstadt, einfarbig).
+- Die Begleit-App `finanz_cockpit` heißt in der Oberfläche **Bespin** (`COMPANION_APP_NAME` in `src/frontend/shell/companion-app.ts`). Technische Namen, Env-Variablen-Namen ausgenommen, erscheinen nicht in sichtbaren Texten. Am Link in der Kopfleiste und in der Befehlspalette steht ihre Bildmarke (`src/components/bespin-mark.tsx`, Wolkenstadt, einfarbig).
 - Datenübernahme heißt durchgängig **Abgleich / abgleichen**, nicht „Sync“.
 
-## 10. Komponenten-Bausteine (`src/components/ui/`)
+## 10. Komponenten-Bausteine (`src/frontend/ui/`)
 - `Select` – eigene Listbox (Radix Popover), API wie natives `<select>`, Tastatur & Type-ahead.
 - `DatePicker` / `MonthPicker` – Eingabe `TT.MM.JJJJ` oder Kalender (react-day-picker, de, Montag zuerst); Werte bleiben ISO.
 - `Dialog` / `Sheet` – animiert, Portal nach `body`, Fokus-Falle, Scroll-Lock, Escape respektiert innere Popover.

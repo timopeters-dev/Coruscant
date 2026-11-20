@@ -4,18 +4,18 @@
 Local-First Haushalts-, Vertrags-, Dokumenten- und Vermögens-Zentrale als übergeordneter Hub zum bestehenden persönlichen [`finanz_cockpit`](../finanz_cockpit).
 - **Local-First & Privacy:** Alle Daten liegen lokal in SQLite (`data/coruscant.db`, WAL-Modus, `foreign_keys = ON`), PDFs im lokalen Dateisystem (`data/documents/`).
 - **Präzise Integer-Arithmetik:** Geldbeträge strikt als Integer in Cent (`amountCents`), Zinssätze strikt als Basispunkte (`interestRateBps`, z. B. `350` = `3,50 %`). Keine `float`-Berechnungen.
-- **Domänen-Isolation:** Reine TypeScript-Logik in `src/lib/domain/` ohne Next.js-, React-, HTTP- oder DB-Imports, abgesichert durch Vitest.
+- **Domänen-Isolation:** Reine TypeScript-Logik in `src/domain/` ohne Next.js-, React-, HTTP- oder DB-Imports, abgesichert durch Vitest.
 - **Zwei-Sphären-Prinzip:** Strikte Trennung zwischen `personal` (`finanz_cockpit`) und `household` (`Coruscant`), ohne die Ehefrau als aktive App-Nutzerin vorauszusetzen.
 - **Generik statt Hardcoding:** Keine Sonderfälle für bestimmte Kredite oder Verträge im Code; alles wird dynamisch über DB-Datensätze konfiguriert.
 
 ## 2. Tech-Stack
 - **Framework:** Next.js (App Router), React, TypeScript (`strict: true`)
-- **Datenbank & Speicher:** SQLite (`better-sqlite3`) + Drizzle ORM (`src/db/`), PDFs unter `data/documents/<jahr>/<uuid>.pdf`
+- **Datenbank & Speicher:** SQLite (`better-sqlite3`) + Drizzle ORM (`src/backend/db/`), PDFs unter `data/documents/<jahr>/<uuid>.pdf`
 - **UI & Validierung:** Tailwind CSS v4, `shadcn/ui`, Lucide Icons, `zod`
 - **KI-Adapter:** Abstrakter KI-Adapter (Standard: Google Gemini REST-API via `process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL`)
 - **Tests & Tooling:** Vitest, ESLint, `pnpm`
 
-## 3. Datenmodell (`src/db/schema.ts` – Zielbild v1)
+## 3. Datenmodell (`src/backend/db/schema.ts` – Zielbild v1)
 - `properties`: `id`, `name`, `usage` (`owner_occupied` | `rented`), `purchaseDate`, `purchasePriceCents`, `estimatedValueCents`, `maintenanceReservePotId`, `monthlyColdRentCents` (v3), `monthlyNonRecoverableCostsCents` (v3), `monthlyMaintenanceAllowanceCents` (v3), `depreciationBasisCents` (v3), `updatedAt`
 - `financial_contracts`: `id`, `name`, `provider`, `sphere` (`household` | `personal`), `category` (`loan` | `savings_contract`), `status` (`active` | `paused` | `closed`), `currentBalanceCents`, `balanceAsOfDate`, `monthlyRateCents`, `interestRateBps`, `linkedPropertyId` (FK set null), `milestoneDate`, `milestoneLabel`, `repaymentType` (`annuity` | `installment` | `lump_sum`), `specialRepaymentMaxYearlyCents`, `fixedInterestUntil`, `targetSumCents`, `allocationThresholdPercent`, `futureLoanInterestRateBps`, `updatedAt`
 - `cashflow_items`: `id`, `name`, `direction` (`inflow` | `outflow`), `amountCents`, `frequency` (`monthly` | `quarterly` | `yearly`), `source` (`manual` | `finanz_cockpit_sync` | `contract_linked` | `property_linked` – abgeleitet, nicht persistiert), `linkedContractId` (FK cascade), `active`, `updatedAt`
