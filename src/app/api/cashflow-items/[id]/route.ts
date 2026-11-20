@@ -1,4 +1,6 @@
-import { deleteManualCashflowItem, getCashflowItemById, updateManualCashflowItem } from "@/backend/db/queries/cashflow-items";
+import {
+  deleteManualCashflowItem, getCashflowItemById, updateManualCashflowItem,
+} from "@/backend/db/queries/cashflow-items";
 import { NotFoundError } from "@/backend/errors";
 import { json, readJson, route, type RouteContext } from "@/backend/http";
 import { cashflowUpdateSchema } from "@/validation/allocation";

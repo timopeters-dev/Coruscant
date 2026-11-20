@@ -1,6 +1,10 @@
 import type { FinancialContractRow } from "@/backend/db/queries/contracts";
-import type { ContractCategory, ContractStatus, DomainContract, RepaymentType } from "@/domain/contracts/contract";
-import type { OptionRight, RateChangeScope, SpecialRepaymentBasis } from "@/domain/contracts/loan-options";
+import type {
+  ContractCategory, ContractStatus, DomainContract, RepaymentType,
+} from "@/domain/contracts/contract";
+import type {
+  OptionRight, RateChangeScope, SpecialRepaymentBasis,
+} from "@/domain/contracts/loan-options";
 import type { ContractPrefillResult } from "@/domain/contracts/prefill";
 import {
   bpsToPercentInputString,

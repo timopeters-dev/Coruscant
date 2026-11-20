@@ -7,7 +7,9 @@ import type {
   QuotaSnapshot,
 } from "@/domain/properties/valuation/auto-schedule";
 import { applyValuationAdjustmentToBounds } from "@/domain/properties/valuation/adjustments";
-import type { ValuationRejectReason, ValuationWarning } from "@/domain/properties/valuation/valuation";
+import type {
+  ValuationRejectReason, ValuationWarning,
+} from "@/domain/properties/valuation/valuation";
 import { VALUATION_ERROR_CODE_LABELS, VALUATION_REJECT_REASON_LABELS } from "../labels";
 
 export interface CardErrorState {

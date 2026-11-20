@@ -2,7 +2,9 @@ import { inArray } from "drizzle-orm";
 import { getDb } from "@/backend/db/connection";
 import { nowIso } from "@/backend/db/helpers";
 import { appMeta } from "@/backend/db/schema";
-import { allocationSettingsSchema, type AllocationSettings, variableExpenseBasisSchema } from "@/validation/external";
+import {
+  allocationSettingsSchema, type AllocationSettings, variableExpenseBasisSchema,
+} from "@/validation/external";
 
 export interface AllocationSettingsState extends AllocationSettings {
   includePropertyItems: boolean;

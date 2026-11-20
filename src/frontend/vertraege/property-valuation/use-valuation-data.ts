@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import type { PropertyValuationHistoryRow } from "@/backend/db/schema";
-import { INITIAL_VALUATION_ADOPTION_STATE, valuationAdoptionReducer } from "@/domain/properties/valuation/adoption";
+import {
+  INITIAL_VALUATION_ADOPTION_STATE, valuationAdoptionReducer,
+} from "@/domain/properties/valuation/adoption";
 import { api } from "@/frontend/lib/api";
 import {
   mapHistoryToSuggestion,

@@ -1,5 +1,7 @@
 import type { ContractCategory, DomainContract, RepaymentType } from "./contract";
-import { assertNonNegativeInteger, assertSafeInteger, roundHalfUpBigInt } from "@/domain/core/money";
+import {
+  assertNonNegativeInteger, assertSafeInteger, roundHalfUpBigInt,
+} from "@/domain/core/money";
 
 export type OptionRight = "unknown" | "none" | "allowed";
 export type SpecialRepaymentBasis =

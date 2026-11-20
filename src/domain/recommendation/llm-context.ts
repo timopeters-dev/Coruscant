@@ -1,4 +1,6 @@
-import { type ContextAssetClass, type ContextGoalKind, type InvestmentContext } from "./investment-context";
+import {
+  type ContextAssetClass, type ContextGoalKind, type InvestmentContext,
+} from "./investment-context";
 import { assertSafeInteger, formatBpsDE, formatEuroDE } from "@/domain/core/money";
 
 export interface LlmInvestmentContextView {

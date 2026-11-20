@@ -1,5 +1,7 @@
 /** Prüft KI-Erklärungen: nur bekannte Posten, keine erfundenen Zahlen. */
-import { recommendationExplanationSchema, type RecommendationExplanation } from "@/validation/recommendation";
+import {
+  recommendationExplanationSchema, type RecommendationExplanation,
+} from "@/validation/recommendation";
 import type { RecommendationLlmView } from "./llm-recommendation-view";
 
 export type ExplanationViolation =

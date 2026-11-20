@@ -1,7 +1,9 @@
 import { AllokationWorkspace } from "@/frontend/allokation/allokation-workspace";
 import { parseAllocationPrefill } from "@/frontend/allokation/allocation-prefill";
 import { getAllocationSettings } from "@/backend/db/queries/allocation-settings";
-import { getPendingTransferCentsByPotId, listRecentPotAllocations } from "@/backend/db/queries/pot-allocations";
+import {
+  getPendingTransferCentsByPotId, listRecentPotAllocations,
+} from "@/backend/db/queries/pot-allocations";
 import { listManualCashflowItems } from "@/backend/db/queries/cashflow-items";
 import { listPots } from "@/backend/db/queries/pots";
 import {

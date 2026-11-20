@@ -1,4 +1,6 @@
-import { createManualCashflowItem, listManualCashflowItems } from "@/backend/db/queries/cashflow-items";
+import {
+  createManualCashflowItem, listManualCashflowItems,
+} from "@/backend/db/queries/cashflow-items";
 import { getAllocationSettings } from "@/backend/db/queries/allocation-settings";
 import { getLatestExternalSnapshot, parseSnapshotHousehold } from "@/backend/db/queries/cockpit";
 import { listContracts } from "@/backend/db/queries/contracts";

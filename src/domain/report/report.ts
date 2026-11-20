@@ -3,14 +3,28 @@ import { selectMonthEndValues } from "@/domain/cockpit/balance-history";
 import { getCalibrationAge, projectContractBalance } from "@/domain/contracts/contract";
 import { diffCalendarDays, getTodayIsoDate, parseIsoDate, toYearMonth } from "@/domain/core/date";
 import { getLoanOptions, repaymentBpsFromRate } from "@/domain/contracts/loan-options";
-import { remainingSpecialRepaymentCents, resolveRateCorridor } from "@/domain/contracts/loan-allowances";
-import { assertNonNegativeInteger, assertSafeInteger, parseEuroInputToCents, roundHalfUpBigInt } from "@/domain/core/money";
+import {
+  remainingSpecialRepaymentCents, resolveRateCorridor,
+} from "@/domain/contracts/loan-allowances";
+import {
+  assertNonNegativeInteger, assertSafeInteger, parseEuroInputToCents, roundHalfUpBigInt,
+} from "@/domain/core/money";
 import { evaluatePotDeadlines } from "@/domain/allocation/pot-deadline";
 import { summarizeProperties } from "@/domain/properties/properties";
-import { DEFAULT_RECOMMENDATION_ASSUMPTIONS, type RecommendationResult } from "@/domain/recommendation/types";
+import {
+  DEFAULT_RECOMMENDATION_ASSUMPTIONS, type RecommendationResult,
+} from "@/domain/recommendation/types";
 import { recommendMonthlySavings, recommendUse } from "@/domain/recommendation/recommendation";
 import { type DomainRentalProperty, summarizeRentalPortfolio } from "@/domain/properties/rental";
-import { ADVISOR_DISCLAIMER, ADVISOR_HISTORY_MONTHS, ADVISOR_MAX_ONE_TIME_CENTS, ADVISOR_MIN_ONE_TIME_CENTS, ADVISOR_REPORT_SCHEMA_VERSION, ADVISOR_STALE_SNAPSHOT_DAYS, type AdvisorDataQualityHint, type AdvisorEntityKey, type AdvisorReport, type AdvisorReportBalance, type AdvisorReportCashflow, type AdvisorReportContract, type AdvisorReportEntityLabel, type AdvisorReportHistory, type AdvisorReportHistoryRow, type AdvisorReportInput, type AdvisorReportLoanOptions, type AdvisorReportMode, type AdvisorReportPot, type AdvisorReportProfile, type AdvisorReportProperty } from "./types";
+import {
+  ADVISOR_DISCLAIMER, ADVISOR_HISTORY_MONTHS, ADVISOR_MAX_ONE_TIME_CENTS,
+  ADVISOR_MIN_ONE_TIME_CENTS, ADVISOR_REPORT_SCHEMA_VERSION, ADVISOR_STALE_SNAPSHOT_DAYS,
+  type AdvisorDataQualityHint, type AdvisorEntityKey, type AdvisorReport,
+  type AdvisorReportBalance, type AdvisorReportCashflow, type AdvisorReportContract,
+  type AdvisorReportEntityLabel, type AdvisorReportHistory, type AdvisorReportHistoryRow,
+  type AdvisorReportInput, type AdvisorReportLoanOptions, type AdvisorReportMode,
+  type AdvisorReportPot, type AdvisorReportProfile, type AdvisorReportProperty,
+} from "./types";
 
 function compareStrings(a: string, b: string): number {
   if (a < b) return -1;

@@ -6,16 +6,22 @@ import { ApiError } from "@/backend/errors";
 import { createDefaultInvestmentCoach } from "@/backend/integrations/gemini-investment-coach";
 import type { CoachErrorCode, CoachResult } from "@/backend/integrations/investment-coach";
 import { getTodayIsoDate } from "@/domain/core/date";
-import { calculateRebalancingPlan, sanitizeAssessmentRefs } from "@/domain/recommendation/coach-rebalancing";
+import {
+  calculateRebalancingPlan, sanitizeAssessmentRefs,
+} from "@/domain/recommendation/coach-rebalancing";
 import {
   buildInvestmentContext,
   collectContextRefs,
   isInvestmentContextUsable,
   type InvestmentContext,
 } from "@/domain/recommendation/investment-context";
-import { buildLlmInvestmentContextView, collectRawCentValues, serializeLlmContext } from "@/domain/recommendation/llm-context";
+import {
+  buildLlmInvestmentContextView, collectRawCentValues, serializeLlmContext,
+} from "@/domain/recommendation/llm-context";
 import { buildRecommendationLlmView } from "@/domain/recommendation/llm-recommendation-view";
-import { computeRecommendationFingerprint, recommendMonthlySavings, recommendUse } from "@/domain/recommendation/recommendation";
+import {
+  computeRecommendationFingerprint, recommendMonthlySavings, recommendUse,
+} from "@/domain/recommendation/recommendation";
 import type { CoachChatRequest } from "@/validation/coach";
 import type { ExplainRequest } from "@/validation/recommendation";
 

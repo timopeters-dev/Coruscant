@@ -1,6 +1,8 @@
 import { loadPlanningBase, type PlanningBase } from "./planning-base";
 import { contractRecordToDomain } from "@/domain/contracts/contract";
-import type { RecommendationLoan, RecommendationPot, RecommendationState } from "@/domain/recommendation/types";
+import type {
+  RecommendationLoan, RecommendationPot, RecommendationState,
+} from "@/domain/recommendation/types";
 import { buildPrepaymentDefaults } from "@/domain/planning/prepayment-vs-etf";
 
 export interface LoadRecommendationStateOptions {

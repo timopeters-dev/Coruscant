@@ -3,7 +3,9 @@ import { getDb } from "@/backend/db/connection";
 import { firstRow, mergePatch, newId, nowIso } from "@/backend/db/helpers";
 import { financialContracts, properties } from "@/backend/db/schema";
 import { LinkedPropertyNotFoundError } from "@/backend/errors";
-import { contractCreateSchema, type ContractCreateInput, type ContractUpdateInput } from "@/validation/contracts";
+import {
+  contractCreateSchema, type ContractCreateInput, type ContractUpdateInput,
+} from "@/validation/contracts";
 
 type StoredContractRow = typeof financialContracts.$inferSelect;
 

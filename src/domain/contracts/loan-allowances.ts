@@ -1,9 +1,16 @@
 /** Was ist erlaubt? Sondertilgungs-Kontingent je Jahr und Korridor für Tilgungssatzwechsel. */
 import type { DomainContract } from "./contract";
 import { parseIsoDate } from "@/domain/core/date";
-import { assertNonNegativeInteger, assertSafeInteger, roundHalfUpBigInt } from "@/domain/core/money";
+import {
+  assertNonNegativeInteger, assertSafeInteger, roundHalfUpBigInt,
+} from "@/domain/core/money";
 import { assertBpsRange } from "./loan-options-validation";
-import { BPS_DENOMINATOR, DEFAULT_RATE_CHANGE_MAX_REPAYMENT_BPS, DEFAULT_RATE_CHANGE_MIN_REPAYMENT_BPS, MONTHS_PER_YEAR_IN_BPS_DENOMINATOR, type RateCorridor, type SpecialRepaymentAllowance, type SpecialRepaymentRule, annuityRateFromRepaymentBps, getLoanOptions, installmentRateFromRepaymentBps } from "./loan-options";
+import {
+  BPS_DENOMINATOR, DEFAULT_RATE_CHANGE_MAX_REPAYMENT_BPS, DEFAULT_RATE_CHANGE_MIN_REPAYMENT_BPS,
+  MONTHS_PER_YEAR_IN_BPS_DENOMINATOR, type RateCorridor, type SpecialRepaymentAllowance,
+  type SpecialRepaymentRule, annuityRateFromRepaymentBps, getLoanOptions,
+  installmentRateFromRepaymentBps,
+} from "./loan-options";
 
 /**
  * Resolves a contract's special repayment configuration into a serializable SpecialRepaymentRule.

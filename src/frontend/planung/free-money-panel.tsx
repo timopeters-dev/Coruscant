@@ -14,7 +14,9 @@ import { StatusBadge } from "@/frontend/ui/status-badge";
 import { PaymentSplitSection } from "@/frontend/vertraege/payment-split-section";
 import { formatMonthYearDE } from "@/frontend/vertraege/labels";
 import type { DomainContract } from "@/domain/contracts/contract";
-import { buildRateChangeTimingSeries, compareLoanAdjustments } from "@/domain/contracts/loan-adjustments";
+import {
+  buildRateChangeTimingSeries, compareLoanAdjustments,
+} from "@/domain/contracts/loan-adjustments";
 import {
   addMonthsToIsoDate,
   addMonthsToYearMonth,

@@ -1,6 +1,9 @@
 /** Prüft die Darlehensoptionen eines Vertrags auf Vollständigkeit und Widersprüche. */
 import { assertNonNegativeInteger, assertSafeInteger } from "@/domain/core/money";
-import { type LoanOptions, type LoanOptionsValidationContext, MAX_RATE_CHANGE_COUNT, annuityRateFromRepaymentBps, installmentRateFromRepaymentBps } from "./loan-options";
+import {
+  type LoanOptions, type LoanOptionsValidationContext, MAX_RATE_CHANGE_COUNT,
+  annuityRateFromRepaymentBps, installmentRateFromRepaymentBps,
+} from "./loan-options";
 
 export function assertBpsRange(
   value: number,

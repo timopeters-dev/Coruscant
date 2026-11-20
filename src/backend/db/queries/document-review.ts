@@ -3,7 +3,10 @@ import { getDb } from "@/backend/db/connection";
 import { firstRow, newId, nowIso, type DbTx } from "@/backend/db/helpers";
 import { documents, financialContracts } from "@/backend/db/schema";
 import type { FieldErrors } from "@/backend/errors";
-import { evaluateContractCalibration, type ContractCalibrationEvaluation, type DocumentType, type TaxCategory } from "@/domain/documents/documents";
+import {
+  evaluateContractCalibration, type ContractCalibrationEvaluation, type DocumentType,
+  type TaxCategory,
+} from "@/domain/documents/documents";
 import { contractCreateSchema } from "@/validation/contracts";
 import type { DocumentCreateContractInput, DocumentVerifyInput } from "@/validation/documents";
 import { toContractRow, type FinancialContractRow } from "./contracts";

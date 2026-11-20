@@ -1,5 +1,7 @@
 import { ZodError } from "zod";
-import { assertPotTargetDateInWindow, deletePot, getPotById, updatePot } from "@/backend/db/queries/pots";
+import {
+  assertPotTargetDateInWindow, deletePot, getPotById, updatePot,
+} from "@/backend/db/queries/pots";
 import { NotFoundError } from "@/backend/errors";
 import { json, readJson, route, validationError, type RouteContext } from "@/backend/http";
 import { potUpdateSchema } from "@/validation/allocation";

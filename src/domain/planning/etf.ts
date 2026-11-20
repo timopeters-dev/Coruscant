@@ -1,4 +1,6 @@
-import { assertNonNegativeInteger, assertSafeInteger, roundHalfUpBigInt } from "@/domain/core/money";
+import {
+  assertNonNegativeInteger, assertSafeInteger, roundHalfUpBigInt,
+} from "@/domain/core/money";
 
 export const MAX_SCENARIO_MONTHS = 480;
 export const DEFAULT_CASHFLOW_HORIZON_MONTHS = 360;
