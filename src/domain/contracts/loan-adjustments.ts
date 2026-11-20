@@ -270,7 +270,3 @@ export function buildRateChangeTimingSeries(
 
   return { points, costPerYearDelayCents };
 }
-
-/**
- * Builds compact overview metrics (sparkline + payoff/target progress) for contract rows.
- */
