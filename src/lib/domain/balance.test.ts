@@ -161,6 +161,66 @@ describe("calculateHouseholdBalance", () => {
     expect(negativeNetWorth.netWorthCents).toBe(-20_000_000);
   });
 
+  it("nets a negative Bausparvertrag (Abschlussgebühr) against other savings contracts", () => {
+    const summary = calculateHouseholdBalance({
+      asOfDate: "2026-01-01",
+      properties: [],
+      pots: [],
+      contracts: [
+        {
+          id: "sav-pos",
+          name: "Bausparvertrag Musterkasse",
+          category: "savings_contract",
+          status: "active",
+          currentBalanceCents: 500_000,
+          balanceAsOfDate: "2026-01-01",
+          monthlyRateCents: 0,
+          interestRateBps: 0,
+        },
+        {
+          id: "sav-neg",
+          name: "Bausparvertrag Muster neu",
+          category: "savings_contract",
+          status: "active",
+          currentBalanceCents: -120_000,
+          balanceAsOfDate: "2026-01-01",
+          monthlyRateCents: 0,
+          interestRateBps: 0,
+        },
+      ],
+    });
+    expect(summary.savingsContractsValueCents).toBe(380_000);
+    expect(summary.liabilitiesCents).toBe(0);
+    expect(summary.netWorthCents).toBe(380_000);
+  });
+
+  it("books an overall negative Bauspar balance as liability (assets stay >= 0)", () => {
+    const summary = calculateHouseholdBalance({
+      asOfDate: "2026-01-01",
+      properties: [],
+      pots: [],
+      contracts: [
+        {
+          id: "sav-neg",
+          name: "Bausparvertrag Muster neu",
+          category: "savings_contract",
+          status: "active",
+          currentBalanceCents: -120_000,
+          balanceAsOfDate: "2026-01-01",
+          monthlyRateCents: 0,
+          interestRateBps: 0,
+        },
+      ],
+    });
+    expect(summary.savingsContractsValueCents).toBe(0);
+    expect(summary.boundAssetsCents).toBe(0);
+    expect(summary.totalAssetsCents).toBe(0);
+    expect(summary.liabilitiesCents).toBe(120_000);
+    expect(summary.netWorthCents).toBe(-120_000);
+    // Balkendiagramm akzeptiert die Werte (keine negativen Segmente).
+    expect(() => calculateBalanceBarBreakdown(summary)).not.toThrow();
+  });
+
   it("rejects invalid asOfDate or negative values", () => {
     expect(() =>
       calculateHouseholdBalance({

@@ -230,11 +230,19 @@ function ContractDetailDrawerInner({
             </p>
             <p
               className={`mt-1 tabular-nums text-xl font-semibold ${
-                isLoan ? "text-[var(--rose)]" : "text-[var(--sky)]"
+                isLoan || projection.projectedBalanceCents < 0
+                  ? "text-[var(--rose)]"
+                  : "text-[var(--sky)]"
               }`}
             >
               {formatCentsDE(projection.projectedBalanceCents)}
             </p>
+            {!isLoan && projection.projectedBalanceCents < 0 ? (
+              <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
+                Im Minus durch die Abschlussgebühr – die Sparraten gleichen das
+                zuerst aus, Guthabenzins gibt es erst ab 0 €.
+              </p>
+            ) : null}
           </div>
 
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]/40 p-4">

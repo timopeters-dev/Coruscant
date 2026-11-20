@@ -312,11 +312,17 @@ function DocumentReviewSplitView({
     selectedContract?.category === "loan" &&
     loanOptionsDiff.diffs.length > 0;
 
+  // Bauspar-Salden dürfen negativ sein (Abschlussgebühr), Darlehen nicht.
+  const allowNegativeBalance = selectedContract
+    ? selectedContract.category === "savings_contract"
+    : documentType === "bauspar_statement";
+
   const parsedBalanceCents = React.useMemo(() => {
     if (!detectedBalanceInput.trim()) return null;
     const parsed = parseEuroInputToCents(detectedBalanceInput);
-    return parsed !== null && parsed >= 0 ? parsed : null;
-  }, [detectedBalanceInput]);
+    if (parsed === null) return null;
+    return parsed >= 0 || allowNegativeBalance ? parsed : null;
+  }, [detectedBalanceInput, allowNegativeBalance]);
 
   const calibrationEvaluation: ContractCalibrationEvaluation | null =
     React.useMemo(() => {
@@ -544,7 +550,9 @@ function DocumentReviewSplitView({
 
     if (detectedBalanceInput.trim() && parsedBalanceCents === null) {
       setErrorMessage(
-        "Bitte einen gültigen nicht-negativen Vertragsstand eingeben.",
+        allowNegativeBalance
+          ? "Bitte einen gültigen Vertragsstand eingeben."
+          : "Bitte einen gültigen nicht-negativen Vertragsstand eingeben.",
       );
       return;
     }
@@ -956,7 +964,11 @@ function DocumentReviewSplitView({
                     </Label>
                     <Input
                       id="doc-balance"
-                      placeholder="z. B. 295.000,00"
+                      placeholder={
+                        allowNegativeBalance
+                          ? "z. B. -1.200,00"
+                          : "z. B. 295.000,00"
+                      }
                       className="tabular-nums"
                       value={detectedBalanceInput}
                       onChange={(e) => {
@@ -965,7 +977,10 @@ function DocumentReviewSplitView({
                         const parsed = nextVal.trim()
                           ? parseEuroInputToCents(nextVal)
                           : null;
-                        if (parsed === null || parsed < 0) {
+                        if (
+                          parsed === null ||
+                          (parsed < 0 && !allowNegativeBalance)
+                        ) {
                           setCalibrateContract(false);
                         }
                       }}

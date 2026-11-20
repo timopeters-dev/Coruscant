@@ -75,10 +75,11 @@ export function evaluateContractCalibration(
   candidateDate: string | null,
   fallbackDate: string,
 ): ContractCalibrationEvaluation {
-  const newBalanceCents = assertNonNegativeInteger(
-    candidateBalanceCents,
-    "candidateBalanceCents",
-  );
+  // Bauspar-Auszüge können negativ sein (Abschlussgebühr), Darlehen nicht.
+  const newBalanceCents =
+    contract.category === "savings_contract"
+      ? assertSafeInteger(candidateBalanceCents, "candidateBalanceCents")
+      : assertNonNegativeInteger(candidateBalanceCents, "candidateBalanceCents");
   parseIsoDate(fallbackDate, "fallbackDate");
   if (candidateDate !== null) {
     parseIsoDate(candidateDate, "candidateDate");

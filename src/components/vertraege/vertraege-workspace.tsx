@@ -944,9 +944,20 @@ export function VertraegeWorkspace({
                                 <p className="text-xs text-[var(--text-secondary)]">
                                   Guthaben
                                 </p>
-                                <p className="tabular-nums text-lg font-semibold text-[var(--sky)]">
+                                <p
+                                  className={`tabular-nums text-lg font-semibold ${
+                                    balanceCents < 0
+                                      ? "text-[var(--rose)]"
+                                      : "text-[var(--sky)]"
+                                  }`}
+                                >
                                   {formatCentsDE(balanceCents)}
                                 </p>
+                                {balanceCents < 0 ? (
+                                  <p className="text-[11px] text-[var(--text-secondary)]">
+                                    im Minus durch Abschlussgebühr
+                                  </p>
+                                ) : null}
                               </div>
                               {progressPct !== null ? (
                                 <div className="w-28 space-y-1">

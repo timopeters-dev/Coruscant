@@ -103,3 +103,62 @@ describe("ContractFormFields loan options section", () => {
     }
   });
 });
+
+describe("Bausparvertrag mit negativem Startsaldo (Abschlussgebühr)", () => {
+  function makeSavingsValues(
+    overrides: Partial<ContractFormValues> = {},
+  ): ContractFormValues {
+    return {
+      ...createInitialContractFormValues(null, TODAY),
+      name: "Bausparvertrag Musterkasse",
+      provider: "Musterkasse",
+      category: "savings_contract",
+      currentBalanceEuro: "-1200,00",
+      balanceAsOfDate: "2026-11-01",
+      monthlyRateEuro: "200",
+      interestRatePercent: "0,10",
+      ...overrides,
+    };
+  }
+
+  it("akzeptiert ein negatives Guthaben und übergibt es in Cent", () => {
+    const validation = validateAndBuildContractPayload(makeSavingsValues());
+    expect(validation.ok).toBe(true);
+    if (validation.ok) {
+      expect(validation.payload.currentBalanceCents).toBe(-120_000);
+    }
+  });
+
+  it("lehnt eine negative Restschuld bei Darlehen weiterhin ab", () => {
+    const validation = validateAndBuildContractPayload(
+      makeLoanValues({ currentBalanceEuro: "-1" }),
+    );
+    expect(validation.ok).toBe(false);
+    if (!validation.ok) {
+      expect(validation.errors.currentBalanceEuro).toBeTruthy();
+    }
+  });
+
+  it("lehnt ein leeres oder ungültiges Guthaben beim Bausparvertrag ab", () => {
+    for (const raw of ["", "abc", "-"]) {
+      const validation = validateAndBuildContractPayload(
+        makeSavingsValues({ currentBalanceEuro: raw }),
+      );
+      expect(validation.ok).toBe(false);
+    }
+  });
+
+  it("zeigt beim Bausparvertrag den Hinweis auf negative Werte", () => {
+    const html = renderToStaticMarkup(
+      <ContractFormFields
+        idPrefix="test-sav"
+        values={makeSavingsValues()}
+        errors={{}}
+        properties={[]}
+        onChange={() => {}}
+      />,
+    );
+    expect(html).toContain("Abschlussgebühr");
+    expect(html).toContain('placeholder="z. B. -1200,00"');
+  });
+});

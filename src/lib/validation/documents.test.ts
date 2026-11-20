@@ -34,10 +34,14 @@ describe("aiDocumentExtractionSchema", () => {
       }),
     ).toThrow();
 
+    // Negative Salden sind erlaubt (Bauspar-Abschlussgebühr); Darlehen prüft
+    // contractCreateSchema bzw. die Eichung. Gleitkomma bleibt verboten.
+    expect(
+      aiDocumentExtractionSchema.parse({ detectedBalanceCents: -100 })
+        .detectedBalanceCents,
+    ).toBe(-100);
     expect(() =>
-      aiDocumentExtractionSchema.parse({
-        detectedBalanceCents: -100,
-      }),
+      aiDocumentExtractionSchema.parse({ detectedBalanceCents: -1.5 }),
     ).toThrow();
 
     expect(() =>
@@ -210,10 +214,40 @@ describe("extractedContractSchema, parseExtractedContractJson & documentCreateCo
     expect(omitted.extractedContract).toBeUndefined();
   });
 
+  it("accepts a negative extracted Bauspar balance (Abschlussgebühr) but rejects a negative loan on contract creation", () => {
+    const parsed = aiDocumentExtractionSchema.parse({
+      extractedContract: {
+        category: "savings_contract",
+        currentBalanceCents: -120_000,
+      },
+    });
+    expect(parsed.extractedContract?.currentBalanceCents).toBe(-120_000);
+
+    const base = {
+      name: "Musterkasse",
+      currentBalanceCents: -120_000,
+      balanceAsOfDate: "2026-01-01",
+      monthlyRateCents: 20_000,
+      interestRateBps: 10,
+    };
+    expect(
+      documentCreateContractSchema.safeParse({
+        contract: { ...base, category: "savings_contract" },
+      }).success,
+    ).toBe(true);
+    const loan = documentCreateContractSchema.safeParse({
+      contract: { ...base, category: "loan", repaymentType: "annuity" },
+    });
+    expect(loan.success).toBe(false);
+    if (!loan.success) {
+      expect(loan.error.issues.some((i) => i.path.join(".") === "contract.currentBalanceCents")).toBe(true);
+    }
+  });
+
   it("rejects floats, negative values, out-of-range bps/percent, and invalid dates in extractedContract", () => {
     const invalidCases = [
       { currentBalanceCents: 123.45 },
-      { currentBalanceCents: -1 },
+      { currentBalanceCents: -0.5 },
       { interestRateBps: 3.45 },
       { interestRateBps: -1 },
       { interestRateBps: 100_001 },

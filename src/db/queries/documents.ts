@@ -466,6 +466,13 @@ export function verifyDocumentAndOptionallyCalibrate(
         );
       }
 
+      if (contract.category === "loan" && targetBalanceCents < 0) {
+        throw new DocumentValidationError(
+          "calibratedBalanceCents",
+          "Die Restschuld eines Darlehens darf nicht negativ sein.",
+        );
+      }
+
       calibrationEvaluation = evaluateContractCalibration(
         contract,
         targetBalanceCents,

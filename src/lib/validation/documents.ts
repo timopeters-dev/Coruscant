@@ -10,6 +10,7 @@ import {
   optionRightSchema,
   rateChangeScopeSchema,
   repaymentTypeSchema,
+  signedSafeInt,
   specialRepaymentBasisSchema,
 } from "@/lib/validation/contracts";
 
@@ -36,7 +37,8 @@ export const extractedContractSchema = z.object({
   name: nullableOptionalTrimmedString(120),
   provider: nullableOptionalTrimmedString(120),
   category: contractCategorySchema.nullable().optional(),
-  currentBalanceCents: nonNegativeSafeInt.nullable().optional(),
+  // Negativ nur bei Bausparverträgen sinnvoll (Abschlussgebühr); Darlehen prüft contractCreateSchema.
+  currentBalanceCents: signedSafeInt.nullable().optional(),
   balanceAsOfDate: nullableOptionalIsoDate,
   monthlyRateCents: nonNegativeSafeInt.nullable().optional(),
   interestRateBps: basisPointsSchema.nullable().optional(),
@@ -152,7 +154,7 @@ export const aiDocumentExtractionSchema = z
       .nullable()
       .optional()
       .default(null),
-    detectedBalanceCents: nonNegativeSafeInt
+    detectedBalanceCents: signedSafeInt
       .nullable()
       .optional()
       .default(null),
@@ -187,7 +189,7 @@ const documentMetadataBaseObject = z.object({
   taxYear: z.number().int().min(1900).max(2100).nullable().optional(),
   taxCategory: taxCategorySchema.nullable().optional(),
   deductibleAmountCents: nonNegativeSafeInt.nullable().optional(),
-  detectedBalanceCents: nonNegativeSafeInt.nullable().optional(),
+  detectedBalanceCents: signedSafeInt.nullable().optional(),
 });
 
 function validateDeductibleAgainstTotal(
@@ -332,7 +334,7 @@ export type VerifyLoanOptionsPatch = z.infer<typeof verifyLoanOptionsSchema>;
 export const documentVerifySchema = documentMetadataBaseObject
   .extend({
     calibrateContract: z.boolean().default(false),
-    calibratedBalanceCents: nonNegativeSafeInt.nullable().optional(),
+    calibratedBalanceCents: signedSafeInt.nullable().optional(),
     calibrationDate: nullableOptionalIsoDate,
     allowOlderCalibrationDate: z.boolean().default(false),
     applyLoanOptions: z.boolean().default(false),
