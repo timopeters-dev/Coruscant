@@ -210,8 +210,8 @@ export function CockpitWorkspace({
         const reason =
           payload.message ??
           (payload.status === "unconfigured"
-            ? "Verbindung zum Haushaltsbuch ist noch nicht eingerichtet (FINANZ_COCKPIT_URL / EXTERNAL_SUMMARY_TOKEN in .env.local)."
-            : "Haushaltsbuch aktuell nicht erreichbar.");
+            ? "Verbindung zu Bespin ist noch nicht eingerichtet (FINANZ_COCKPIT_URL / EXTERNAL_SUMMARY_TOKEN in .env.local)."
+            : "Bespin aktuell nicht erreichbar.");
         const messageWithFallback = fallbackDate
           ? `${reason} Anzeige nutzt letzten Snapshot vom ${formatTimestampDE(fallbackDate)}.`
           : reason;
@@ -227,8 +227,8 @@ export function CockpitWorkspace({
         setBanner({
           tone: "warning",
           message: latestFetchedAt
-            ? `Haushaltsbuch aktuell nicht erreichbar – Anzeige nutzt den letzten Stand vom ${formatTimestampDE(latestFetchedAt)}.`
-            : "Haushaltsbuch aktuell nicht erreichbar.",
+            ? `Bespin aktuell nicht erreichbar – Anzeige nutzt den letzten Stand vom ${formatTimestampDE(latestFetchedAt)}.`
+            : "Bespin aktuell nicht erreichbar.",
         });
       } finally {
         isSyncingRef.current = false;

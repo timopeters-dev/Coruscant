@@ -422,7 +422,7 @@ function PotModalInner({
             />
             {isLinked ? (
               <p className="text-xs text-[var(--text-secondary)]">
-                Wird beim Abgleich aus dem Haushaltsbuch übernommen.
+                Wird beim Abgleich aus Bespin übernommen.
               </p>
             ) : null}
             {errors.currentEuro ? (
@@ -639,7 +639,7 @@ function PotModalInner({
 
         <div className="space-y-1.5">
           <Label htmlFor="pot-external-link">
-            Mit dem Haushaltsbuch koppeln (optional)
+            Mit Bespin koppeln (optional)
           </Label>
           <Select
             id="pot-external-link"
@@ -670,7 +670,7 @@ function PotModalInner({
           </Select>
           {linkSelectDisabled ? (
             <p className="text-xs text-[var(--text-secondary)]">
-              Erst mit dem Haushaltsbuch abgleichen.
+              Erst mit Bespin abgleichen.
             </p>
           ) : null}
           {initialLinkOutOfScope && externalLinkValue === initialLinkValue ? (

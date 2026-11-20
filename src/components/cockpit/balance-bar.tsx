@@ -28,7 +28,7 @@ const SEGMENT_META = [
   {
     key: "free",
     label: "Frei",
-    description: "Haushalts-Töpfe + Haushaltsbuch",
+    description: "Haushalts-Töpfe + Bespin",
     dotClass: "bg-[var(--emerald)]",
     barClass: "bg-[var(--emerald)]",
   },
@@ -146,7 +146,7 @@ export function BalanceBar({
         {!breakdown.hasData ? (
           <p className="text-xs text-[var(--text-secondary)]">
             Noch keine Aktiva oder Verbindlichkeiten erfasst. Lege Verträge,
-            Immobilien oder Töpfe an oder gleiche mit dem Haushaltsbuch ab.
+            Immobilien oder Töpfe an oder gleiche mit Bespin ab.
           </p>
         ) : null}
 

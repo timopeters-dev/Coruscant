@@ -11,6 +11,8 @@ import {
   NAV_ITEMS,
   THEME_OPTIONS,
 } from "@/components/shell-config";
+import { BespinMark } from "@/components/bespin-mark";
+import { COMPANION_APP_NAME } from "@/lib/companion-app";
 
 const ITEM =
   "group flex cursor-pointer select-none items-center gap-3 rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] transition-colors duration-100 data-[selected=true]:bg-[var(--surface-elevated)] data-[disabled=true]:opacity-40";
@@ -150,7 +152,7 @@ export function CommandMenu({
             {finanzCockpitUrl ? (
               <Command.Group heading="Extern" className={GROUP}>
                 <Command.Item
-                  value="Haushaltsbuch öffnen extern"
+                  value={`${COMPANION_APP_NAME} öffnen extern`}
                   onSelect={() =>
                     run(() =>
                       window.open(finanzCockpitUrl, "_blank", "noopener,noreferrer"),
@@ -159,9 +161,10 @@ export function CommandMenu({
                   className={cn(ITEM)}
                 >
                   <ItemIcon>
-                    <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+                    <BespinMark className="h-3.5 w-3.5" />
                   </ItemIcon>
-                  <span>Haushaltsbuch öffnen</span>
+                  <span>{COMPANION_APP_NAME} öffnen</span>
+                  <ArrowUpRight className="h-3 w-3 text-[var(--text-muted)]" aria-hidden="true" />
                   <EnterHint />
                 </Command.Item>
               </Command.Group>

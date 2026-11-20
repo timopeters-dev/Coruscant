@@ -336,13 +336,13 @@ export function AllokationWorkspace({
           | { message?: string }
           | null;
         setActionError(
-          body?.message ?? "Abgleich mit dem Haushaltsbuch fehlgeschlagen.",
+          body?.message ?? "Abgleich mit Bespin fehlgeschlagen.",
         );
         return;
       }
       router.refresh();
     } catch {
-      setActionError("Netzwerkfehler beim Abgleich mit dem Haushaltsbuch.");
+      setActionError("Netzwerkfehler beim Abgleich mit Bespin.");
     } finally {
       setIsSyncingBridge(false);
     }
@@ -410,7 +410,7 @@ export function AllokationWorkspace({
             Cashflow &amp; Wasserfall
           </h1>
           <p className="text-sm text-[var(--text-secondary)]">
-            Gemeinschaftskonto aus dem Haushaltsbuch, Verträge und priorisierte
+            Gemeinschaftskonto aus Bespin, Verträge und priorisierte
             Ziel-Töpfe.
           </p>
         </div>
@@ -483,7 +483,7 @@ export function AllokationWorkspace({
                   <StatusBadge variant="modeled" detail="Nicht abgeglichen" />
                 </div>
                 <p className="text-xs text-[var(--text-secondary)]">
-                  Markiere im Haushaltsbuch ein Konto als Gemeinschaftskonto (
+                  Markiere in Bespin ein Konto als Gemeinschaftskonto (
                   <code className="font-mono">scope = household</code>) und
                   starte einen Abgleich. Verträge, Objekte und Ziel-Töpfe
                   bleiben bereits nutzbar.
@@ -502,7 +502,7 @@ export function AllokationWorkspace({
                   )}
                   aria-hidden="true"
                 />
-                Mit dem Haushaltsbuch abgleichen
+                Mit Bespin abgleichen
               </Button>
             </CardContent>
           </Card>

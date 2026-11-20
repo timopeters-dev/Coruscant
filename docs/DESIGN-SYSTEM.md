@@ -84,7 +84,7 @@ Reines Schwarz bzw. Weiß als Fläche ist tabu – gefüllte Elemente nutzen imm
 - Beschriftung nennt die Aktion im Aktiv: „Bericht erstellen“, „Jetzt abgleichen“.
 
 ## 9. Sprache
-- Die Begleit-App `finanz_cockpit` heißt in der Oberfläche **Haushaltsbuch** (`COMPANION_APP_NAME` in `src/lib/companion-app.ts`). Technische Namen, Env-Variablen-Namen ausgenommen, erscheinen nicht in sichtbaren Texten.
+- Die Begleit-App `finanz_cockpit` heißt in der Oberfläche **Bespin** (`COMPANION_APP_NAME` in `src/lib/companion-app.ts`). Technische Namen, Env-Variablen-Namen ausgenommen, erscheinen nicht in sichtbaren Texten. Am Link in der Kopfleiste und in der Befehlspalette steht ihre Bildmarke (`src/components/bespin-mark.tsx`, Wolkenstadt, einfarbig).
 - Datenübernahme heißt durchgängig **Abgleich / abgleichen**, nicht „Sync“.
 
 ## 10. Komponenten-Bausteine (`src/components/ui/`)
