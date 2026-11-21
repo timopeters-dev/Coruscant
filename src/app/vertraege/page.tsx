@@ -1,20 +1,19 @@
-import { VertraegeWorkspace } from "@/components/vertraege/vertraege-workspace";
-import { listPots } from "@/db/queries/allocation";
-import { listContracts, listProperties } from "@/db/queries/contracts";
-import { type DocumentRow, listDocuments } from "@/db/queries/documents";
+import { VertraegeWorkspace } from "@/frontend/vertraege/vertraege-workspace";
+import { listPots } from "@/backend/db/queries/pots";
+import { listContracts } from "@/backend/db/queries/contracts";
+import { listProperties } from "@/backend/db/queries/properties";
+import { type DocumentRow, listDocuments } from "@/backend/db/queries/documents";
 import {
   type ContractProjectionResult,
   projectContractBalance,
-} from "@/lib/domain/contracts";
-import {
-  buildContractOverview,
-  type ContractOverview,
-} from "@/lib/domain/contract-series";
-import { getTodayIsoDate } from "@/lib/domain/date";
-import { summarizeProperties } from "@/lib/domain/properties";
-import { summarizeRentalPortfolio } from "@/lib/domain/rental";
-import { isDevMode } from "@/lib/server/dev-mode";
-import { parsePurchaseDraft } from "@/lib/validation/property-draft";
+} from "@/domain/contracts/contract";
+import { buildContractOverview } from "@/domain/contracts/overview";
+import type { ContractOverview } from "@/domain/contracts/amortization-types";
+import { getTodayIsoDate } from "@/domain/core/date";
+import { summarizeProperties } from "@/domain/properties/properties";
+import { summarizeRentalPortfolio } from "@/domain/properties/rental";
+import { isDevMode } from "@/backend/dev-mode";
+import { parsePurchaseDraft } from "@/validation/property-draft";
 
 export const dynamic = "force-dynamic";
 

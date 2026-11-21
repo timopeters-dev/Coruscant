@@ -1,179 +1,49 @@
-import { NextResponse } from "next/server";
+import { getPropertyById, updatePropertyImagePath } from "@/backend/db/queries/properties";
+import { PropertyNotFoundError } from "@/backend/db/queries/property-valuations";
+import { NotFoundError } from "@/backend/errors";
+import { fileResponse, json, readUploadedFile, route, type RouteContext } from "@/backend/http";
 import {
-  getPropertyById,
-  updatePropertyImagePath,
-} from "@/db/queries/contracts";
-import {
-  badRequestResponse,
-  internalErrorResponse,
-  notFoundResponse,
-} from "@/lib/api/http";
-import {
-  deletePropertyImageIfExists,
-  InvalidPropertyImageError,
+  deletePropertyImageQuietly,
   MAX_PROPERTY_IMAGE_BYTES,
-  PropertyImagePathTraversalError,
   PropertyImageTooLargeError,
-  readPropertyImageFile,
+  readPropertyImageOrNotFound,
   savePropertyImageFile,
-} from "@/lib/storage/property-image-storage";
+} from "@/backend/storage/property-image-storage";
 
 export const dynamic = "force-dynamic";
 
-interface RouteContext {
-  params: Promise<{ id: string }>;
-}
+export const GET = route(async (_request, { params }: RouteContext) => {
+  const imagePath = getPropertyById((await params).id)?.imagePath;
+  if (!imagePath) throw new NotFoundError("Kein Objektbild vorhanden.");
+  const { buffer, mimeType } = readPropertyImageOrNotFound(imagePath);
+  return fileResponse(buffer, { "Content-Type": mimeType, "Content-Length": String(buffer.byteLength) });
+});
 
-export async function GET(
-  _request: Request,
-  context: RouteContext,
-): Promise<NextResponse> {
+export const POST = route(async (request, { params }: RouteContext) => {
+  const { id } = await params;
+  if (!getPropertyById(id)) throw new PropertyNotFoundError();
+
+  const file = await readUploadedFile(request, {
+    invalidForm: "Ungültige multipart/form-data-Anfrage für den Bildupload.",
+    missingFile: "Bitte eine Bilddatei im Feld 'file' hochladen.",
+  });
+  if (file.size > MAX_PROPERTY_IMAGE_BYTES) throw new PropertyImageTooLargeError();
+
+  const saved = savePropertyImageFile(Buffer.from(await file.arrayBuffer()), file.type);
+  let updated;
   try {
-    const { id } = await context.params;
-    const property = getPropertyById(id);
-    if (!property || !property.imagePath) {
-      return notFoundResponse("Kein Objektbild vorhanden.");
-    }
-
-    const { buffer, mimeType } = readPropertyImageFile(property.imagePath);
-    return new NextResponse(new Uint8Array(buffer), {
-      status: 200,
-      headers: {
-        "Content-Type": mimeType,
-        "Content-Length": String(buffer.byteLength),
-        "X-Content-Type-Options": "nosniff",
-        "Cache-Control": "private, no-store",
-      },
-    });
-  } catch (error) {
-    if (error instanceof PropertyImagePathTraversalError) {
-      return notFoundResponse("Kein Objektbild vorhanden.");
-    }
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "ENOENT"
-    ) {
-      return notFoundResponse("Bilddatei nicht gefunden.");
-    }
-    return internalErrorResponse();
+    updated = updatePropertyImagePath(id, saved.storagePath);
+  } finally {
+    if (!updated) deletePropertyImageQuietly(saved.storagePath);
   }
-}
+  if (!updated) throw new PropertyNotFoundError();
+  if (updated.previousImagePath !== saved.storagePath) deletePropertyImageQuietly(updated.previousImagePath);
+  return json({ property: updated.property });
+});
 
-export async function POST(
-  request: Request,
-  context: RouteContext,
-): Promise<NextResponse> {
-  try {
-    const { id } = await context.params;
-    const existing = getPropertyById(id);
-    if (!existing) {
-      return notFoundResponse("Immobilie nicht gefunden.");
-    }
-
-    let formData: FormData;
-    try {
-      formData = await request.formData();
-    } catch {
-      return badRequestResponse(
-        "Ungültige multipart/form-data-Anfrage für den Bildupload.",
-      );
-    }
-
-    const fileEntry = formData.get("file");
-    if (!fileEntry || !(fileEntry instanceof Blob)) {
-      return badRequestResponse("Bitte eine Bilddatei im Feld 'file' hochladen.");
-    }
-
-    if (fileEntry.size > MAX_PROPERTY_IMAGE_BYTES) {
-      return NextResponse.json(
-        { error: new PropertyImageTooLargeError().message },
-        { status: 413 },
-      );
-    }
-
-    const arrayBuffer = await fileEntry.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    let saved: ReturnType<typeof savePropertyImageFile>;
-    try {
-      saved = savePropertyImageFile(buffer, fileEntry.type);
-    } catch (error) {
-      if (error instanceof PropertyImageTooLargeError) {
-        return NextResponse.json({ error: error.message }, { status: 413 });
-      }
-      if (error instanceof InvalidPropertyImageError) {
-        return badRequestResponse(error.message);
-      }
-      throw error;
-    }
-
-    let updatedResult: ReturnType<typeof updatePropertyImagePath>;
-    try {
-      updatedResult = updatePropertyImagePath(id, saved.storagePath);
-    } catch (error) {
-      try {
-        deletePropertyImageIfExists(saved.storagePath);
-      } catch {
-        // Best-effort rollback of written file
-      }
-      throw error;
-    }
-
-    if (!updatedResult) {
-      try {
-        deletePropertyImageIfExists(saved.storagePath);
-      } catch {
-        // Best-effort rollback
-      }
-      return notFoundResponse("Immobilie nicht gefunden.");
-    }
-
-    if (
-      updatedResult.previousImagePath &&
-      updatedResult.previousImagePath !== saved.storagePath
-    ) {
-      try {
-        deletePropertyImageIfExists(updatedResult.previousImagePath);
-      } catch {
-        // Best-effort cleanup of replaced image
-      }
-    }
-
-    return NextResponse.json(
-      { property: updatedResult.property },
-      { status: 200 },
-    );
-  } catch {
-    return internalErrorResponse();
-  }
-}
-
-export async function DELETE(
-  _request: Request,
-  context: RouteContext,
-): Promise<NextResponse> {
-  try {
-    const { id } = await context.params;
-    const updatedResult = updatePropertyImagePath(id, null);
-    if (!updatedResult) {
-      return notFoundResponse("Immobilie nicht gefunden.");
-    }
-
-    if (updatedResult.previousImagePath) {
-      try {
-        deletePropertyImageIfExists(updatedResult.previousImagePath);
-      } catch {
-        // Best-effort cleanup
-      }
-    }
-
-    return NextResponse.json(
-      { property: updatedResult.property },
-      { status: 200 },
-    );
-  } catch {
-    return internalErrorResponse();
-  }
-}
+export const DELETE = route(async (_request, { params }: RouteContext) => {
+  const updated = updatePropertyImagePath((await params).id, null);
+  if (!updated) throw new PropertyNotFoundError();
+  deletePropertyImageQuietly(updated.previousImagePath);
+  return json({ property: updated.property });
+});

@@ -1,7 +1,7 @@
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     const { startBackgroundScheduler } = await import(
-      "@/lib/server/scheduler"
+      "@/backend/jobs/scheduler"
     );
     startBackgroundScheduler();
   }

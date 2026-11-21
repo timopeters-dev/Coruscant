@@ -1,90 +1,36 @@
-import { NextResponse } from "next/server";
 import { ZodError } from "zod";
-import {
-  deleteContract,
-  getContractById,
-  LinkedPropertyNotFoundError,
-  updateContract,
-} from "@/db/queries/contracts";
-import {
-  badRequestResponse,
-  internalErrorResponse,
-  notFoundResponse,
-  parseJsonBody,
-  validationErrorResponse,
-} from "@/lib/api/http";
-import { contractUpdateSchema } from "@/lib/validation/contracts";
+import { deleteContract, getContractById, updateContract } from "@/backend/db/queries/contracts";
+import { NotFoundError } from "@/backend/errors";
+import { json, readJson, route, validationError, type RouteContext } from "@/backend/http";
+import { contractUpdateSchema } from "@/validation/contracts";
 
 export const dynamic = "force-dynamic";
 
-interface RouteContext {
-  params: Promise<{ id: string }>;
-}
+const notFound = () => new NotFoundError("Vertrag nicht gefunden.");
 
-export async function GET(
-  _request: Request,
-  context: RouteContext,
-): Promise<NextResponse> {
+export const GET = route(async (_request, { params }: RouteContext) => {
+  const contract = getContractById((await params).id);
+  if (!contract) throw notFound();
+  return json({ contract });
+});
+
+export const PATCH = route(async (request, { params }: RouteContext) => {
+  const patch = await readJson(request, contractUpdateSchema);
+  let contract;
   try {
-    const { id } = await context.params;
-    const contract = getContractById(id);
-    if (!contract) {
-      return notFoundResponse("Vertrag nicht gefunden.");
-    }
-    return NextResponse.json({ contract }, { status: 200 });
-  } catch {
-    return internalErrorResponse();
-  }
-}
-
-export async function PATCH(
-  request: Request,
-  context: RouteContext,
-): Promise<NextResponse> {
-  const body = await parseJsonBody(request);
-  if (!body.ok) {
-    return body.response;
-  }
-
-  const parsed = contractUpdateSchema.safeParse(body.data);
-  if (!parsed.success) {
-    return validationErrorResponse(parsed.error);
-  }
-
-  try {
-    const { id } = await context.params;
-    const contract = updateContract(id, parsed.data);
-    if (!contract) {
-      return notFoundResponse("Vertrag nicht gefunden.");
-    }
-    return NextResponse.json({ contract }, { status: 200 });
+    contract = updateContract((await params).id, patch);
   } catch (error) {
-    if (error instanceof LinkedPropertyNotFoundError) {
-      return badRequestResponse("Verknüpfte Immobilie existiert nicht.", {
-        linkedPropertyId: "Unbekannte Immobilie.",
-      });
-    }
     // Regeln, die erst am zusammengeführten Datensatz greifen (z. B. negative
-    // Restschuld nach Wechsel Bausparvertrag -> Darlehen), als 400 melden.
-    if (error instanceof ZodError) {
-      return validationErrorResponse(error);
-    }
-    return internalErrorResponse();
+    // Restschuld nach Wechsel Bausparvertrag -> Darlehen), sind Eingabefehler.
+    if (error instanceof ZodError) throw validationError(error);
+    throw error;
   }
-}
+  if (!contract) throw notFound();
+  return json({ contract });
+});
 
-export async function DELETE(
-  _request: Request,
-  context: RouteContext,
-): Promise<NextResponse> {
-  try {
-    const { id } = await context.params;
-    const deletedId = deleteContract(id);
-    if (!deletedId) {
-      return notFoundResponse("Vertrag nicht gefunden.");
-    }
-    return NextResponse.json({ deletedId }, { status: 200 });
-  } catch {
-    return internalErrorResponse();
-  }
-}
+export const DELETE = route(async (_request, { params }: RouteContext) => {
+  const deletedId = deleteContract((await params).id);
+  if (!deletedId) throw notFound();
+  return json({ deletedId });
+});

@@ -1,36 +1,14 @@
-import { NextResponse } from "next/server";
-import { loadAdvisorSensitiveStrings } from "@/db/queries/advisor-report";
-import { checkAdvisorQuestion } from "@/lib/domain/advisor-report-anonymize";
-import { advisorQuestionCheckSchema } from "@/lib/validation/advisor-report";
+import { loadAdvisorSensitiveStrings } from "@/backend/db/queries/advisor-report";
+import { json } from "@/backend/http";
+import { checkAdvisorQuestion } from "@/domain/report/pii-check";
+import { advisorQuestionCheckSchema } from "@/validation/advisor-report";
 
-const NO_STORE_HEADERS = {
-  "Cache-Control": "no-store",
-} as const;
+const NO_STORE = { "Cache-Control": "no-store" } as const;
 
-export async function POST(request: Request) {
-  let rawBody: unknown;
-  try {
-    rawBody = await request.json();
-  } catch {
-    return NextResponse.json(
-      { error: "invalid_input" },
-      { status: 400, headers: NO_STORE_HEADERS },
-    );
-  }
-
-  const parsed = advisorQuestionCheckSchema.safeParse(rawBody);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "invalid_input" },
-      { status: 400, headers: NO_STORE_HEADERS },
-    );
-  }
-
-  const sensitive = loadAdvisorSensitiveStrings();
-  const result = checkAdvisorQuestion(parsed.data.text, sensitive);
-
-  return NextResponse.json(
-    { ok: result.ok, issues: result.issues },
-    { status: 200, headers: NO_STORE_HEADERS },
-  );
+/** Prüft eine Berater-Frage auf personenbezogene Daten; der Text wird nirgends gespeichert. */
+export async function POST(request: Request): Promise<Response> {
+  const parsed = advisorQuestionCheckSchema.safeParse(await request.json().catch(() => undefined));
+  if (!parsed.success) return json({ error: "invalid_input" }, 400, NO_STORE);
+  const { ok, issues } = checkAdvisorQuestion(parsed.data.text, loadAdvisorSensitiveStrings());
+  return json({ ok, issues }, 200, NO_STORE);
 }

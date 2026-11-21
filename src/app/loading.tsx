@@ -1,5 +1,5 @@
-import { CARD_SURFACE } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { CARD_SURFACE } from "@/frontend/ui/card";
+import { cn } from "@/frontend/ui/cn";
 
 /**
  * Lade-Skelett beim Seitenwechsel: ruhiger Shimmer in der Grundform einer Seite

@@ -15,8 +15,12 @@
   - Niemals selbst auf `main` pushen oder mergen ohne explizite Freigabe.
 
 ## 2. Architektur-Grenzen
-- **Domänen-Isolation (`src/lib/domain/`):** Alle Berechnungen (Wasserfall-Verteilung, Vertrags-Fortschreibung, Cashflow, Bilanz-Summen) gehören hierhin. Isolation (kein Next/React/DB/fs) und „DB-Libs nur in `src/db/`“ erzwingt `pnpm lint`.
-- **Datenbank (`src/db/`):** Alle SQLite-Zugriffe laufen über Drizzle ORM in `src/db/`.
+Struktur und Schichten: `docs/ARCHITECTURE.md` §4. Die Grenzen erzwingt `pnpm lint`.
+- **`src/app/`** nur Routing: Seiten und API-Routen verdrahten, keine Logik. API-Routen nutzen `route()`/`readJson()` aus `src/backend/http.ts`; erwartbare Fehler sind `ApiError`s (`src/backend/errors.ts`).
+- **`src/frontend/`** React-Oberfläche je Seite; vom Backend nur `import type`. API-Aufrufe über `src/frontend/lib/api.ts`.
+- **`src/backend/`** Server: `db/` (einziger Ort für Drizzle/SQLite), `services/`, `integrations/`, `storage/`, `jobs/`.
+- **Domänen-Isolation (`src/domain/<bereich>/`):** Alle Berechnungen (Wasserfall-Verteilung, Vertrags-Fortschreibung, Cashflow, Bilanz-Summen) gehören hierhin – ohne Next/React/DB/fs/Netzwerk.
+- **`src/validation/`** zod-Schemas, geteilt von API und Formularen: Fachregeln nur dort prüfen, nicht zusätzlich von Hand.
 - **Validierung & KI (`zod`):** API-Inputs und strukturierte KI-Outputs (z. B. Dokumenten-Extraktion) werden strikt über `zod`-Schemas validiert.
 - **Generik statt Hardcoding:** Keine Sonderfälle für einzelne Kredite, Personen oder Verträge im Code – alles wird über generische DB-Datensätze und Regeln modelliert.
 
@@ -24,10 +28,10 @@
 - **Geldbeträge:** Strikte Integer-Cent-Arithmetik (`amountCents`) – niemals `float` für Währungsberechnungen verwenden.
 - **Zinssätze:** Strikte Integer-Basispunkte (`interestRateBps`, z. B. `350` = `3,50 %`).
 - **KI-Konfiguration:** Modell nur über `GEMINI_MODEL` (Hartcodieren verhindert `pnpm lint`) hinter einem abstrakten KI-Adapter. KI mutiert Bestandsdaten niemals stillschweigend (immer 1-Klick-Bestätigung durch den Nutzer).
-- **Design-System (`docs/DESIGN-SYSTEM.md`):** „Eichamt“ – Tabellenziffern für alle Beträge, Daten nur über `src/lib/domain/date-format.ts` (`TT.MM.JJJJ` / `MM.JJJJ`), klare visuelle Trennung von *Geeicht/Ist* (solide) vs. *Modelliert/Schätzung* (`border-dashed`) vs. *KI-Vorschlag* (Amber).
+- **Design-System (`docs/DESIGN-SYSTEM.md`):** „Eichamt“ – Tabellenziffern für alle Beträge, Daten nur über `src/domain/core/date-format.ts` (`TT.MM.JJJJ` / `MM.JJJJ`), klare visuelle Trennung von *Geeicht/Ist* (solide) vs. *Modelliert/Schätzung* (`border-dashed`) vs. *KI-Vorschlag* (Amber).
 
 ## 4. Tests, Datenschutz & Sicherheit
-- Für jede Domänen-Logik neben Happy-Paths zwingend Negativ- und Grenzfalltests (0-Cent-Werte, Überzahlungen, Rundungsgrenzen, ungültige KI-Outputs) in `*.test.ts` abdecken.
+- Für jede Domänen-Logik neben Happy-Paths zwingend Negativ- und Grenzfalltests (0-Cent-Werte, Überzahlungen, Rundungsgrenzen, ungültige KI-Outputs) in `tests/` abdecken (spiegelt `src/`, z. B. `src/domain/core/money.ts` → `tests/domain/core/money.test.ts`; Helfer in `tests/helpers/`).
 - **Keine echten Daten in Code, Tests oder Kommentaren:** Ausschließlich eindeutig fiktive Dummy-Werte nutzen (z. B. *Musterbank*, *Musterstraße 1*).
 - `data/*.db*`, `data/backups/`, `data/documents/`, `.env*`, `*.pdf` und `secrets/` bleiben in `.gitignore` ausgeschlossen.
 

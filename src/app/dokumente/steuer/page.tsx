@@ -1,8 +1,8 @@
-import { TaxYearOverview } from "@/components/steuer/tax-year-overview";
-import { getTaxYearOverview, listTaxCandidateDocuments } from "@/db/queries/tax";
-import { getTodayIsoDate } from "@/lib/domain/date";
-import { listTaxYears, resolveDefaultTaxYear } from "@/lib/domain/tax-summary";
-import { parseTaxYearParam } from "@/lib/validation/tax";
+import { TaxYearOverview } from "@/frontend/steuer/tax-year-overview";
+import { getTaxYearOverview, listTaxCandidateDocuments } from "@/backend/db/queries/tax";
+import { getTodayIsoDate } from "@/domain/core/date";
+import { listTaxYears, resolveDefaultTaxYear } from "@/domain/tax/summary";
+import { parseTaxYearParam } from "@/validation/tax";
 
 export const dynamic = "force-dynamic";
 
